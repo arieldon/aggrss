@@ -113,10 +113,16 @@ ignore_comment(Tokenizer *tokenizer)
 	}
 }
 
+internal bool
+isnamechar(char c)
+{
+	return isalnum(c) || c == ':' || c == '_' || c == '-' || c == '.';
+}
+
 internal RSS_Token_Node *
 tokenize_name(Tokenizer *tokenizer)
 {
-	while (more_source_exists(tokenizer) && isalnum(peek_char(tokenizer))) {
+	while (more_source_exists(tokenizer) && isnamechar(peek_char(tokenizer))) {
 		eat_char(tokenizer);
 	}
 	return make_token(tokenizer, RSS_TOKEN_NAME);
