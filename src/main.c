@@ -5,9 +5,11 @@
 #include "rss.h"
 
 global char *type_to_str[] = {
+
 	[RSS_TOKEN_EQUAL]           = "RSS_TOKEN_EQUAL",
 	[RSS_TOKEN_STAG_OPEN]       = "RSS_TOKEN_STAG_OPEN",
 	[RSS_TOKEN_ETAG_OPEN]       = "RSS_TOKEN_ETAG_OPEN",
+	[RSS_TOKEN_EMPTY_TAG_CLOSE] = "RSS_TOKEN_EMPTY_TAG_CLOSE",
 	[RSS_TOKEN_TAG_CLOSE]       = "RSS_TOKEN_TAG_CLOSE",
 	[RSS_TOKEN_COMMENT]         = "RSS_TOKEN_COMMENT",
 	[RSS_TOKEN_PI_OPEN]         = "RSS_TOKEN_PI_OPEN",

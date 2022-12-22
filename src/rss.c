@@ -186,6 +186,10 @@ start:
 			return match_char(tokenizer, '>')
 				? make_token(tokenizer, RSS_TOKEN_PI_CLOSE)
 				: make_error_token(tokenizer, "unexpected '?'");
+		case '/':
+			return match_char(tokenizer, '>')
+				? make_token(tokenizer, RSS_TOKEN_EMPTY_TAG_CLOSE)
+				: make_error_token(tokenizer, "unexpected '/'");
 		default:
 			return make_error_token(tokenizer, "unexpected character");
 		}
@@ -332,7 +336,18 @@ parse_tag(Parser *parser)
 	}
 
 	// NOTE(ariel) Parse close tag that corresponds to open tag.
-	expect_token(parser, RSS_TOKEN_TAG_CLOSE, "expected '>'");
+	bool empty_tag = false;
+	switch (peek_token(parser)->type) {
+	case RSS_TOKEN_TAG_CLOSE:
+		eat_token(parser);
+		break;
+	case RSS_TOKEN_EMPTY_TAG_CLOSE:
+		empty_tag = true;
+		eat_token(parser);
+		break;
+	default:
+		generate_error_message(parser, "expected '>' or '/>'");
+	}
 
 	// TODO(ariel) Parse content (including the next tag) if it exists.
 	if (peek_token(parser)->type == RSS_TOKEN_CONTENT) {
@@ -345,10 +360,12 @@ parse_tag(Parser *parser)
 		parse_tag(parser);
 	}
 
-	// TODO(ariel) Parse end tag that matches start tag.
-	expect_token(parser, RSS_TOKEN_ETAG_OPEN, "expected '</'");
-	expect_token(parser, RSS_TOKEN_NAME, "expected name");
-	expect_token(parser, RSS_TOKEN_TAG_CLOSE, "expected '>'");
+	if (!empty_tag) {
+		// TODO(ariel) Parse end tag that matches start tag.
+		expect_token(parser, RSS_TOKEN_ETAG_OPEN, "expected '</'");
+		expect_token(parser, RSS_TOKEN_NAME, "expected name");
+		expect_token(parser, RSS_TOKEN_TAG_CLOSE, "expected '>'");
+	}
 }
 
 RSS_Tree

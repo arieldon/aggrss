@@ -14,8 +14,9 @@ typedef enum {
 	RSS_TOKEN_DECL_OPEN, // <!
 	RSS_TOKEN_PI_OPEN,   // <?
 
-	RSS_TOKEN_TAG_CLOSE, // >
-	RSS_TOKEN_PI_CLOSE,  // ?>
+	RSS_TOKEN_EMPTY_TAG_CLOSE, // />
+	RSS_TOKEN_TAG_CLOSE,       //  >
+	RSS_TOKEN_PI_CLOSE,        // ?>
 
 	RSS_TOKEN_COMMENT,   // <!-- -->
 
