@@ -241,7 +241,8 @@ tokenize_rss(Arena *arena, String source)
 typedef struct {
 	Arena *arena;
 	RSS_Token_List tokens;
-	RSS_Token_Node *cursor;
+	RSS_Token_Node *current_token;
+	RSS_Token_Node *previous_token;
 	RSS_Tree tree;
 } Parser;
 
@@ -254,17 +255,19 @@ make_tree_node(Parser *parser)
 }
 
 internal RSS_Node_Attribute *
-make_attribute(Parser *parser)
+make_attribute(Parser *parser, RSS_Token_Node *name, RSS_Token_Node *value)
 {
-	RSS_Node_Attribute *node = arena_alloc(parser->arena, sizeof(RSS_Node_Attribute));
-	MEM_ZERO_STRUCT(node);
-	return node;
+	RSS_Node_Attribute *attr = arena_alloc(parser->arena, sizeof(RSS_Node_Attribute));
+	MEM_ZERO_STRUCT(attr);
+	attr->name = name->text;
+	attr->value = value->text;
+	return attr;
 }
 
 internal bool
 more_tokens_exist(Parser *parser)
 {
-	return parser->cursor->next;
+	return parser->current_token->next;
 }
 
 internal void
@@ -278,28 +281,29 @@ generate_error_message(Parser *parser, char *message)
 internal inline RSS_Token_Node *
 peek_token(Parser *parser)
 {
-	assert(parser->cursor);
-	return parser->cursor;
+	assert(parser->current_token);
+	return parser->current_token;
 }
 
 internal inline RSS_Token_Node *
 eat_token(Parser *parser)
 {
 	assert(more_tokens_exist(parser));
-	parser->cursor = parser->cursor->next;
-	return parser->cursor;
+	parser->previous_token = parser->current_token;
+	parser->current_token = parser->current_token->next;
+	return parser->current_token;
 }
 
-internal bool
+internal RSS_Token_Node *
 match_token(Parser *parser, RSS_Token_Type type)
 {
 	if (!more_tokens_exist(parser)) {
-		return false;
-	} else if (parser->cursor->type != type) {
-		return false;
+		return 0;
+	} else if (parser->current_token->type != type) {
+		return 0;
 	} else {
 		eat_token(parser);
-		return true;
+		return parser->previous_token;
 	}
 }
 
@@ -314,31 +318,40 @@ expect_token(Parser *parser, RSS_Token_Type type, char *message)
 internal inline void
 parse_processing_instructions(Parser *parser)
 {
-	// TODO(ariel) Handle processing instructions -- or ignore them.
+	// NOTE(ariel) I don't care for processing instructions in this parser, so I
+	// ignore them -- they're not inserted into the parse tree. They're still
+	// expected at the beginning of an RSS file though.
 	expect_token(parser, RSS_TOKEN_PI_OPEN, "expected <?");
 	expect_token(parser, RSS_TOKEN_NAME, "expected name");
 	while (match_token(parser, RSS_TOKEN_NAME)) {
-		// TODO(ariel) Push onto this tag's list of attributes.
 		expect_token(parser, RSS_TOKEN_EQUAL, "expected =");
 		expect_token(parser, RSS_TOKEN_ATTRIBUTE_VALUE, "expected attribute value");
 	}
 	expect_token(parser, RSS_TOKEN_PI_CLOSE, "expected ?>");
 }
 
-internal void
+internal RSS_Tree_Node *
 parse_tag(Parser *parser)
 {
+	RSS_Tree_Node *node = make_tree_node(parser);
+
 	// NOTE(ariel) Parse start tag.
 	expect_token(parser, RSS_TOKEN_STAG_OPEN, "expected '<'");
 
 	// NOTE(ariel) Parse tag name.
 	expect_token(parser, RSS_TOKEN_NAME, "expected name");
+	node->token = parser->previous_token;
 
 	// NOTE(ariel) Parse attributes if they exist.
 	while (match_token(parser, RSS_TOKEN_NAME)) {
-		// TODO(ariel) Push onto this tag's list of attributes.
+		RSS_Token_Node *attr_name = parser->previous_token;
+
 		expect_token(parser, RSS_TOKEN_EQUAL, "expected '='");
 		expect_token(parser, RSS_TOKEN_ATTRIBUTE_VALUE, "expected attribute value");
+		RSS_Token_Node *attr_value = parser->previous_token;
+
+		RSS_Node_Attribute *attr = make_attribute(parser, attr_name, attr_value);
+		STACK_PUSH(node->attrs.first, attr);
 	}
 
 	// NOTE(ariel) Parse close tag that corresponds to open tag.
@@ -355,23 +368,34 @@ parse_tag(Parser *parser)
 		generate_error_message(parser, "expected '>' or '/>'");
 	}
 
-	// TODO(ariel) Parse content (including the next tag) if it exists.
+	// NOTE(ariel) Parse content if it exists.
 	if (peek_token(parser)->type == RSS_TOKEN_CONTENT) {
+		// TODO(ariel) Create node for content and connect to tree.
 		eat_token(parser);
 	}
 
 	// NOTE(ariel) Match start tag of child tag if it exists.
-	// TODO(ariel) Handle multiple children.
 	while (peek_token(parser)->type == RSS_TOKEN_STAG_OPEN) {
-		parse_tag(parser);
+		RSS_Tree_Node *child = parse_tag(parser);
+		if (!node->first_child) {
+			node->first_child = child;
+		}
+		node->last_child = child;
 	}
 
 	if (!empty_tag) {
-		// TODO(ariel) Parse end tag that matches start tag.
 		expect_token(parser, RSS_TOKEN_ETAG_OPEN, "expected '</'");
 		expect_token(parser, RSS_TOKEN_NAME, "expected name");
 		expect_token(parser, RSS_TOKEN_TAG_CLOSE, "expected '>'");
 	}
+
+	while (peek_token(parser)->type == RSS_TOKEN_STAG_OPEN) {
+		RSS_Tree_Node *sibling = parse_tag(parser);
+		sibling->prev_sibling = node;
+		node->next_sibling = sibling;
+	}
+
+	return node;
 }
 
 RSS_Tree
@@ -380,10 +404,12 @@ parse_rss(Arena *arena, RSS_Token_List tokens)
 	Parser parser = {
 		.arena = arena,
 		.tokens = tokens,
-		.cursor = tokens.first,
+		.current_token = tokens.first,
 	};
+
 	parse_processing_instructions(&parser);
-	parse_tag(&parser);
-	assert(parser.cursor->type == RSS_TOKEN_END);
+	parser.tree.root = parse_tag(&parser);
+
+	assert(parser.current_token->type == RSS_TOKEN_END);
 	return parser.tree;
 }

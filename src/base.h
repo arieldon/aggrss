@@ -59,6 +59,25 @@ typedef   double   f64;
 	( \
 		SLL_TEMPLATE_PUSH_BACK(f, l, n, next) \
 	)
+#define SLL_TEMPLATE_PUSH_FRONT(f, l, n, next) \
+	( \
+		(f) == 0 ? \
+		(f) = (l) = (n), (n)->next = 0 : \
+		(n)->next = (f), (f) = (n) \
+	)
+#define SSL_PUSH_FRONT(f, l, n) \
+	( \
+		SLL_TEMPLATE_PUSH_BACK(f, l, n, next) \
+	)
+
+#define STACK_TEMPLATE_PUSH(f, n, next) \
+	( \
+		(n)->next = (f), (f) = (n) \
+	)
+#define STACK_PUSH(f, n) \
+	( \
+		STACK_TEMPLATE_PUSH(f, n, next) \
+	)
 
 #ifdef DEBUG
 #if __GNUC__

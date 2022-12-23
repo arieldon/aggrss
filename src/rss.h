@@ -40,9 +40,8 @@ typedef struct {
 	RSS_Token_Node *last;
 } RSS_Token_List;
 
-typedef struct {
+typedef struct RSS_Node_Attribute {
 	struct RSS_Node_Attribute *next;
-	RSS_Token_Node *token;
 	String name;
 	String value;
 } RSS_Node_Attribute;
@@ -52,11 +51,11 @@ typedef struct {
 } RSS_Attribute_List;
 
 typedef struct RSS_Tree_Node {
-	struct RSS_Tree_Node *first;
-	struct RSS_Tree_Node *last;
-	struct RSS_Tree_Node *prev;
-	struct RSS_Tree_Node *next;
-	RSS_Attribute_List *attrs;
+	struct RSS_Tree_Node *first_child;
+	struct RSS_Tree_Node *last_child;
+	struct RSS_Tree_Node *prev_sibling;
+	struct RSS_Tree_Node *next_sibling;
+	RSS_Attribute_List attrs;
 	RSS_Token_Node *token;
 } RSS_Tree_Node;
 
