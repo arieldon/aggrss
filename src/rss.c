@@ -398,6 +398,42 @@ parse_tag(Parser *parser)
 	return node;
 }
 
+#ifdef PRINT_RSS_TREE
+global char *type_to_str[] = {
+	[RSS_TOKEN_EQUAL]           = "RSS_TOKEN_EQUAL",
+	[RSS_TOKEN_STAG_OPEN]       = "RSS_TOKEN_STAG_OPEN",
+	[RSS_TOKEN_ETAG_OPEN]       = "RSS_TOKEN_ETAG_OPEN",
+	[RSS_TOKEN_EMPTY_TAG_CLOSE] = "RSS_TOKEN_EMPTY_TAG_CLOSE",
+	[RSS_TOKEN_TAG_CLOSE]       = "RSS_TOKEN_TAG_CLOSE",
+	[RSS_TOKEN_COMMENT]         = "RSS_TOKEN_COMMENT",
+	[RSS_TOKEN_PI_OPEN]         = "RSS_TOKEN_PI_OPEN",
+	[RSS_TOKEN_PI_CLOSE]        = "RSS_TOKEN_PI_CLOSE",
+	[RSS_TOKEN_NAME]            = "RSS_TOKEN_NAME",
+	[RSS_TOKEN_ATTRIBUTE_VALUE] = "RSS_TOKEN_ATTRIBUTE_VALUE",
+	[RSS_TOKEN_CONTENT]         = "RSS_TOKEN_CONTENT",
+	[RSS_TOKEN_ERROR]           = "RSS_TOKEN_ERROR",
+	[RSS_TOKEN_END]             = "RSS_TOKEN_END",
+};
+
+internal void
+print_rss_tree_recursively(RSS_Tree_Node *node, i8 layer)
+{
+	while (node) {
+		for (int i = 0; i < layer; ++i) putc('\t', stderr);
+		fprintf(stderr, "[%s] %.*s\n",
+			type_to_str[node->token->type], node->token->text.len, node->token->text.str);
+		print_rss_tree_recursively(node->first_child, layer + 1);
+		node = node->next_sibling;
+	}
+}
+
+internal void
+print_rss_tree(RSS_Tree tree)
+{
+	print_rss_tree_recursively(tree.root, 0);
+}
+#endif
+
 RSS_Tree
 parse_rss(Arena *arena, RSS_Token_List tokens)
 {
@@ -409,6 +445,10 @@ parse_rss(Arena *arena, RSS_Token_List tokens)
 
 	parse_processing_instructions(&parser);
 	parser.tree.root = parse_tag(&parser);
+
+#ifdef PRINT_RSS_TREE
+	print_rss_tree(parser.tree);
+#endif
 
 	assert(parser.current_token->type == RSS_TOKEN_END);
 	return parser.tree;

@@ -4,23 +4,6 @@
 #include "err.h"
 #include "rss.h"
 
-global char *type_to_str[] = {
-
-	[RSS_TOKEN_EQUAL]           = "RSS_TOKEN_EQUAL",
-	[RSS_TOKEN_STAG_OPEN]       = "RSS_TOKEN_STAG_OPEN",
-	[RSS_TOKEN_ETAG_OPEN]       = "RSS_TOKEN_ETAG_OPEN",
-	[RSS_TOKEN_EMPTY_TAG_CLOSE] = "RSS_TOKEN_EMPTY_TAG_CLOSE",
-	[RSS_TOKEN_TAG_CLOSE]       = "RSS_TOKEN_TAG_CLOSE",
-	[RSS_TOKEN_COMMENT]         = "RSS_TOKEN_COMMENT",
-	[RSS_TOKEN_PI_OPEN]         = "RSS_TOKEN_PI_OPEN",
-	[RSS_TOKEN_PI_CLOSE]        = "RSS_TOKEN_PI_CLOSE",
-	[RSS_TOKEN_NAME]            = "RSS_TOKEN_NAME",
-	[RSS_TOKEN_ATTRIBUTE_VALUE] = "RSS_TOKEN_ATTRIBUTE_VALUE",
-	[RSS_TOKEN_CONTENT]         = "RSS_TOKEN_CONTENT",
-	[RSS_TOKEN_ERROR]           = "RSS_TOKEN_ERROR",
-	[RSS_TOKEN_END]             = "RSS_TOKEN_END",
-};
-
 global Arena g_arena;
 global Arena g_rss_arena;
 
@@ -51,13 +34,6 @@ main(void)
 
 	String source = load_file(file);
 	RSS_Token_List tokens = tokenize_rss(&g_rss_arena, source);
-
-	RSS_Token_Node *token = tokens.first;
-	while (token) {
-		printf("[%s] %.*s\n", type_to_str[token->type], (int)token->text.len, token->text.str);
-		token = token->next;
-	}
-
 	RSS_Tree tree = parse_rss(&g_rss_arena, tokens);
 	(void)tree;
 
