@@ -3,11 +3,6 @@
 
 #include "arena.h"
 
-typedef struct {
-	char *str;
-	i32 len;
-} String;
-
 typedef enum {
 	RSS_TOKEN_STAG_OPEN, // <
 	RSS_TOKEN_ETAG_OPEN, // </

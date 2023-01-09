@@ -85,6 +85,13 @@ arena_clear(Arena *arena)
 	arena->curr = arena->prev = 0;
 }
 
+void
+arena_overlay(Arena *arena, Overlay_Arena *overlay)
+{
+	(void)arena;
+	(void)overlay;
+}
+
 Arena_Checkpoint
 arena_checkpoint_set(Arena *arena)
 {

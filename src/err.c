@@ -10,7 +10,6 @@
 internal inline void
 err_out(va_list args, char *fmt, int errcode)
 {
-	// TODO(ariel) Convert this function into a macro instead.
 	fprintf(stderr, "error: ");
 	vfprintf(stderr, fmt, args);
 	if (errcode) fprintf(stderr, " (%s)\n", strerror(errcode));

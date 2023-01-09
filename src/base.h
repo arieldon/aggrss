@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/types.h>
+
 typedef  uint8_t    u8;
 typedef   int8_t    i8;
 typedef uint16_t   u16;
@@ -18,6 +20,11 @@ typedef   size_t usize;
 typedef  ssize_t isize;
 typedef    float   f32;
 typedef   double   f64;
+
+typedef struct {
+	char *str;
+	i32 len;
+} String;
 
 #define internal static
 #define   global static
