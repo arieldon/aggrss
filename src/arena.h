@@ -17,14 +17,6 @@ void *arena_realloc(Arena *arena, usize size);
 void arena_clear(Arena *arena);
 
 typedef struct {
-	Arena arena;
-	Arena *base;
-	usize start;
-} Overlay_Arena;
-
-void arena_overlay(Arena *arena, Overlay_Arena *overlay);
-
-typedef struct {
 	Arena *arena;
 	usize prev;
 	usize curr;

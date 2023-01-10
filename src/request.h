@@ -1,6 +1,7 @@
 #ifndef REQUEST_H
 #define REQUEST_H
 
+#include "arena.h"
 #include "base.h"
 
 typedef enum {
@@ -18,7 +19,7 @@ typedef struct {
 	char *body;
 } Request;
 
-String request_http_resource(String url);
-String parse_http_response(String response);
+String request_http_resource(Arena *arena, String url);
+String parse_http_response(Arena *arena, String response);
 
 #endif

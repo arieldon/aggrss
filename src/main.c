@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +17,6 @@
 #include "str.h"
 
 global Arena g_arena;
-global Arena g_rss_arena;
 
 global const char button_map[256] = {
 	[SDL_BUTTON_LEFT   & 0xff] = MU_MOUSE_LEFT,
@@ -35,69 +35,6 @@ global const char key_map[256] = {
 };
 global float background[3] = { 255, 255, 255 };
 
-
-// FIXME(ariel)
-// Q: What's the best way to use a global arena with multiple
-// threads in action?
-// A: Create an arena for each thread.
-//
-// There are two models for multithreading and memory.
-//	1. Orient the model around the work, the tasks.
-//	2. Orient the model around the work, the threads of execution performing
-//	   the tasks.
-// In this case, I think it makes more sense to orient the model around the
-// workers. Each worker gets an arena. Each worker also maintains a queue of
-// tasks, where the main thread pushes URLs onto the queue for the worker to
-// parse and append to a global list of parsed RSS trees. Note, I think the
-// global list of parsed RSS trees needs some locking mechanism.
-//
-// Wait -- I think the memory model should be focused around the work instead
-// of the workers because the memory allocated during these tasks must outlive
-// the thread itself; that is, it needs to persist after the thread completes
-// the work since the main thread will read the parse tree when it draws the
-// interface.
-//
-// The memory is relevant to the lifetime of the work itself. It's not only
-// scratch memory for the worker.
-//
-// I suppose I can use both. A scratch arena per worker still provides value
-// because there are string operations (primarily creation of lists and
-// concatenation of those lists) than don't necessarily need to be saved, and
-// the work needs to remain available to the main thread as well.
-//
-//
-// ZE PLAN:
-// 1. Initialize all workers at once near the beginning of the program.
-// 2. Create a work queue.
-// 3. Push work onto the queue.
-// 4. Allow any free worker to execute the work -- it doesn't matter which one.
-//
-// Use semaphores for synchronization. This follows a single producer, multiple
-// consumer model.
-
-	// FIXME(ariel) Because there are fewer feeds than threads right now, this
-	// loop creates confusion. In fact, the loop is completely bonkers because it
-	// only works correctly if the number of threads matches the number of feeds
-	// to parse.
-	//
-	// That being said, I'm not sure how I want to approach fixing it yet. There
-	// are two scenarios to consider:
-	//	1. What happens when there are more feeds than threads?
-	//	2. What happens when there are more threads than feeds?
-	// The case where the number of threads equals the number of feeds more or
-	// less handles itself.
-	//
-	// TODO(ariel)
-	// Case 2 has been handled. I postpone the handling of case 1.
-	//
-	// ZE SOLUTION: Queue work. See comment above more details.
-
-	// TODO(ariel) Grant the worker a chunk of the global arena to store results
-	// after completion?
-
-// TODO(ariel) For the thread local arenas, create a type Overlay_Arena that
-// serves as a chained arena over the global RSS arena.
-
 // NOTE(ariel) The Intel Core i5-6500 processor in this machine has four total
 // cores, physical and logical included. The main thread requires one core,
 // which leaves three for other work. 
@@ -105,6 +42,7 @@ enum {
 	N_WORKERS          = 3,
 	N_MAX_WORK_ENTRIES = 64,
 };
+
 typedef struct {
 	i8 n_thread;
 	pthread_t thread_id;
@@ -115,43 +53,56 @@ typedef struct {
 
 	// NOTE(ariel) The work arena stores persistent data for the program -- the
 	// main thread uses these results later.
-	Overlay_Arena work_arena;
+	Arena persistent_arena;
 } Worker;
+
 typedef struct {
 	String url;
 } Work_Entry;
+
+// NOTE(ariel) This queue models the single producer, multiple consumer
+// problem.
 typedef struct {
-	// NOTE(ariel) This queue models the single producer, multiple consumer
-	// problem.
 	sem_t semaphore;
-	pthread_mutex_t mutex;
-
-	i32 next_entry_to_read;
-	i32 next_entry_to_write;
-
+	_Atomic(i32) next_entry_to_read;
+	_Atomic(i32) next_entry_to_write;
 	Work_Entry entries[N_MAX_WORK_ENTRIES];
 } Work_Queue;
+
 global Worker workers[N_WORKERS];
 global Work_Queue work_queue;
 
+// TODO(ariel) Convert this into a list with its own locks for synchronization.
 global RSS_Tree tree;
 
 internal void
 parse_feed(Worker *worker, String url)
 {
-	fprintf(stderr, "[%d] %.*s\n", worker->n_thread, url.len, url.str);
+	// TODO(ariel) The string allocations are more entangled than I originally
+	// anticipated. As a result, it's more difficult to use the scratch arena. I
+	// will likely need to pass both persistent and scratch arenas and use each
+	// accordingly in the subroutines themselves.
+	String response = request_http_resource(&worker->persistent_arena, url);
+	if (!response.len) {
+		// TODO(ariel) Push error on global RSS tree instead of or in addition to
+		// logging a message here.
+		fprintf(stderr, "failed to receive response for %.*s\n", url.len, url.str);
+		return;
+	}
 
-	// TODO(ariel) Download the file specified at the URL.
-	// String response = request_http_resource(url);
-	// String rss = parse_http_response(response);
+	String rss = parse_http_response(&worker->persistent_arena, response);
+	if (!rss.len) {
+		// TODO(ariel) Push error on global RSS tree instead of or in addition to
+		// logging a message here.
+		fprintf(stderr, "failed to parse response for %.*s\n", url.len, url.str);
+		return;
+	}
 
-	// TODO(ariel) Give the following procedures both the working (persistent)
-	// arena and the scratch arena.
-	// RSS_Token_List tokens = tokenize_rss(&g_rss_arena, rss);
-	// RSS_Tree tree = parse_rss(&g_rss_arena, tokens);
+	RSS_Token_List tokens = tokenize_rss(&worker->persistent_arena, rss);
+	RSS_Tree feed = parse_rss(&worker->persistent_arena, tokens);
 
-	// TODO(ariel) Push tree onto queue for main thread to then draw.
-	(void)tree;
+	// TODO(ariel) Push results in persistent arena to global tree.
+	;
 }
 
 internal void *
@@ -163,20 +114,12 @@ get_work_entry(void *arg)
 
 	for (;;) {
 		sem_wait(&work_queue.semaphore);
-		pthread_mutex_lock(&work_queue.mutex);
-
 		if (work_queue.next_entry_to_read != work_queue.next_entry_to_write) {
 			Work_Entry entry = work_queue.entries[work_queue.next_entry_to_read];
 			work_queue.next_entry_to_read = (work_queue.next_entry_to_read + 1) % N_MAX_WORK_ENTRIES;
-
 			parse_feed(worker, entry.url);
-
-			// TODO(ariel) Reset the scratch arena and push results of
-			// working/persistent arena.
-			;
+			arena_clear(&worker->scratch_arena);
 		}
-
-		pthread_mutex_unlock(&work_queue.mutex);
 	}
 
 	return 0;
@@ -187,8 +130,8 @@ add_work_entry(String url)
 {
 	// NOTE(ariel) This routine serves as a producer. Only a single thread of
 	// execution adds entries to the work queue.
-	pthread_mutex_lock(&work_queue.mutex);
-
+	//
+	// TODO(ariel) Confirm overflow never occurs.
 	i32 new_next_entry_to_write = work_queue.next_entry_to_write + 1 % N_MAX_WORK_ENTRIES;
 	assert(new_next_entry_to_write != work_queue.next_entry_to_read);
 
@@ -196,7 +139,6 @@ add_work_entry(String url)
 	work_queue.entries[work_queue.next_entry_to_write] = entry;
 	work_queue.next_entry_to_write = new_next_entry_to_write;
 
-	pthread_mutex_unlock(&work_queue.mutex);
 	sem_post(&work_queue.semaphore);
 }
 
@@ -206,7 +148,6 @@ read_feeds(String feeds)
 	String_List urls = string_split(&g_arena, feeds, '\n');
 	String_Node *url = urls.head;
 	while (url) {
-		printf("URL: %.*s\n", url->string.len, url->string.str);
 		add_work_entry(url->string);
 		url = url->next;
 	}
@@ -272,27 +213,24 @@ int
 main(void)
 {
 	arena_init(&g_arena);
-	arena_init(&g_rss_arena);
 
 	// NOTE(ariel) Initialize work queue.
-	// TODO(ariel) Move block into separate function?
 	{
-		// TODO(ariel) Assert semaphore value never greater than N_WORKERS.
-		// TODO(ariel) Check return values of these routines.
-		sem_init(&work_queue.semaphore, 0, 0);
-		pthread_mutex_init(&work_queue.mutex, 0);
+		if (sem_init(&work_queue.semaphore, 0, 0) == -1) {
+			err_exit("failed to initialize semaphore for workers");
+		}
 		for (i8 i = 0; i < N_WORKERS; ++i) {
 			Worker *worker = &workers[i];
-			worker->n_thread = i;
+			worker->n_thread = i + 1;
 			if (pthread_create(&worker->thread_id, 0, get_work_entry, worker)) {
 				err_exit("failed to launch thread");
 			}
 			arena_init(&worker->scratch_arena);
-			arena_overlay(&g_rss_arena, &worker->work_arena);
+			arena_init(&worker->persistent_arena);
 		}
 	}
 
-	SDL_Init(SDL_INIT_EVERYTHING);
+	SDL_Init(SDL_INIT_VIDEO);
 	r_init();
 
 	mu_Context *ctx = arena_alloc(&g_arena, sizeof(mu_Context));
@@ -304,6 +242,8 @@ main(void)
 	if (!file) err_exit("failed to open feeds file");
 
 	String feeds = load_file(file);
+	// TODO(ariel) When all the threads are finished, free some of the memory
+	// allocated to them, namely the scratch arenas?
 	read_feeds(feeds);
 
 	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
@@ -352,26 +292,6 @@ main(void)
 		arena_checkpoint_restore(checkpoint);
 	}
 
-	arena_release(&g_rss_arena);
 	arena_release(&g_arena);
 	return 0;
 }
-
-// TODO(ariel) Delete this block if left unused.
-// #define UNUSED_ROUTINES
-#ifdef UNUSED_ROUTINES
-internal String
-get_line(String s, i32 offset)
-{
-	for (i32 i = offset; i < s.len; ++i) {
-		if (s.str[i] == '\n') {
-			s.str[i] = 0;
-			return (String){
-				.str = s.str + offset,
-				.len = i - offset,
-			};
-		}
-	}
-	return s;
-}
-#endif

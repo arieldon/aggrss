@@ -45,13 +45,13 @@ make_error_token(Tokenizer *tokenizer, char *message)
 internal inline bool
 more_source_exists(Tokenizer *tokenizer)
 {
-	return tokenizer->cursor < tokenizer->end;
+	return tokenizer->source && tokenizer->cursor < tokenizer->end;
 }
 
 internal inline char
 peek_char(Tokenizer *tokenizer)
 {
-	assert(tokenizer->cursor <= tokenizer->end);
+	assert(tokenizer->source && tokenizer->cursor <= tokenizer->end);
 	return tokenizer->source[tokenizer->cursor];
 }
 

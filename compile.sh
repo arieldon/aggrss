@@ -4,7 +4,9 @@ set -eux
 
 BIN="rss"
 
-CFLAGS="-std=c11 -D_DEFAULT_SOURCE"
+# NOTE(ariel) I only use the GNU11 standard rather than the C11 standard for
+# inline assembly asm().
+CFLAGS="-std=gnu11 -D_DEFAULT_SOURCE"
 WARNINGS="-Wall -Wextra -Wpedantic"
 LIBRARIES="-pthread `sdl2-config --cflags --libs` -lGL"
 FLAGS="$CFLAGS $WARNINGS $LIBRARIES"

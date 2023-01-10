@@ -26,8 +26,9 @@ typedef struct {
 	i32 len;
 } String;
 
-#define internal static
-#define   global static
+#define      internal static
+#define        global static
+#define local_persist static
 
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)

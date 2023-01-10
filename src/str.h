@@ -6,7 +6,7 @@
 
 #include "base.h"
 
-bool string_equal(String s, String t);
+bool string_match(String s, String t);
 char *string_terminate(Arena *arena, String s);
 String string_duplicate(Arena *arena, String s);
 String string_substr(String s, i32 len, i32 offset);
@@ -31,6 +31,7 @@ void push_string_node(String_List *ls, String_Node *n);
 void push_string(Arena *arena, String_List *ls, String s);
 
 String_List string_split(Arena *arena, String s, u8 delim);
+String_List string_strsplit(Arena *arena, String s, String delim);
 String string_list_concat(Arena *arena, String_List ls);
 String string_list_join(Arena *arena, String_List ls, u8 sep);
 
