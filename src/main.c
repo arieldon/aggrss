@@ -5,10 +5,6 @@
 
 #include <pthread.h>
 #include <semaphore.h>
-#include <signal.h>
-
-#include <openssl/err.h>
-#include <openssl/ssl.h>
 
 #include "SDL.h"
 #include "renderer.h"
@@ -245,17 +241,7 @@ load_file(FILE *file)
 int
 main(void)
 {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-	printf("OPENSSL_VERSION_NUMBER: %ld\n", OPENSSL_VERSION_NUMBER);
-	SSL_library_init();
-	SSL_load_error_strings();
-#endif
 	arena_init(&g_arena);
-
-	// NOTE(ariel) Ignore SIGPIPE to avoid crashing a socket closes abruptly.
-	// This behavior of this procedure is undefined in multithreaded
-	// applications.
-	// signal(SIGPIPE, SIG_IGN);
 
 	// NOTE(ariel) Initialize work queue.
 	{
