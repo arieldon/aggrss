@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 
 #include <netdb.h>
@@ -5,17 +6,21 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#include <openssl/x509v3.h>
+
 #include "arena.h"
 #include "base.h"
 #include "err.h"
 #include "request.h"
 #include "str.h"
 
-#define HTTP_PORT "80"
+#define HTTP_PORT  "80"
+#define HTTPS_PORT "443"
 
-enum {
-	DEFAULT_BUFFER_SIZE = 512,
-};
+enum { READ_BUF_SIZ = KB(8) };
 
 typedef struct {
 	String scheme;
@@ -26,6 +31,10 @@ typedef struct {
 global String line_delimiter = {
 	.str = "\r\n",
 	.len = 2,
+};
+global String header_delimiter = {
+	.str = "\r\n\r\n",
+	.len = 4,
 };
 
 internal URL
@@ -77,40 +86,69 @@ format_get_request(Arena *arena, URL url)
 		.str = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0\r\n",
 		.len = 84,
 	};
-
-	// NOTE(ariel) Here's an example of an HTTP request sent by Firefox.
-	// GET /atom.xml HTTP/1.1\r\n
-	// Host: ratfactor.com\r\n
-	// User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0\r\n
-	// Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n
-	// Accept-Language: en-US,en;q=0.5\r\n
-	// Accept-Encoding: gzip, deflate\r\n
-	// DNT: 1\r\n
-	// Connection: keep-alive\r\n
-	// Upgrade-Insecure-Requests: 1\r\n
-	// Sec-GPC: 1\r\n
-	// If-Modified-Since: Sun, 01 Jan 2023 21:44:08 GMT\r\n
-	// If-None-Match: "5886-5f13abc071dae"\r\n
-	// \r\n
-	// [Full request URI: http://ratfactor.com/atom.xml]
-	// [HTTP request 1/1]
-	// [Response in frame: 39]
+	local_persist String accept = {
+		.str = "Accept: text/html,application/rss+xml,application/xhtml+xml,application/xml\r\n",
+		.len = 77,
+	};
+	local_persist String accept_encoding = {
+		.str = "Accept-Encoding: identity\r\n",
+		.len = 27
+	};
+	local_persist String connection = {
+		.str = "Connection: close\r\n",
+		.len = 19,
+	};
 
 	String_List ls = {0};
 
 	push_string(arena, &ls, (String){ "GET ", 4 });
 	push_string(arena, &ls, url.path);
 	push_string(arena, &ls, (String){ " HTTP/1.1\r\n", 11 });
-
 	push_string(arena, &ls, (String){ "Host: ", 6 });
 	push_string(arena, &ls, url.domain);
 	push_string(arena, &ls, line_delimiter);
-
 	push_string(arena, &ls, user_agent);
+	push_string(arena, &ls, accept);
+	push_string(arena, &ls, accept_encoding);
+	push_string(arena, &ls, connection);
 	push_string(arena, &ls, line_delimiter);
 
 	String request = string_list_concat(arena, ls);
 	return request;
+}
+
+internal i32
+get_content_length(Arena *arena, String header)
+{
+	local_persist String content_length_field = {
+		.str = "Content-Length",
+		.len = 14,
+	};
+	i32 content_length = -1;
+
+	String_List header_fields = string_strsplit(arena, header, line_delimiter);
+	String_Node *status_line = header_fields.head;
+	if (!status_line) return content_length;
+
+	String_Node *field_node = status_line->next;
+	while (field_node && content_length < 0) {
+		String field = field_node->string;
+
+		i32 name_length = string_find_ch(field, ':');
+		if (name_length > 0) {
+			String name = string_prefix(field, name_length);
+			if (string_match(name, content_length_field)) {
+				// NOTE(ariel) +1 to skip ':'.
+				String remainder = string_suffix(field, name_length + 1);
+				String value = string_trim_spaces(remainder);
+				content_length = string_to_int(value, 10);
+			}
+		}
+
+		field_node = field_node->next;
+	}
+
+	return content_length;
 }
 
 String
@@ -118,78 +156,92 @@ request_http_resource(Arena *arena, String urlstr)
 {
 	String recv_buf = {0};
 
-	// FIXME(ariel) For now, only format and send request to sites that don't
-	// require a secure connection.
+	BIO *bio = 0;
+	SSL_CTX *ssl_ctx = 0;
 	URL url = parse_http_url(urlstr);
-	if (url.scheme.len == 8) goto exit;
 
-	struct addrinfo *result = 0;
-	struct addrinfo hints = {
-		.ai_family = AF_UNSPEC,
-		.ai_socktype = SOCK_DGRAM,
-		.ai_flags = AI_PASSIVE,
-		.ai_protocol = 0,
-	};
 	char *domain = string_terminate(arena, url.domain);
-	i32 status = getaddrinfo(domain, HTTP_PORT, &hints, &result);
-	if (status) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
-		goto exit;
+	if (url.scheme.len == 8) {
+		const SSL_METHOD *method = TLS_client_method();
+		if (!method) goto exit;
+
+		ssl_ctx = SSL_CTX_new(TLS_client_method());
+		if (!ssl_ctx) goto exit;
+
+		if (!SSL_CTX_set_default_verify_paths(ssl_ctx)) goto exit;
+
+		bio = BIO_new_ssl_connect(ssl_ctx);
+		if (!bio) goto exit;
+
+		SSL *ssl = 0;
+		BIO_get_ssl(bio, &ssl);
+		SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
+		SSL_set_tlsext_host_name(ssl, domain);
+
+		BIO_set_conn_port(bio, HTTPS_PORT);
+	} else {
+		bio = BIO_new(BIO_s_connect());
+		BIO_set_conn_port(bio, HTTP_PORT);
 	}
 
-	int sockfd = 0;
-	struct addrinfo *p = result;
-	for (; p; p = p->ai_next) {
-		sockfd = socket(AF_INET, SOCK_STREAM, 0);
-		if (sockfd == -1) continue;
-		if (connect(sockfd, p->ai_addr, p->ai_addrlen) != -1) break;
-		close(sockfd);
-	}
-	freeaddrinfo(result);
-	if (!p) {
-		fprintf(stderr, "failed to connect for %.*s\n", urlstr.len, urlstr.str);
+	BIO_set_conn_hostname(bio, domain);
+	if (BIO_do_connect(bio) <= 0) {
+		ERR_print_errors_fp(stderr);
 		goto exit;
 	}
 
 	String req_buf = format_get_request(arena, url);
-	if (!req_buf.len) goto exit;
-	if (send(sockfd, req_buf.str, req_buf.len, 0) == -1) {
-		err_msg("failed to send request to %s", url);
-		goto exit;
-	}
+	BIO_write(bio, req_buf.str, req_buf.len);
+	BIO_flush(bio);
 
-	isize nbytes = 0;
+	// NOTE(ariel) BIO_read() enough times (perhaps only once) to receive the
+	// entire header.
+	String header = {0};
+	i32 header_length = 0;
 	String_List recvs = {0};
-	for (;;) {
+	do {
 		String buf = {
-			.str = arena_alloc(arena, BUFSIZ),
-			.len = BUFSIZ,
+			.str = arena_alloc(arena, READ_BUF_SIZ),
+			.len = READ_BUF_SIZ,
 		};
 
-		nbytes = recv(sockfd, buf.str, buf.len, 0);
-		if (nbytes == -1) {
-			err_exit("failed to receive response from %s", url);
-			goto exit;
-		} else if (nbytes == 0) {
-			// NOTE(ariel) Pop previous allocation.
-			arena_realloc(arena, 0);
-			break;
-		}
+		i32 nbytes = BIO_read(bio, buf.str, buf.len);
+		if (nbytes < 0) goto exit;
 
-		assert(nbytes <= BUFSIZ);
+		buf.str = arena_realloc(arena, nbytes);
+		buf.len = nbytes;
+
+		header_length = string_find_substr(buf, header_delimiter);
+		header = string_prefix(buf, header_length);
+
+		push_string(arena, &recvs, buf);
+	} while (header_length < 0);
+
+	// NOTE(ariel) Eat bytes remaining according to the `Content-Length` field.
+	// TODO(ariel) Handle `Transfer-Encoding` field -- it's an alternative to
+	// `Content-Length` that a smaller subset of web servers use.
+	i32 content_length = get_content_length(arena, header);
+	if (content_length < 0) goto exit;
+	while (recvs.total_len - header_length < content_length) {
+		String buf = {
+			.str = arena_alloc(arena, BUFSIZ),
+			.len = BUFSIZ
+		};
+
+		i32 nbytes = BIO_read(bio, buf.str, buf.len);
+		if (nbytes < 0) goto exit;
+
 		buf.str = arena_realloc(arena, nbytes);
 		buf.len = nbytes;
 
 		push_string(arena, &recvs, buf);
 	}
-	if (nbytes == -1) {
-		err_msg("failed to receive response from %s", url);
-		goto exit;
-	}
+	assert(header_length + content_length + header_delimiter.len == recvs.total_len);
 	recv_buf = string_list_concat(arena, recvs);
 
 exit:
-	close(sockfd);
+	if (bio) BIO_free_all(bio);
+	if (ssl_ctx) SSL_CTX_free(ssl_ctx);
 	return recv_buf;
 }
 
@@ -212,10 +264,20 @@ parse_http_response(Arena *arena, String response)
 	}
 	String status_code = status_line_elements.head->next->string;
 	if (!string_match(status_code, ok_status_code)) {
-		fprintf(stderr, "request failed, received unsuccessful status code\n");
+		fprintf(stderr, "request failed, received status code that does not indicate success\n");
 		return response_body;
 	}
 
 	response_body = lines.tail->string;
 	return response_body;
 }
+
+#ifdef DEBUG
+// NOTE(ariel) I only use this function to print length-based strings in GDB
+// conveniently.
+void
+print_string(String s)
+{
+	fprintf(stdout, "%.*s\n", s.len, s.str);
+}
+#endif

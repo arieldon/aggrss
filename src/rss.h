@@ -66,12 +66,18 @@ typedef struct {
 	RSS_Error *last;
 } RSS_Error_List;
 
-typedef struct {
+typedef struct RSS_Tree {
+	struct RSS_Tree *next;
 	RSS_Tree_Node *root;
 	RSS_Error_List errors;
 } RSS_Tree;
 
+typedef struct {
+	RSS_Tree *first;
+	RSS_Tree *last;
+} RSS_Tree_List;
+
 RSS_Token_List tokenize_rss(Arena *arena, String source);
-RSS_Tree parse_rss(Arena *arena, RSS_Token_List tokens);
+RSS_Tree *parse_rss(Arena *arena, RSS_Token_List tokens);
 
 #endif

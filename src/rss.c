@@ -243,7 +243,7 @@ typedef struct {
 	RSS_Token_List tokens;
 	RSS_Token_Node *current_token;
 	RSS_Token_Node *previous_token;
-	RSS_Tree tree;
+	RSS_Tree *tree;
 } Parser;
 
 internal RSS_Tree_Node *
@@ -434,17 +434,18 @@ print_rss_tree(RSS_Tree tree)
 }
 #endif
 
-RSS_Tree
+RSS_Tree *
 parse_rss(Arena *arena, RSS_Token_List tokens)
 {
 	Parser parser = {
 		.arena = arena,
 		.tokens = tokens,
 		.current_token = tokens.first,
+		.tree = arena_alloc(arena, sizeof(RSS_Tree)),
 	};
 
 	parse_processing_instructions(&parser);
-	parser.tree.root = parse_tag(&parser);
+	parser.tree->root = parse_tag(&parser);
 
 #ifdef PRINT_RSS_TREE
 	print_rss_tree(parser.tree);

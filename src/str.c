@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <string.h>
 
 #include "arena.h"
@@ -35,11 +36,35 @@ string_duplicate(Arena *arena, String s)
 }
 
 String
+string_trim_spaces(String s)
+{
+	i32 leading_spaces = 0;
+	for (i32 i = 0; i < s.len; ++i) {
+		if (!isspace(s.str[i])) {
+			break;
+		}
+		++leading_spaces;
+	}
+
+	i32 trailing_spaces = 0;
+	for (i32 i = s.len - 1; i >= 0; --i) {
+		if (!isspace(s.str[i])) {
+			break;
+		}
+		++trailing_spaces;
+	}
+
+	i32 length = s.len - leading_spaces - trailing_spaces;
+	String substr = string_substr(s, leading_spaces, length);
+	return substr;
+}
+
+String
 string_substr(String s, i32 offset, i32 len)
 {
 	String t = {0};
 	if (offset >= s.len) return t;
-	if (offset + len >= s.len) return t;
+	if (offset + len > s.len) len = s.len - offset;
 	t.len = len;
 	t.str = s.str + offset;
 	return t;
@@ -48,6 +73,7 @@ string_substr(String s, i32 offset, i32 len)
 String
 string_prefix(String s, i32 len)
 {
+	assert(len >= 0);
 	String t = {0};
 	if (len >= s.len) return s;
 	t.len = len;
@@ -58,6 +84,7 @@ string_prefix(String s, i32 len)
 String
 string_suffix(String s, i32 offset)
 {
+	assert(offset >= 0);
 	String t = {0};
 	if (offset >= s.len) return s;
 	t.len = s.len - offset;
@@ -68,13 +95,11 @@ string_suffix(String s, i32 offset)
 i32
 string_find_substr(String haystack, String needle)
 {
-	for (i32 i = 0; i < haystack.len; ++i) {
-		if (i + needle.len <= haystack.len) {
-			String substr = string_substr(haystack, i, i + needle.len);
-			if (string_match(substr, needle)) {
-				return i;
-			}
-		}
+	assert(haystack.len >= needle.len);
+	i32 end = haystack.len - needle.len;
+	for (i32 i = 0; i <= end; ++i) {
+		String substr = string_substr(haystack, i, needle.len);
+		if (string_match(substr, needle)) return i;
 	}
 	return -1;
 }
@@ -88,6 +113,25 @@ string_find_ch(String s, char c)
 		}
 	}
 	return -1;
+}
+
+u64
+string_to_int(String s, u8 base)
+{
+	assert(base >=  2);
+	assert(base <= 16);
+	local_persist u8 char_to_value[] = {
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+		0xFF, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0xFF,
+		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	};
+	u64 result = 0;
+	for (i32 i = 0; i < s.len; ++i) {
+		result *= base;
+		result += char_to_value[(s.str[i] - 0x30) & 0x1F];
+	}
+	return result;
 }
 
 void

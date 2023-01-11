@@ -8,7 +8,7 @@ BIN="rss"
 # inline assembly asm().
 CFLAGS="-std=gnu11 -D_DEFAULT_SOURCE"
 WARNINGS="-Wall -Wextra -Wpedantic"
-LIBRARIES="-pthread `sdl2-config --cflags --libs` -lGL"
+LIBRARIES="-pthread -lssl -lcrypto `sdl2-config --cflags --libs` -lGL"
 FLAGS="$CFLAGS $WARNINGS $LIBRARIES"
 
 DEBUG="-DDEBUG -g -O0"
@@ -19,4 +19,7 @@ else
     FLAGS="$FLAGS $RELEASE"
 fi
 
+# NOTE(ariel) Order of C source files and statically linked libraries matters.
+# Statically linked libraries (.a files) must follow all C source files because
+# it seems like `ld` discards routines left uncalled.
 cc src/*.c $FLAGS -o $BIN

@@ -5,6 +5,10 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <signal.h>
+
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include "SDL.h"
 #include "renderer.h"
@@ -36,15 +40,17 @@ global const char key_map[256] = {
 global float background[3] = { 255, 255, 255 };
 
 // NOTE(ariel) The Intel Core i5-6500 processor in this machine has four total
-// cores, physical and logical included. The main thread requires one core,
-// which leaves three for other work. 
+// (physical and logical) cores. The main thread requires one core, which
+// leaves three for other work.
+// TODO(ariel) Is it feasible to run more than three workers? I _assume_ (no
+// tests) that I/O rather than processing bounds this workload, so more workers
+// than three may improve throughput.
 enum {
 	N_WORKERS          = 3,
 	N_MAX_WORK_ENTRIES = 64,
 };
 
 typedef struct {
-	i8 n_thread;
 	pthread_t thread_id;
 
 	// NOTE(ariel) The scratch arena stores temporary data for the thread -- data
@@ -66,14 +72,19 @@ typedef struct {
 	sem_t semaphore;
 	_Atomic(i32) next_entry_to_read;
 	_Atomic(i32) next_entry_to_write;
+	_Atomic(i32) ncompletions;
 	Work_Entry entries[N_MAX_WORK_ENTRIES];
 } Work_Queue;
 
 global Worker workers[N_WORKERS];
 global Work_Queue work_queue;
 
-// TODO(ariel) Convert this into a list with its own locks for synchronization.
-global RSS_Tree tree;
+typedef struct {
+	pthread_spinlock_t lock;
+	RSS_Tree_List list;
+} Feed_List;
+
+global Feed_List feeds;
 
 internal void
 parse_feed(Worker *worker, String url)
@@ -99,10 +110,21 @@ parse_feed(Worker *worker, String url)
 	}
 
 	RSS_Token_List tokens = tokenize_rss(&worker->persistent_arena, rss);
-	RSS_Tree feed = parse_rss(&worker->persistent_arena, tokens);
+	RSS_Tree *feed = parse_rss(&worker->persistent_arena, tokens);
 
-	// TODO(ariel) Push results in persistent arena to global tree.
-	;
+	// NOTE(ariel) Push results in persistent arena to global tree.
+	pthread_spin_lock(&feeds.lock);
+	{
+		if (!feeds.list.first) {
+			feeds.list.first = feeds.list.last = feed;
+		} else {
+			feeds.list.last->next = feed;
+			feeds.list.last = feed;
+			feed->next = 0;
+		}
+	}
+	pthread_spin_unlock(&feeds.lock);
+	fprintf(stderr, "succcess %.*s\n", url.len, url.str);
 }
 
 internal void *
@@ -131,7 +153,9 @@ add_work_entry(String url)
 	// NOTE(ariel) This routine serves as a producer. Only a single thread of
 	// execution adds entries to the work queue.
 	//
-	// TODO(ariel) Confirm overflow never occurs.
+	// TODO(ariel) Confirm overflow never occurs. I know in advance the maximum
+	// number of work entries -- it's the number of URLs or lines in the `feeds`
+	// file.
 	i32 new_next_entry_to_write = work_queue.next_entry_to_write + 1 % N_MAX_WORK_ENTRIES;
 	assert(new_next_entry_to_write != work_queue.next_entry_to_read);
 
@@ -169,24 +193,33 @@ text_height(mu_Font font)
 }
 
 internal void
-process_frame(mu_Context *ctx, RSS_Tree tree)
+process_frame(mu_Context *ctx)
 {
-	(void)tree;
 	mu_begin(ctx);
 
 	i32 winopts = MU_OPT_NORESIZE | MU_OPT_NOCLOSE;
 	if (mu_begin_window_ex(ctx, "RSS", mu_rect(0, 0, 800, 600), winopts)) {
-		// TODO(ariel) Iterate through all different feeds and draw a drop-down
-		// header for them.
-		RSS_Tree_Node *feed = 0;
-		while (feed) {
-			if (mu_header_ex(ctx, string_terminate(&g_arena, feed->token->text), 0)) {
-				// TODO(ariel) Insert a list of posts from the corresponding feed here.
-				;
-			}
-			feed = feed->next_sibling;
-		}
+		// TODO(ariel) If work_queue.ncompletions != number of URLs, output a status
+		// message.
 
+		pthread_spin_lock(&feeds.lock);
+		{
+			RSS_Tree *feed = feeds.list.first;
+			while (feed) {
+				RSS_Tree_Node *root = feed->root;
+				if (mu_header_ex(ctx, string_terminate(&g_arena, root->token->text), 0)) {
+					// TODO(ariel) Insert a list of posts from the corresponding feed
+					// here.
+					//
+					// TODO(ariel) Create nodes for content in the tree first. The tree,
+					// for now, only contains the tag names, and those provide little
+					// value to the user (me) in the graphical interface.
+					;
+				}
+				feed = feed->next;
+			}
+		}
+		pthread_spin_unlock(&feeds.lock);
 		mu_end_window(ctx);
 	}
 
@@ -212,7 +245,17 @@ load_file(FILE *file)
 int
 main(void)
 {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+	printf("OPENSSL_VERSION_NUMBER: %ld\n", OPENSSL_VERSION_NUMBER);
+	SSL_library_init();
+	SSL_load_error_strings();
+#endif
 	arena_init(&g_arena);
+
+	// NOTE(ariel) Ignore SIGPIPE to avoid crashing a socket closes abruptly.
+	// This behavior of this procedure is undefined in multithreaded
+	// applications.
+	// signal(SIGPIPE, SIG_IGN);
 
 	// NOTE(ariel) Initialize work queue.
 	{
@@ -221,13 +264,17 @@ main(void)
 		}
 		for (i8 i = 0; i < N_WORKERS; ++i) {
 			Worker *worker = &workers[i];
-			worker->n_thread = i + 1;
 			if (pthread_create(&worker->thread_id, 0, get_work_entry, worker)) {
 				err_exit("failed to launch thread");
 			}
 			arena_init(&worker->scratch_arena);
 			arena_init(&worker->persistent_arena);
 		}
+	}
+
+	// NOTE(ariel) Initialize tree that stores parsed RSS feeds.
+	if (pthread_spin_init(&feeds.lock, PTHREAD_PROCESS_PRIVATE)) {
+		err_exit("failed to initialize spin lock for tree of parsed RSS feeds");
 	}
 
 	SDL_Init(SDL_INIT_VIDEO);
@@ -242,8 +289,6 @@ main(void)
 	if (!file) err_exit("failed to open feeds file");
 
 	String feeds = load_file(file);
-	// TODO(ariel) When all the threads are finished, free some of the memory
-	// allocated to them, namely the scratch arenas?
 	read_feeds(feeds);
 
 	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
@@ -275,7 +320,7 @@ main(void)
 			}
 		}
 
-		process_frame(ctx, tree);
+		process_frame(ctx);
 
 		r_clear(mu_color(background[0], background[1], background[2], 255));
 		mu_Command *cmd = NULL;
