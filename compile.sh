@@ -14,15 +14,15 @@ FLAGS="$CFLAGS $WARNINGS $LIBRARIES"
 DEBUG="-DDEBUG -g -O0"
 RELEASE="-O2"
 if [ $# -ge 1 ] && [ "$1" = "--debug" ]; then
-    FLAGS="$FLAGS $DEBUG"
-    shift 1;
+	FLAGS="$FLAGS $DEBUG"
+	shift 1;
 else
-    FLAGS="$FLAGS $RELEASE"
+	FLAGS="$FLAGS $RELEASE"
 fi
 
 # NOTE(ariel) Pass any additional specified arguments from script to compiler.
 if [ $# -ge 1 ]; then
-    FLAGS="$FLAGS $@"
+	FLAGS="$FLAGS $@"
 fi
 
 # NOTE(ariel) Order of C source files and statically linked libraries matters.
