@@ -4,11 +4,18 @@
 #include "arena.h"
 #include "base.h"
 #include "rss.h"
+#include "str.h"
 
 /* ---
  * Tokenizer
  * ---
  */
+
+typedef enum {
+	CURSOR_IN_TAG,
+	CURSOR_IN_CDATA,
+	CURSOR_IN_CONTENT,
+} Cursor_Location;
 
 typedef struct {
 	Arena *arena;
@@ -16,7 +23,7 @@ typedef struct {
 	i32 end;
 	i32 cursor;
 	i32 token_start;
-	bool tag;
+	Cursor_Location cursor_location;
 	RSS_Token_List tokens;
 } Tokenizer;
 
@@ -86,6 +93,33 @@ match_char(Tokenizer *tokenizer, char expected)
 	}
 }
 
+internal inline bool
+eat_string(Tokenizer *tokenizer, String s)
+{
+	i32 prev_cursor = tokenizer->cursor;
+	for (i32 i = 0; i < s.len; ++i) {
+		if (!more_source_exists(tokenizer) || !match_char(tokenizer, s.str[i])) {
+			tokenizer->cursor = prev_cursor;
+			return false;
+		}
+	}
+	return true;
+}
+
+internal inline bool
+peek_string(Tokenizer *tokenizer, String s)
+{
+	bool match = false;
+	if (tokenizer->cursor + s.len <= tokenizer->end) {
+		String t = {
+			.str = tokenizer->source + tokenizer->cursor,
+			.len = s.len,
+		};
+		if (string_match(s, t)) match = true;
+	}
+	return match;
+}
+
 internal void
 ignore_whitespace(Tokenizer *tokenizer)
 {
@@ -143,6 +177,26 @@ tokenize_attribute_value(Tokenizer *tokenizer, char quote)
 }
 
 internal RSS_Token_Node *
+tokenize_cdata_open(Tokenizer *tokenizer)
+{
+	local_persist String cdata = {
+		.str = "CDATA",
+		.len = 5,
+	};
+
+	if (eat_string(tokenizer, cdata)) {
+		if (match_char(tokenizer, '[')) {
+			tokenizer->cursor_location = CURSOR_IN_CDATA;
+			return make_token(tokenizer, RSS_TOKEN_CDATA_OPEN);
+		} else {
+			return make_error_token(tokenizer, "unexpected character trailing '<![CDATA'");
+		}
+	}
+
+	return make_error_token(tokenizer, "unexpected sequence of characters trailing '<!['");
+}
+
+internal RSS_Token_Node *
 scan_token(Tokenizer *tokenizer)
 {
 start:
@@ -152,7 +206,7 @@ start:
 		return make_token(tokenizer, RSS_TOKEN_END);
 	}
 
-	if (tokenizer->tag) {
+	if (tokenizer->cursor_location == CURSOR_IN_TAG) {
 		char c = eat_char(tokenizer);
 		if (isalnum(c)) {
 			return tokenize_name(tokenizer);
@@ -171,6 +225,8 @@ start:
 						return make_error_token(tokenizer, "unterminated comment");
 					}
 					goto start;
+				} else if (match_char(tokenizer, '[')) {
+					return tokenize_cdata_open(tokenizer);
 				} else {
 					return make_token(tokenizer, RSS_TOKEN_DECL_OPEN);
 				}
@@ -181,7 +237,7 @@ start:
 			}
 		}
 		case '>':
-			tokenizer->tag = false;
+			tokenizer->cursor_location = CURSOR_IN_CONTENT;
 			return make_token(tokenizer, RSS_TOKEN_TAG_CLOSE);
 		case '=':
 			return make_token(tokenizer, RSS_TOKEN_EQUAL);
@@ -196,15 +252,32 @@ start:
 			return match_char(tokenizer, '>')
 				? make_token(tokenizer, RSS_TOKEN_EMPTY_TAG_CLOSE)
 				: make_error_token(tokenizer, "unexpected '/'");
+		case ']':
+			return match_char(tokenizer, ']')
+				? (match_char(tokenizer, '>')
+					? make_token(tokenizer, RSS_TOKEN_CDATA_CLOSE)
+					: make_error_token(tokenizer, "unexpected character following ]"))
+				: make_error_token(tokenizer, "unexpected ']'");
 		default:
 			return make_error_token(tokenizer, "unexpected character");
 		}
+	} else if (tokenizer->cursor_location == CURSOR_IN_CDATA) {
+		// NOTE(ariel) Tokenize character data -- temporarily drop the meaning of
+		// strings in RSS/XML, barring the CDATA close tag "]]>".
+		local_persist String cdata_close_tag = {
+			.str = "]]>",
+			.len = 3,
+		};
+		while (!peek_string(tokenizer, cdata_close_tag)) ++tokenizer->cursor;
+		if (!more_source_exists(tokenizer)) return make_error_token(tokenizer, "unterminated cdata");
+		tokenizer->cursor_location = CURSOR_IN_TAG;
+		return make_token(tokenizer, RSS_TOKEN_CDATA);
 	} else {
 		// NOTE(ariel) Tokenize content.
 		while (more_source_exists(tokenizer) && peek_char(tokenizer) != '<') {
 			++tokenizer->cursor;
 		}
-		tokenizer->tag = true;
+		tokenizer->cursor_location = CURSOR_IN_TAG;
 		if (tokenizer->cursor - tokenizer->token_start > 0) {
 			if (!more_source_exists(tokenizer)) {
 				return make_error_token(tokenizer, "unterminated tag");
@@ -273,6 +346,7 @@ more_tokens_exist(Parser *parser)
 internal void
 generate_error_message(Parser *parser, char *message)
 {
+	// TODO(ariel) Handle (report) error messages without crashing.
 	(void)parser;
 	(void)message;
 	fprintf(stderr, "[ERROR] %s\n", message);
@@ -315,6 +389,12 @@ expect_token(Parser *parser, RSS_Token_Type type, char *message)
 	}
 }
 
+internal inline bool
+is_start_tag(RSS_Token_Type type)
+{
+	return type > RSS_TOKEN_START_LOWER_BOUND && type < RSS_TOKEN_START_UPPER_BOUND;
+}
+
 internal inline void
 parse_processing_instructions(Parser *parser)
 {
@@ -330,66 +410,86 @@ parse_processing_instructions(Parser *parser)
 	expect_token(parser, RSS_TOKEN_PI_CLOSE, "expected ?>");
 }
 
+typedef enum {
+	TAG_TYPE_UNSPECIFIED,
+	TAG_TYPE_ELEMENT,
+	TAG_TYPE_CDATA,
+} Tag_Type;
+
 internal RSS_Tree_Node *
 parse_tag(Parser *parser)
 {
 	RSS_Tree_Node *node = make_tree_node(parser);
 
 	// NOTE(ariel) Parse start tag.
-	expect_token(parser, RSS_TOKEN_STAG_OPEN, "expected '<'");
-
-	// NOTE(ariel) Parse tag name.
-	expect_token(parser, RSS_TOKEN_NAME, "expected name");
-	node->token = parser->previous_token;
-
-	// NOTE(ariel) Parse attributes if they exist.
-	while (match_token(parser, RSS_TOKEN_NAME)) {
-		RSS_Token_Node *attr_name = parser->previous_token;
-
-		expect_token(parser, RSS_TOKEN_EQUAL, "expected '='");
-		expect_token(parser, RSS_TOKEN_ATTRIBUTE_VALUE, "expected attribute value");
-		RSS_Token_Node *attr_value = parser->previous_token;
-
-		RSS_Node_Attribute *attr = make_attribute(parser, attr_name, attr_value);
-		STACK_PUSH(node->attrs.first, attr);
+	Tag_Type tag_type = TAG_TYPE_UNSPECIFIED;
+	if (match_token(parser, RSS_TOKEN_STAG_OPEN)) {
+		tag_type = TAG_TYPE_ELEMENT;
+	} else if (match_token(parser, RSS_TOKEN_CDATA_OPEN)) {
+		tag_type = TAG_TYPE_CDATA;
 	}
 
-	// NOTE(ariel) Parse close tag that corresponds to open tag.
-	bool empty_tag = false;
-	switch (peek_token(parser)->type) {
-	case RSS_TOKEN_TAG_CLOSE:
-		eat_token(parser);
-		break;
-	case RSS_TOKEN_EMPTY_TAG_CLOSE:
-		empty_tag = true;
-		eat_token(parser);
-		break;
-	default:
-		generate_error_message(parser, "expected '>' or '/>'");
-	}
-
-	// NOTE(ariel) Parse content if it exists.
-	if (peek_token(parser)->type == RSS_TOKEN_CONTENT) {
-		// TODO(ariel) Create node for content and connect to tree.
-		eat_token(parser);
-	}
-
-	// NOTE(ariel) Match start tag of child tag if it exists.
-	while (peek_token(parser)->type == RSS_TOKEN_STAG_OPEN) {
-		RSS_Tree_Node *child = parse_tag(parser);
-		if (!node->first_child) {
-			node->first_child = child;
-		}
-		node->last_child = child;
-	}
-
-	if (!empty_tag) {
-		expect_token(parser, RSS_TOKEN_ETAG_OPEN, "expected '</'");
+	if (tag_type == TAG_TYPE_ELEMENT) {
+		// NOTE(ariel) Parse tag name.
 		expect_token(parser, RSS_TOKEN_NAME, "expected name");
-		expect_token(parser, RSS_TOKEN_TAG_CLOSE, "expected '>'");
+		node->token = parser->previous_token;
+
+		// NOTE(ariel) Parse attributes if they exist.
+		while (match_token(parser, RSS_TOKEN_NAME)) {
+			RSS_Token_Node *attr_name = parser->previous_token;
+
+			expect_token(parser, RSS_TOKEN_EQUAL, "expected '='");
+			expect_token(parser, RSS_TOKEN_ATTRIBUTE_VALUE, "expected attribute value");
+			RSS_Token_Node *attr_value = parser->previous_token;
+
+			RSS_Node_Attribute *attr = make_attribute(parser, attr_name, attr_value);
+			STACK_PUSH(node->attrs.first, attr);
+		}
+
+		// NOTE(ariel) Parse close tag that corresponds to open tag.
+		bool empty_tag = false;
+		switch (peek_token(parser)->type) {
+		case RSS_TOKEN_TAG_CLOSE:
+			eat_token(parser);
+			break;
+		case RSS_TOKEN_EMPTY_TAG_CLOSE:
+			empty_tag = true;
+			eat_token(parser);
+			break;
+		default:
+			generate_error_message(parser, "expected '>' or '/>'");
+		}
+
+		// NOTE(ariel) Parse content if it exists.
+		if (peek_token(parser)->type == RSS_TOKEN_CONTENT) {
+			// TODO(ariel) Create node for content and connect to tree.
+			eat_token(parser);
+		}
+
+		// NOTE(ariel) Match start tag of child tag if it exists.
+		// FIXME(ariel) This was only RSS_TOKEN_STAG_OPEN before.
+		while (is_start_tag(peek_token(parser)->type)) {
+			RSS_Tree_Node *child = parse_tag(parser);
+			if (!node->first_child) {
+				node->first_child = child;
+			}
+			node->last_child = child;
+		}
+
+		if (!empty_tag) {
+			expect_token(parser, RSS_TOKEN_ETAG_OPEN, "expected '</'");
+			expect_token(parser, RSS_TOKEN_NAME, "expected name");
+			expect_token(parser, RSS_TOKEN_TAG_CLOSE, "expected '>'");
+		}
+	} else if (tag_type == TAG_TYPE_CDATA) {
+		expect_token(parser, RSS_TOKEN_CDATA, "expected character data (CDATA)");
+		node->token = parser->previous_token;
+		expect_token(parser, RSS_TOKEN_CDATA_CLOSE, "expected ']]>'");
+	} else {
+		generate_error_message(parser, "encountered unexpected tag type");
 	}
 
-	while (peek_token(parser)->type == RSS_TOKEN_STAG_OPEN) {
+	while (is_start_tag(peek_token(parser)->type)) {
 		RSS_Tree_Node *sibling = parse_tag(parser);
 		sibling->prev_sibling = node;
 		node->next_sibling = sibling;
@@ -400,17 +500,21 @@ parse_tag(Parser *parser)
 
 #ifdef PRINT_RSS_TREE
 global char *type_to_str[] = {
-	[RSS_TOKEN_EQUAL]           = "RSS_TOKEN_EQUAL",
 	[RSS_TOKEN_STAG_OPEN]       = "RSS_TOKEN_STAG_OPEN",
 	[RSS_TOKEN_ETAG_OPEN]       = "RSS_TOKEN_ETAG_OPEN",
+	[RSS_TOKEN_DECL_OPEN]       = "RSS_TOKEN_DECL_OPEN",
+	[RSS_TOKEN_PI_OPEN]         = "RSS_TOKEN_PI_OPEN",
+	[RSS_TOKEN_CDATA_OPEN]      = "RSS_TOKEN_CDATA_OPEN",
 	[RSS_TOKEN_EMPTY_TAG_CLOSE] = "RSS_TOKEN_EMPTY_TAG_CLOSE",
 	[RSS_TOKEN_TAG_CLOSE]       = "RSS_TOKEN_TAG_CLOSE",
-	[RSS_TOKEN_COMMENT]         = "RSS_TOKEN_COMMENT",
-	[RSS_TOKEN_PI_OPEN]         = "RSS_TOKEN_PI_OPEN",
 	[RSS_TOKEN_PI_CLOSE]        = "RSS_TOKEN_PI_CLOSE",
+	[RSS_TOKEN_CDATA_CLOSE]     = "RSS_TOKEN_CDATA_CLOSE",
+	[RSS_TOKEN_COMMENT]         = "RSS_TOKEN_COMMENT",
 	[RSS_TOKEN_NAME]            = "RSS_TOKEN_NAME",
 	[RSS_TOKEN_ATTRIBUTE_VALUE] = "RSS_TOKEN_ATTRIBUTE_VALUE",
 	[RSS_TOKEN_CONTENT]         = "RSS_TOKEN_CONTENT",
+	[RSS_TOKEN_CDATA]           = "RSS_TOKEN_CDATA",
+	[RSS_TOKEN_EQUAL]           = "RSS_TOKEN_EQUAL",
 	[RSS_TOKEN_ERROR]           = "RSS_TOKEN_ERROR",
 	[RSS_TOKEN_END]             = "RSS_TOKEN_END",
 };
@@ -428,9 +532,9 @@ print_rss_tree_recursively(RSS_Tree_Node *node, i8 layer)
 }
 
 internal void
-print_rss_tree(RSS_Tree tree)
+print_rss_tree(RSS_Tree *tree)
 {
-	print_rss_tree_recursively(tree.root, 0);
+	print_rss_tree_recursively(tree->root, 0);
 }
 #endif
 

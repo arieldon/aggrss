@@ -3,21 +3,35 @@
 
 #include "arena.h"
 
+/* NOTE(ariel)
+ * There's a key difference between START and OPEN as technical terms in this
+ * context. START refers to any tag that marks the beginning of an element.
+ * OPEN refers to the beginning of a tag (including closing tags), typically
+ * denoted by '<' and optionally one or more additional characters.
+ *
+ * The names in the code (mostly?) abides by these definitions. Actually, I
+ * don't think it does, but it should.
+ */
 typedef enum {
-	RSS_TOKEN_STAG_OPEN, // <
-	RSS_TOKEN_ETAG_OPEN, // </
-	RSS_TOKEN_DECL_OPEN, // <!
-	RSS_TOKEN_PI_OPEN,   // <?
+	RSS_TOKEN_START_LOWER_BOUND,
+	RSS_TOKEN_STAG_OPEN,  // <
+	RSS_TOKEN_CDATA_OPEN, // <![CDATA[
+	RSS_TOKEN_DECL_OPEN,  // <!
+	RSS_TOKEN_PI_OPEN,    // <?
+	RSS_TOKEN_START_UPPER_BOUND,
+	RSS_TOKEN_ETAG_OPEN,  // </
 
 	RSS_TOKEN_EMPTY_TAG_CLOSE, // />
 	RSS_TOKEN_TAG_CLOSE,       //  >
 	RSS_TOKEN_PI_CLOSE,        // ?>
+	RSS_TOKEN_CDATA_CLOSE,     // ]]>
 
 	RSS_TOKEN_COMMENT,   // <!-- -->
 
 	RSS_TOKEN_NAME,
 	RSS_TOKEN_ATTRIBUTE_VALUE,
 	RSS_TOKEN_CONTENT,
+	RSS_TOKEN_CDATA,
 
 	RSS_TOKEN_EQUAL,
 	RSS_TOKEN_ERROR,
