@@ -85,23 +85,11 @@ global Feed_List feeds;
 internal void
 parse_feed(Worker *worker, String url)
 {
-	// TODO(ariel) The string allocations are more entangled than I originally
-	// anticipated. As a result, it's more difficult to use the scratch arena. I
-	// will likely need to pass both persistent and scratch arenas and use each
-	// accordingly in the subroutines themselves.
-	String response = request_http_resource(&worker->persistent_arena, url);
-	if (!response.len) {
-		// TODO(ariel) Push error on global RSS tree instead of or in addition to
-		// logging a message here.
-		fprintf(stderr, "failed to receive response for %.*s\n", url.len, url.str);
-		return;
-	}
-
-	String rss = parse_http_response(&worker->persistent_arena, response);
+	String rss = download_resource(&worker->persistent_arena, &worker->scratch_arena, url);
 	if (!rss.len) {
 		// TODO(ariel) Push error on global RSS tree instead of or in addition to
 		// logging a message here.
-		fprintf(stderr, "failed to parse response for %.*s\n", url.len, url.str);
+		fprintf(stderr, "failed to receive valid response for %.*s\n", url.len, url.str);
 		return;
 	}
 

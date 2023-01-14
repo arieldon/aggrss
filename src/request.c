@@ -7,9 +7,7 @@
 #include <unistd.h>
 
 #include <openssl/bio.h>
-#include <openssl/err.h>
 #include <openssl/ssl.h>
-#include <openssl/x509v3.h>
 
 #include "arena.h"
 #include "base.h"
@@ -28,11 +26,16 @@ typedef struct {
 	String path;
 } URL;
 
-global String line_delimiter = {
+typedef struct {
+	i16 status_code;
+	String_Node *fields;
+} HTTP_Response_Header;
+
+global const String line_delimiter = {
 	.str = "\r\n",
 	.len = 2,
 };
-global String header_delimiter = {
+global const String header_terminator = {
 	.str = "\r\n\r\n",
 	.len = 4,
 };
@@ -77,11 +80,32 @@ parse_http_url(String urlstr)
 	return url;
 }
 
+internal HTTP_Response_Header
+parse_header(Arena *arena, String str)
+{
+	HTTP_Response_Header header = { .status_code = -1 };
+
+	String_List lines = string_strsplit(arena, str, line_delimiter);
+	if (lines.head) {
+		String status_line = lines.head->string;
+		String_List ls_status_line = string_split(arena, status_line, ' ');
+		if (ls_status_line.list_size == 3) {
+			String status_code = ls_status_line.head->next->string;
+			header.status_code = string_to_int(status_code, 10);
+		}
+		header.fields = lines.head->next;
+	}
+
+	return header;
+}
+
 internal String
 format_get_request(Arena *arena, URL url)
 {
 	// NOTE(ariel) It seems necessary to spoof the user agent field to receive a
-	// response from most servers today.
+	// response from most servers today. Update: I don't think this is true
+	// anymore. There was a different issue with the client, and I guess I fixed
+	// it in tandem with these changes.
 	local_persist String user_agent = {
 		.str = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0\r\n",
 		.len = 84,
@@ -118,7 +142,7 @@ format_get_request(Arena *arena, URL url)
 }
 
 internal i32
-get_content_length(Arena *arena, String header)
+get_content_length(HTTP_Response_Header header)
 {
 	local_persist String content_length_field = {
 		.str = "Content-Length",
@@ -126,20 +150,15 @@ get_content_length(Arena *arena, String header)
 	};
 	i32 content_length = -1;
 
-	String_List header_fields = string_strsplit(arena, header, line_delimiter);
-	String_Node *status_line = header_fields.head;
-	if (!status_line) return content_length;
-
-	String_Node *field_node = status_line->next;
+	String_Node *field_node = header.fields;
 	while (field_node && content_length < 0) {
 		String field = field_node->string;
 
-		i32 name_length = string_find_ch(field, ':');
-		if (name_length > 0) {
-			String name = string_prefix(field, name_length);
+		i32 colon_index = string_find_ch(field, ':');
+		if (colon_index > 0) {
+			String name = string_prefix(field, colon_index);
 			if (string_match(name, content_length_field)) {
-				// NOTE(ariel) +1 to skip ':'.
-				String remainder = string_suffix(field, name_length + 1);
+				String remainder = string_suffix(field, colon_index + 1);
 				String value = string_trim_spaces(remainder);
 				content_length = string_to_int(value, 10);
 			}
@@ -151,16 +170,68 @@ get_content_length(Arena *arena, String header)
 	return content_length;
 }
 
-String
-request_http_resource(Arena *arena, String urlstr)
+internal String
+get_transfer_encoding(HTTP_Response_Header header)
 {
-	String recv_buf = {0};
+	local_persist String transfer_encoding_field = {
+		.str = "Transfer-Encoding",
+		.len = 17,
+	};
+	String transfer_encoding = {0};
+
+	String_Node *field_node = header.fields;
+	while (field_node && !transfer_encoding.str) {
+		String field = field_node->string;
+
+		i32 colon_index = string_find_ch(field, ':');
+		if (colon_index > 0) {
+			String name = string_prefix(field, colon_index);
+			if (string_match(name, transfer_encoding_field)) {
+				String remainder = string_suffix(field, colon_index + 1);
+				transfer_encoding = string_trim_spaces(remainder);
+			}
+		}
+
+		field_node = field_node->next;
+	}
+
+	return transfer_encoding;
+}
+
+internal String
+decode_chunked_encoding(Arena *persistent_arena, Arena *scratch_arena, String encoded)
+{
+	String decoded = {0};
+	String_List decoded_chunks = {0};
+
+	String_List encoded_chunks = string_strsplit(scratch_arena, encoded, line_delimiter);
+	String_Node *encoded_chunk = encoded_chunks.head;
+	while (encoded_chunk) {
+		i32 decoded_length = 0;
+		i32 expected_length = string_to_int(encoded_chunk->string, 16);
+
+		encoded_chunk = encoded_chunk->next;
+		while (encoded_chunk && decoded_length < expected_length) {
+			decoded_length += encoded_chunk->string.len;
+			push_string_node(&decoded_chunks, encoded_chunk);
+			encoded_chunk = encoded_chunk->next;
+		}
+	}
+
+	decoded = string_list_concat(persistent_arena, decoded_chunks);
+	return decoded;
+}
+
+String
+download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
+{
+	String body = {0};
 
 	BIO *bio = 0;
 	SSL_CTX *ssl_ctx = 0;
 	URL url = parse_http_url(urlstr);
 
-	char *domain = string_terminate(arena, url.domain);
+	char *domain = string_terminate(scratch_arena, url.domain);
 	if (url.scheme.len == 8) {
 		const SSL_METHOD *method = TLS_client_method();
 		if (!method) goto exit;
@@ -185,99 +256,120 @@ request_http_resource(Arena *arena, String urlstr)
 	}
 
 	BIO_set_conn_hostname(bio, domain);
-	if (BIO_do_connect(bio) <= 0) {
-		ERR_print_errors_fp(stderr);
-		goto exit;
-	}
+	if (BIO_do_connect(bio) <= 0) goto exit;
 
-	String req_buf = format_get_request(arena, url);
-	BIO_write(bio, req_buf.str, req_buf.len);
+	String request = format_get_request(scratch_arena, url);
+	BIO_write(bio, request.str, request.len);
 	BIO_flush(bio);
 
-	// NOTE(ariel) BIO_read() enough times (perhaps only once) to receive the
-	// entire header.
-	String header = {0};
-	i32 header_length = 0;
-	String_List recvs = {0};
+	// NOTE(ariel) Keep reallocating the same string to extend it as needed.
+	// It's important than no other allocations occur using _this_ arena. The
+	// code below assumes the string remains contiguous.
+	String raw_header = {0};
+	String response = {
+		.str = arena_alloc(persistent_arena, 0),
+		.len = 0,
+	};
+
+	i32 delimiter_index = -1;
 	do {
-		String buf = {
-			.str = arena_alloc(arena, READ_BUF_SIZ),
-			.len = READ_BUF_SIZ,
-		};
+		i32 upper_bound = response.len + READ_BUF_SIZ;
+		response.str = arena_realloc(persistent_arena, upper_bound);
 
-		i32 nbytes = BIO_read(bio, buf.str, buf.len);
+		i32 nbytes = BIO_read(bio, response.str + response.len, READ_BUF_SIZ);
 		if (nbytes < 0) goto exit;
+		response.len += nbytes;
+		response.str  = arena_realloc(persistent_arena, response.len);
 
-		buf.str = arena_realloc(arena, nbytes);
-		buf.len = nbytes;
+		delimiter_index = string_find_substr(response, header_terminator);
+		if (delimiter_index >= 0) {
+			raw_header.str = response.str;
+			raw_header.len = delimiter_index;
+		}
+	} while (delimiter_index < 0);
 
-		header_length = string_find_substr(buf, header_delimiter);
-		header = string_prefix(buf, header_length);
+	HTTP_Response_Header header = parse_header(scratch_arena, raw_header);
+	if (header.status_code != 200) goto exit;
 
-		push_string(arena, &recvs, buf);
-	} while (header_length < 0);
-
-	// NOTE(ariel) Eat bytes remaining according to the `Content-Length` field.
-	// TODO(ariel) Handle `Transfer-Encoding` field -- it's an alternative to
-	// `Content-Length` that a smaller subset of web servers use.
-	i32 content_length = get_content_length(arena, header);
-	if (content_length < 0) goto exit;
-	while (recvs.total_len - header_length < content_length) {
-		String buf = {
-			.str = arena_alloc(arena, BUFSIZ),
-			.len = BUFSIZ
-		};
-
-		i32 nbytes = BIO_read(bio, buf.str, buf.len);
-		if (nbytes < 0) goto exit;
-
-		buf.str = arena_realloc(arena, nbytes);
-		buf.len = nbytes;
-
-		push_string(arena, &recvs, buf);
+	body.str = response.str + raw_header.len + header_terminator.len;
+	if (response.len > raw_header.len + header_terminator.len) {
+		// NOTE(ariel) Only set the length if it's valid, and if the pointer isn't
+		// valid now, it will be by the end of the function.
+		body.len = response.len - raw_header.len - header_terminator.len;
 	}
-	assert(header_length + content_length + header_delimiter.len == recvs.total_len);
-	recv_buf = string_list_concat(arena, recvs);
+	assert(body.len >= 0);
+
+	i32 content_length = get_content_length(header);
+	if (content_length != -1) {
+		while (body.len < content_length) {
+			i32 upper_bound = response.len + READ_BUF_SIZ;
+			response.str = arena_realloc(persistent_arena, upper_bound);
+
+			i32 nbytes = BIO_read(bio, response.str + response.len, READ_BUF_SIZ);
+			if (nbytes < 0) goto exit;
+			response.len += nbytes;
+			response.str  = arena_realloc(persistent_arena, response.len);
+
+			body.len += nbytes;
+		}
+		assert(content_length == body.len);
+	} else {
+		// NOTE(ariel) Only handle chuncked encoding for now -- no compression of
+		// any sort.
+		String transfer_encoding = get_transfer_encoding(header);
+		local_persist String chunked = {
+			.str = "chunked",
+			.len = 7
+		};
+		if (!string_match(transfer_encoding, chunked)) goto exit;
+
+		String chunked_encoding = string_duplicate(scratch_arena, body);
+		for (;;) {
+			i32 upper_bound = chunked_encoding.len + READ_BUF_SIZ;
+			chunked_encoding.str = arena_realloc(scratch_arena, upper_bound);
+
+			i32 nbytes = BIO_read(bio, chunked_encoding.str + chunked_encoding.len, READ_BUF_SIZ);
+			if (nbytes < 0) goto exit;
+			chunked_encoding.len += nbytes;
+			chunked_encoding.str  = arena_realloc(scratch_arena, chunked_encoding.len);
+
+			if (nbytes >= 5) {
+				local_persist String chunk_terminator = {
+					.str = "\r\n0\r\n\r\n",
+					.len = 7,
+				};
+				String trailing_bytes = string_suffix(
+					chunked_encoding, chunked_encoding.len - chunk_terminator.len);
+				if (string_match(trailing_bytes, chunk_terminator)) {
+					chunked_encoding.len -= chunk_terminator.len;
+					break;
+				}
+			}
+		}
+		body = decode_chunked_encoding(persistent_arena, scratch_arena, chunked_encoding);
+	}
 
 exit:
 	if (bio) BIO_free_all(bio);
 	if (ssl_ctx) SSL_CTX_free(ssl_ctx);
-	return recv_buf;
-}
-
-String
-parse_http_response(Arena *arena, String response)
-{
-	local_persist String ok_status_code = {
-		.str = "200",
-		.len = 3,
-	};
-
-	String response_body = {0};
-	String_List lines = string_strsplit(arena, response, line_delimiter);
-
-	String status_line = lines.head->string;
-	String_List status_line_elements = string_split(arena, status_line, ' ');
-	if (status_line_elements.list_size != 3) {
-		fprintf(stderr, "failed to parse status line of HTTP response\n");
-		return response_body;
-	}
-	String status_code = status_line_elements.head->next->string;
-	if (!string_match(status_code, ok_status_code)) {
-		fprintf(stderr, "request failed, received status code that does not indicate success\n");
-		return response_body;
-	}
-
-	response_body = lines.tail->string;
-	return response_body;
+	return body;
 }
 
 #ifdef DEBUG
-// NOTE(ariel) I only use this function to print length-based strings in GDB
-// conveniently.
+// NOTE(ariel) I only use these function to conveniently output length-based
+// strings in GDB.
+
 void
 print_string(String s)
 {
 	fprintf(stdout, "%.*s\n", s.len, s.str);
+}
+
+void
+log_string(String s)
+{
+	FILE *file = fopen("./log", "w+");
+	fprintf(file, "%.*s\n", s.len, s.str);
+	fclose(file);
 }
 #endif
