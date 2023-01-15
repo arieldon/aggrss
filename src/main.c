@@ -83,17 +83,42 @@ typedef struct {
 
 global Feed_List feeds;
 
+internal String
+load_file(Arena *arena, FILE *file)
+{
+	String contents = {0};
+
+	fseek(file, 0, SEEK_END);
+	contents.len = ftell(file);
+	rewind(file);
+	contents.str = arena_alloc(arena, contents.len + 1);
+	fread(contents.str, contents.len, sizeof(char), file);
+	contents.str[contents.len] = 0;
+	fclose(file);
+
+	return contents;
+}
+
 internal void
 parse_feed(Worker *worker, String url)
 {
+#if NO_NETWORK
+	char *domain = string_terminate(&worker->scratch_arena, parse_http_url(url).domain);
+	FILE *file = fopen(domain, "rb");
+	if (!file) {
+		++work_queue.nfails;
+		return;
+	}
+	String rss = load_file(&worker->persistent_arena, file);
+#else
 	String rss = download_resource(&worker->persistent_arena, &worker->scratch_arena, url);
 	if (!rss.len) {
 		// TODO(ariel) Push error on global RSS tree instead of or in addition to
 		// logging a message here.
 		++work_queue.nfails;
-		fprintf(stderr, "failed to receive valid response for %.*s\n", url.len, url.str);
 		return;
 	}
+#endif
 
 	RSS_Token_List tokens = tokenize_rss(&worker->persistent_arena, rss);
 	RSS_Tree *feed = parse_rss(&worker->persistent_arena, tokens);
@@ -111,7 +136,6 @@ parse_feed(Worker *worker, String url)
 	}
 	pthread_spin_unlock(&feeds.lock);
 	++work_queue.ncompletions;
-	fprintf(stderr, "succcess %.*s\n", url.len, url.str);
 }
 
 internal void *
@@ -235,22 +259,6 @@ process_frame(mu_Context *ctx)
 	mu_end(ctx);
 }
 
-internal String
-load_file(FILE *file)
-{
-	String contents = {0};
-
-	fseek(file, 0, SEEK_END);
-	contents.len = ftell(file);
-	rewind(file);
-	contents.str = arena_alloc(&g_arena, contents.len + 1);
-	fread(contents.str, contents.len, sizeof(char), file);
-	contents.str[contents.len] = 0;
-	fclose(file);
-
-	return contents;
-}
-
 int
 main(void)
 {
@@ -287,7 +295,7 @@ main(void)
 	FILE *file = fopen("./feeds", "rb");
 	if (!file) err_exit("failed to open feeds file");
 
-	String feeds = load_file(file);
+	String feeds = load_file(&g_arena, file);
 	read_feeds(feeds);
 
 	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);

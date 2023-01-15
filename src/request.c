@@ -21,12 +21,6 @@
 enum { READ_BUF_SIZ = KB(8) };
 
 typedef struct {
-	String scheme;
-	String domain;
-	String path;
-} URL;
-
-typedef struct {
 	i16 status_code;
 	String_Node *fields;
 } HTTP_Response_Header;
@@ -40,7 +34,7 @@ global const String header_terminator = {
 	.len = 4,
 };
 
-internal URL
+URL
 parse_http_url(String urlstr)
 {
 	URL url = {0};
