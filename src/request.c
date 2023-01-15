@@ -222,6 +222,21 @@ decode_chunked_encoding(Arena *persistent_arena, Arena *scratch_arena, String en
 	return decoded;
 }
 
+internal i32
+receive(Arena *arena, BIO *bio, String *read_buffer)
+{
+	i32 upper_bound = read_buffer->len + READ_BUF_SIZ;
+	read_buffer->str = arena_realloc(arena, upper_bound);
+
+	i32 nbytes = BIO_read(bio, read_buffer->str + read_buffer->len, READ_BUF_SIZ);
+	if (nbytes > 0) {
+		read_buffer->len += nbytes;
+		read_buffer->str = arena_realloc(arena, read_buffer->len);
+	}
+
+	return nbytes;
+}
+
 String
 download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 {
@@ -273,14 +288,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 
 	i32 delimiter_index = -1;
 	do {
-		i32 upper_bound = response.len + READ_BUF_SIZ;
-		response.str = arena_realloc(persistent_arena, upper_bound);
-
-		i32 nbytes = BIO_read(bio, response.str + response.len, READ_BUF_SIZ);
-		if (nbytes < 0) goto exit;
-		response.len += nbytes;
-		response.str  = arena_realloc(persistent_arena, response.len);
-
+		receive(persistent_arena, bio, &response);
 		delimiter_index = string_find_substr(response, header_terminator);
 		if (delimiter_index >= 0) {
 			raw_header.str = response.str;
@@ -302,14 +310,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	i32 content_length = get_content_length(header);
 	if (content_length != -1) {
 		while (body.len < content_length) {
-			i32 upper_bound = response.len + READ_BUF_SIZ;
-			response.str = arena_realloc(persistent_arena, upper_bound);
-
-			i32 nbytes = BIO_read(bio, response.str + response.len, READ_BUF_SIZ);
-			if (nbytes < 0) goto exit;
-			response.len += nbytes;
-			response.str  = arena_realloc(persistent_arena, response.len);
-
+			i32 nbytes = receive(persistent_arena, bio, &response);
 			body.len += nbytes;
 		}
 		assert(content_length == body.len);
@@ -323,27 +324,27 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 		};
 		if (!string_match(transfer_encoding, chunked)) goto exit;
 
+		i32 nzeros = 0;
 		String chunked_encoding = string_duplicate(scratch_arena, body);
 		for (;;) {
-			i32 upper_bound = chunked_encoding.len + READ_BUF_SIZ;
-			chunked_encoding.str = arena_realloc(scratch_arena, upper_bound);
+			i32 nbytes = receive(scratch_arena, bio, &chunked_encoding);
+			// TODO(ariel) Replace with BIO_should_retry()?
+			if (nbytes == 0) {
+				++nzeros;
+				if (nzeros == 3) goto exit;
+			} else {
+				nzeros = 0;
+			}
 
-			i32 nbytes = BIO_read(bio, chunked_encoding.str + chunked_encoding.len, READ_BUF_SIZ);
-			if (nbytes < 0) goto exit;
-			chunked_encoding.len += nbytes;
-			chunked_encoding.str  = arena_realloc(scratch_arena, chunked_encoding.len);
-
-			if (nbytes >= 5) {
-				local_persist String chunk_terminator = {
-					.str = "\r\n0\r\n\r\n",
-					.len = 7,
-				};
-				String trailing_bytes = string_suffix(
-					chunked_encoding, chunked_encoding.len - chunk_terminator.len);
-				if (string_match(trailing_bytes, chunk_terminator)) {
-					chunked_encoding.len -= chunk_terminator.len;
-					break;
-				}
+			local_persist String chunk_terminator = {
+				.str = "\r\n0\r\n\r\n",
+				.len = 7,
+			};
+			String trailing_bytes = string_suffix(
+				chunked_encoding, chunked_encoding.len - chunk_terminator.len);
+			if (string_match(trailing_bytes, chunk_terminator)) {
+				chunked_encoding.len -= chunk_terminator.len;
+				break;
 			}
 		}
 		body = decode_chunked_encoding(persistent_arena, scratch_arena, chunked_encoding);
