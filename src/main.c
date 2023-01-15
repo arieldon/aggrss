@@ -41,10 +41,7 @@ global float background[3] = { 255, 255, 255 };
 // TODO(ariel) Is it feasible to run more than three workers? I _assume_ (no
 // tests) that I/O rather than processing bounds this workload, so more workers
 // than three may improve throughput.
-enum {
-	N_WORKERS          = 3,
-	N_MAX_WORK_ENTRIES = 64,
-};
+enum { N_WORKERS = 3 };
 
 typedef struct {
 	pthread_t thread_id;
@@ -66,10 +63,14 @@ typedef struct {
 // problem.
 typedef struct {
 	sem_t semaphore;
+
 	_Atomic(i32) next_entry_to_read;
 	_Atomic(i32) next_entry_to_write;
 	_Atomic(i32) ncompletions;
-	Work_Entry entries[N_MAX_WORK_ENTRIES];
+	_Atomic(i32) nfails;
+
+	i32 n_max_work_entries;
+	Work_Entry *entries;
 } Work_Queue;
 
 global Worker workers[N_WORKERS];
@@ -89,6 +90,7 @@ parse_feed(Worker *worker, String url)
 	if (!rss.len) {
 		// TODO(ariel) Push error on global RSS tree instead of or in addition to
 		// logging a message here.
+		++work_queue.nfails;
 		fprintf(stderr, "failed to receive valid response for %.*s\n", url.len, url.str);
 		return;
 	}
@@ -108,6 +110,7 @@ parse_feed(Worker *worker, String url)
 		}
 	}
 	pthread_spin_unlock(&feeds.lock);
+	++work_queue.ncompletions;
 	fprintf(stderr, "succcess %.*s\n", url.len, url.str);
 }
 
@@ -122,7 +125,8 @@ get_work_entry(void *arg)
 		sem_wait(&work_queue.semaphore);
 		if (work_queue.next_entry_to_read != work_queue.next_entry_to_write) {
 			Work_Entry entry = work_queue.entries[work_queue.next_entry_to_read];
-			work_queue.next_entry_to_read = (work_queue.next_entry_to_read + 1) % N_MAX_WORK_ENTRIES;
+			work_queue.next_entry_to_read =
+				(work_queue.next_entry_to_read + 1) % work_queue.n_max_work_entries;
 			parse_feed(worker, entry.url);
 			arena_clear(&worker->scratch_arena);
 		}
@@ -136,11 +140,7 @@ add_work_entry(String url)
 {
 	// NOTE(ariel) This routine serves as a producer. Only a single thread of
 	// execution adds entries to the work queue.
-	//
-	// TODO(ariel) Confirm overflow never occurs. I know in advance the maximum
-	// number of work entries -- it's the number of URLs or lines in the `feeds`
-	// file.
-	i32 new_next_entry_to_write = work_queue.next_entry_to_write + 1 % N_MAX_WORK_ENTRIES;
+	i32 new_next_entry_to_write = (work_queue.next_entry_to_write + 1) % work_queue.n_max_work_entries;
 	assert(new_next_entry_to_write != work_queue.next_entry_to_read);
 
 	Work_Entry entry = {url};
@@ -154,6 +154,9 @@ internal void
 read_feeds(String feeds)
 {
 	String_List urls = string_split(&g_arena, feeds, '\n');
+	work_queue.n_max_work_entries = urls.list_size;
+	work_queue.entries = arena_alloc(&g_arena, work_queue.n_max_work_entries * sizeof(Work_Entry));
+
 	String_Node *url = urls.head;
 	while (url) {
 		add_work_entry(url->string);
@@ -176,6 +179,24 @@ text_height(mu_Font font)
 	return r_get_text_height();
 }
 
+internal char *
+format_complete_message(void)
+{
+	local_persist char success_message[] = "XX of XX succeeded";
+	snprintf(success_message, sizeof(success_message),
+		"%d of %d success", work_queue.ncompletions, work_queue.n_max_work_entries);
+	return success_message;
+}
+
+internal char *
+format_fail_message(void)
+{
+	local_persist char fail_message[] = "XX of XX failed";
+	snprintf(fail_message, sizeof(fail_message),
+		"%d of %d fail", work_queue.nfails, work_queue.n_max_work_entries);
+	return fail_message;
+}
+
 internal void
 process_frame(mu_Context *ctx)
 {
@@ -183,8 +204,12 @@ process_frame(mu_Context *ctx)
 
 	i32 winopts = MU_OPT_NORESIZE | MU_OPT_NOCLOSE;
 	if (mu_begin_window_ex(ctx, "RSS", mu_rect(0, 0, 800, 600), winopts)) {
-		// TODO(ariel) If work_queue.ncompletions != number of URLs, output a status
-		// message.
+		char *complete_message = format_complete_message();
+		char *fail_message = format_fail_message();
+		mu_layout_row(ctx, 1, (int[]){-1}, 0);
+		mu_text(ctx, complete_message);
+		mu_layout_row(ctx, 1, (int[]){-1}, 0);
+		mu_text(ctx, fail_message);
 
 		pthread_spin_lock(&feeds.lock);
 		{
