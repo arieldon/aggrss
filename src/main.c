@@ -221,6 +221,71 @@ format_fail_message(void)
 	return fail_message;
 }
 
+typedef struct Node {
+	void *data;
+	struct Node *next;
+} Node;
+
+typedef struct {
+	Node *top;
+} Stack;
+
+internal void
+push_node(Stack *s, void *data)
+{
+	Node *node = arena_alloc(&g_arena, sizeof(Node));
+	node->data = data;
+	node->next = s->top;
+	s->top = node;
+}
+
+internal void *
+pop_node(Stack *s)
+{
+	Node *node = s->top;
+	s->top = s->top->next;
+	return node->data;
+}
+
+internal inline bool
+is_stack_empty(Stack *s)
+{
+	return !s->top;
+}
+
+internal RSS_Tree_Node *
+find_feed_title(RSS_Tree_Node *root)
+{
+	local_persist String title = {
+		.str = "title",
+		.len = 5,
+	};
+
+	RSS_Tree_Node *title_node = 0;
+
+	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
+	{
+		// NOTE(ariel) Find the first title tag in the XML/RSS tree.
+		Stack s = {0};
+		push_node(&s, root);
+		while (!is_stack_empty(&s)) {
+			RSS_Tree_Node *node = pop_node(&s);
+			if (!node) continue;
+
+			if (string_match(title, node->token->text)) {
+				title_node = node;
+				break;
+			}
+
+			push_node(&s, node->next_sibling);
+			push_node(&s, node->first_child);
+		}
+	}
+	arena_checkpoint_restore(checkpoint);
+
+	return title_node;
+}
+
 internal void
 process_frame(mu_Context *ctx)
 {
@@ -240,7 +305,9 @@ process_frame(mu_Context *ctx)
 			RSS_Tree *feed = feeds.list.first;
 			while (feed) {
 				RSS_Tree_Node *root = feed->root;
-				if (mu_header_ex(ctx, string_terminate(&g_arena, root->token->text), 0)) {
+				RSS_Tree_Node *title_node = find_feed_title(root);
+				char *title = string_terminate(&g_arena, title_node->content);
+				if (mu_header_ex(ctx, title, 0)) {
 					// TODO(ariel) Insert a list of posts from the corresponding feed
 					// here.
 					//

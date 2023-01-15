@@ -462,12 +462,16 @@ parse_tag(Parser *parser)
 
 		// NOTE(ariel) Parse content if it exists.
 		if (peek_token(parser)->type == RSS_TOKEN_CONTENT) {
-			// TODO(ariel) Create node for content and connect to tree.
+			eat_token(parser);
+			node->content = parser->previous_token->text;
+		} else if (peek_token(parser)->type == RSS_TOKEN_CDATA_OPEN) {
+			eat_token(parser);
+			eat_token(parser);
+			node->content = parser->previous_token->text;
 			eat_token(parser);
 		}
 
 		// NOTE(ariel) Match start tag of child tag if it exists.
-		// FIXME(ariel) This was only RSS_TOKEN_STAG_OPEN before.
 		while (is_start_tag(peek_token(parser)->type)) {
 			RSS_Tree_Node *child = parse_tag(parser);
 			if (!node->first_child) {
@@ -481,10 +485,6 @@ parse_tag(Parser *parser)
 			expect_token(parser, RSS_TOKEN_NAME, "expected name");
 			expect_token(parser, RSS_TOKEN_TAG_CLOSE, "expected '>'");
 		}
-	} else if (tag_type == TAG_TYPE_CDATA) {
-		expect_token(parser, RSS_TOKEN_CDATA, "expected character data (CDATA)");
-		node->token = parser->previous_token;
-		expect_token(parser, RSS_TOKEN_CDATA_CLOSE, "expected ']]>'");
 	} else {
 		generate_error_message(parser, "encountered unexpected tag type");
 	}

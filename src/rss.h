@@ -66,6 +66,7 @@ typedef struct RSS_Tree_Node {
 	struct RSS_Tree_Node *next_sibling;
 	RSS_Attribute_List attrs;
 	RSS_Token_Node *token;
+	String content;
 } RSS_Tree_Node;
 
 typedef struct RSS_Error {
