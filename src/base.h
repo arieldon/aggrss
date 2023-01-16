@@ -29,6 +29,7 @@ typedef struct {
 #define      internal static
 #define        global static
 #define local_persist static
+#define  thread_local _Thread_local
 
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)

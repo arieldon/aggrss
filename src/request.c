@@ -234,21 +234,23 @@ receive(Arena *arena, BIO *bio, String *read_buffer)
 String
 download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 {
+	local_persist thread_local SSL_CTX *ssl_ctx;
+
 	String body = {0};
 
 	BIO *bio = 0;
-	SSL_CTX *ssl_ctx = 0;
 	URL url = parse_http_url(urlstr);
 
 	char *domain = string_terminate(scratch_arena, url.domain);
 	if (url.scheme.len == 8) {
-		const SSL_METHOD *method = TLS_client_method();
-		if (!method) goto exit;
+		if (!ssl_ctx) {
+			const SSL_METHOD *method = TLS_client_method();
+			if (!method) goto exit;
 
-		ssl_ctx = SSL_CTX_new(TLS_client_method());
-		if (!ssl_ctx) goto exit;
-
-		if (!SSL_CTX_set_default_verify_paths(ssl_ctx)) goto exit;
+			ssl_ctx = SSL_CTX_new(TLS_client_method());
+			if (!ssl_ctx) goto exit;
+			if (!SSL_CTX_set_default_verify_paths(ssl_ctx)) goto exit;
+		}
 
 		bio = BIO_new_ssl_connect(ssl_ctx);
 		if (!bio) goto exit;
@@ -346,7 +348,6 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 
 exit:
 	if (bio) BIO_free_all(bio);
-	if (ssl_ctx) SSL_CTX_free(ssl_ctx);
 	return body;
 }
 
