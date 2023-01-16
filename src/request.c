@@ -235,13 +235,15 @@ String
 download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 {
 	local_persist thread_local SSL_CTX *ssl_ctx;
+	local_persist thread_local BIO *https_bio;
+	local_persist thread_local BIO *http_bio;
 
 	String body = {0};
 
 	BIO *bio = 0;
 	URL url = parse_http_url(urlstr);
-
 	char *domain = string_terminate(scratch_arena, url.domain);
+
 	if (url.scheme.len == 8) {
 		if (!ssl_ctx) {
 			const SSL_METHOD *method = TLS_client_method();
@@ -252,8 +254,11 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 			if (!SSL_CTX_set_default_verify_paths(ssl_ctx)) goto exit;
 		}
 
-		bio = BIO_new_ssl_connect(ssl_ctx);
-		if (!bio) goto exit;
+		if (!https_bio) {
+			https_bio = BIO_new_ssl_connect(ssl_ctx);
+			if (!https_bio) goto exit;
+		}
+		bio = https_bio;
 
 		SSL *ssl = 0;
 		BIO_get_ssl(bio, &ssl);
@@ -262,7 +267,11 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 
 		BIO_set_conn_port(bio, HTTPS_PORT);
 	} else {
-		bio = BIO_new(BIO_s_connect());
+		if (!http_bio) {
+			http_bio = BIO_new(BIO_s_connect());
+			if (!http_bio) goto exit;
+		}
+		bio = http_bio;
 		BIO_set_conn_port(bio, HTTP_PORT);
 	}
 
@@ -347,7 +356,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	}
 
 exit:
-	if (bio) BIO_free_all(bio);
+	if (bio) BIO_reset(bio);
 	return body;
 }
 
