@@ -286,6 +286,44 @@ find_feed_title(RSS_Tree_Node *root)
 	return title_node;
 }
 
+internal RSS_Tree_Node *
+find_item_node(RSS_Tree_Node *root)
+{
+	// NOTE(ariel) RSS uses the keyword "item". Atom uses the keyword "entry".
+	local_persist String item = {
+		.str = "item",
+		.len = 4,
+	};
+	local_persist String entry = {
+		.str = "entry",
+		.len = 5,
+	};
+
+	RSS_Tree_Node *item_node = 0;
+
+	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
+	{
+		// NOTE(ariel) Find the first item tag in the XML/RSS tree.
+		Stack s = {0};
+		push_node(&s, root);
+		while (!is_stack_empty(&s)) {
+			RSS_Tree_Node *node = pop_node(&s);
+			if (!node) continue;
+
+			if (string_match(item, node->token->text) || string_match(entry, node->token->text)) {
+				item_node = node;
+				break;
+			}
+
+			push_node(&s, node->next_sibling);
+			push_node(&s, node->first_child);
+		}
+	}
+	arena_checkpoint_restore(checkpoint);
+
+	return item_node;
+}
+
 internal void
 process_frame(mu_Context *ctx)
 {
@@ -306,15 +344,28 @@ process_frame(mu_Context *ctx)
 			while (feed) {
 				RSS_Tree_Node *root = feed->root;
 				RSS_Tree_Node *title_node = find_feed_title(root);
+				RSS_Tree_Node *item_node = find_item_node(root);
+
 				char *title = string_terminate(&g_arena, title_node->content);
-				if (mu_header_ex(ctx, title, 0)) {
-					// TODO(ariel) Insert a list of posts from the corresponding feed
-					// here.
-					//
-					// TODO(ariel) Create nodes for content in the tree first. The tree,
-					// for now, only contains the tag names, and those provide little
-					// value to the user (me) in the graphical interface.
-					;
+				if (mu_header_ex(ctx, title, 0) && item_node) {
+					while (item_node) {
+						RSS_Tree_Node *node = item_node->first_child;
+						while (node) {
+							local_persist String title = {
+								.str = "title",
+								.len = 5,
+							};
+							if (string_match(title, node->token->text)) {
+								break;
+							}
+							node = node->next_sibling;
+						}
+
+						char *label = string_terminate(&g_arena, node->content);
+						mu_label(ctx, label);
+
+						item_node = item_node->next_sibling;
+					}
 				}
 				feed = feed->next;
 			}
