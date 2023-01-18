@@ -147,13 +147,10 @@ get_work_entry(void *arg)
 
 	for (;;) {
 		sem_wait(&work_queue.semaphore);
-		if (work_queue.next_entry_to_read != work_queue.next_entry_to_write) {
-			Work_Entry entry = work_queue.entries[work_queue.next_entry_to_read];
-			work_queue.next_entry_to_read =
-				(work_queue.next_entry_to_read + 1) % work_queue.n_max_work_entries;
-			parse_feed(worker, entry.url);
-			arena_clear(&worker->scratch_arena);
-		}
+		assert(work_queue.next_entry_to_read < work_queue.n_max_work_entries);
+		Work_Entry entry = work_queue.entries[work_queue.next_entry_to_read++];
+		parse_feed(worker, entry.url);
+		arena_clear(&worker->scratch_arena);
 	}
 
 	return 0;
@@ -164,13 +161,9 @@ add_work_entry(String url)
 {
 	// NOTE(ariel) This routine serves as a producer. Only a single thread of
 	// execution adds entries to the work queue.
-	i32 new_next_entry_to_write = (work_queue.next_entry_to_write + 1) % work_queue.n_max_work_entries;
-	assert(new_next_entry_to_write != work_queue.next_entry_to_read);
-
 	Work_Entry entry = {url};
-	work_queue.entries[work_queue.next_entry_to_write] = entry;
-	work_queue.next_entry_to_write = new_next_entry_to_write;
-
+	assert(work_queue.next_entry_to_write < work_queue.n_max_work_entries);
+	work_queue.entries[work_queue.next_entry_to_write++] = entry;
 	sem_post(&work_queue.semaphore);
 }
 
@@ -382,6 +375,11 @@ main(void)
 {
 	arena_init(&g_arena);
 
+	// NOTE(ariel) Initialize tree that stores parsed RSS feeds.
+	if (pthread_spin_init(&feeds.lock, PTHREAD_PROCESS_PRIVATE)) {
+		err_exit("failed to initialize spin lock for list of parsed RSS feeds");
+	}
+
 	// NOTE(ariel) Initialize work queue.
 	{
 		if (sem_init(&work_queue.semaphore, 0, 0) == -1) {
@@ -395,11 +393,6 @@ main(void)
 			arena_init(&worker->scratch_arena);
 			arena_init(&worker->persistent_arena);
 		}
-	}
-
-	// NOTE(ariel) Initialize tree that stores parsed RSS feeds.
-	if (pthread_spin_init(&feeds.lock, PTHREAD_PROCESS_PRIVATE)) {
-		err_exit("failed to initialize spin lock for tree of parsed RSS feeds");
 	}
 
 	SDL_Init(SDL_INIT_VIDEO);
