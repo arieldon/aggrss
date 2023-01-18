@@ -69,7 +69,7 @@ typedef struct {
 	_Atomic(i32) ncompletions;
 	_Atomic(i32) nfails;
 
-	i32 n_max_work_entries;
+	i32 n_max_entries;
 	Work_Entry *entries;
 } Work_Queue;
 
@@ -147,7 +147,7 @@ get_work_entry(void *arg)
 
 	for (;;) {
 		sem_wait(&work_queue.semaphore);
-		assert(work_queue.next_entry_to_read < work_queue.n_max_work_entries);
+		assert(work_queue.next_entry_to_read < work_queue.n_max_entries);
 		Work_Entry entry = work_queue.entries[work_queue.next_entry_to_read++];
 		parse_feed(worker, entry.url);
 		arena_clear(&worker->scratch_arena);
@@ -162,7 +162,7 @@ add_work_entry(String url)
 	// NOTE(ariel) This routine serves as a producer. Only a single thread of
 	// execution adds entries to the work queue.
 	Work_Entry entry = {url};
-	assert(work_queue.next_entry_to_write < work_queue.n_max_work_entries);
+	assert(work_queue.next_entry_to_write < work_queue.n_max_entries);
 	work_queue.entries[work_queue.next_entry_to_write++] = entry;
 	sem_post(&work_queue.semaphore);
 }
@@ -171,8 +171,8 @@ internal void
 read_feeds(String feeds)
 {
 	String_List urls = string_split(&g_arena, feeds, '\n');
-	work_queue.n_max_work_entries = urls.list_size;
-	work_queue.entries = arena_alloc(&g_arena, work_queue.n_max_work_entries * sizeof(Work_Entry));
+	work_queue.n_max_entries = urls.list_size;
+	work_queue.entries = arena_alloc(&g_arena, work_queue.n_max_entries * sizeof(Work_Entry));
 
 	String_Node *url = urls.head;
 	while (url) {
@@ -199,18 +199,18 @@ text_height(mu_Font font)
 internal char *
 format_complete_message(void)
 {
-	local_persist char success_message[] = "XX of XX succeeded";
+	local_persist char success_message[32] = {0};
 	snprintf(success_message, sizeof(success_message),
-		"%d of %d success", work_queue.ncompletions, work_queue.n_max_work_entries);
+		"%d of %d success", work_queue.ncompletions, work_queue.n_max_entries);
 	return success_message;
 }
 
 internal char *
 format_fail_message(void)
 {
-	local_persist char fail_message[] = "XX of XX failed";
+	local_persist char fail_message[32] = {0};
 	snprintf(fail_message, sizeof(fail_message),
-		"%d of %d fail", work_queue.nfails, work_queue.n_max_work_entries);
+		"%d of %d fail", work_queue.nfails, work_queue.n_max_entries);
 	return fail_message;
 }
 
