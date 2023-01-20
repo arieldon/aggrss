@@ -83,7 +83,11 @@ typedef struct {
 
 typedef struct RSS_Tree {
 	struct RSS_Tree *next;
+
 	RSS_Tree_Node *root;
+	RSS_Tree_Node *feed_title;
+	RSS_Tree_Node *first_item;
+
 	RSS_Error_List errors;
 } RSS_Tree;
 
@@ -94,5 +98,9 @@ typedef struct {
 
 RSS_Token_List tokenize_rss(Arena *arena, String source);
 RSS_Tree *parse_rss(Arena *arena, RSS_Token_List tokens);
+
+RSS_Tree_Node *find_feed_title(Arena *arena, RSS_Tree_Node *root);
+RSS_Tree_Node *find_item_title(RSS_Tree_Node *item);
+RSS_Tree_Node *find_item_node(Arena *arena, RSS_Tree_Node *root);
 
 #endif

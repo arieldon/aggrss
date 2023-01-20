@@ -558,3 +558,129 @@ parse_rss(Arena *arena, RSS_Token_List tokens)
 	assert(parser.current_token->type == RSS_TOKEN_END);
 	return parser.tree;
 }
+
+
+/* ---
+ * Functions to Traverse RSS Parse Tree
+ * ---
+ */
+
+typedef struct Node {
+	void *data;
+	struct Node *next;
+} Node;
+
+typedef struct {
+	Node *top;
+} Stack;
+
+// NOTE(ariel) RSS uses the keyword "item". Atom uses the keyword "entry".
+global String item_string = {
+	.str = "item",
+	.len = 4,
+};
+global String entry_string = {
+	.str = "entry",
+	.len = 5,
+};
+global String title_string = {
+	.str = "title",
+	.len = 5,
+};
+
+internal inline void
+push_node(Arena *arena, Stack *s, void *data)
+{
+	Node *node = arena_alloc(arena, sizeof(Node));
+	node->data = data;
+	node->next = s->top;
+	s->top = node;
+}
+
+internal inline void *
+pop_node(Stack *s)
+{
+	Node *node = s->top;
+	s->top = s->top->next;
+	return node->data;
+}
+
+internal inline bool
+is_stack_empty(Stack *s)
+{
+	return !s->top;
+}
+
+RSS_Tree_Node *
+find_feed_title(Arena *arena, RSS_Tree_Node *root)
+{
+	RSS_Tree_Node *title_node = 0;
+
+	Arena_Checkpoint checkpoint = arena_checkpoint_set(arena);
+	{
+		Stack s = {0};
+		push_node(arena, &s, root);
+		while (!is_stack_empty(&s)) {
+			RSS_Tree_Node *node = pop_node(&s);
+			if (!node) continue;
+
+			if (string_match(title_string, node->token->text)) {
+				title_node = node;
+				break;
+			}
+
+			push_node(arena, &s, node->next_sibling);
+			push_node(arena, &s, node->first_child);
+		}
+	}
+	arena_checkpoint_restore(checkpoint);
+
+	return title_node;
+}
+
+RSS_Tree_Node *
+find_item_title(RSS_Tree_Node *item)
+{
+	RSS_Tree_Node *item_title_node = 0;
+
+	if (string_match(item_string, item->token->text) || string_match(entry_string, item->token->text)) {
+		RSS_Tree_Node *node = item->first_child;
+		while (node) {
+			if (string_match(title_string, node->token->text)) {
+				item_title_node = node;
+				break;
+			}
+			node = node->next_sibling;
+		}
+	}
+
+	return item_title_node;
+}
+
+RSS_Tree_Node *
+find_item_node(Arena *arena, RSS_Tree_Node *root)
+{
+	RSS_Tree_Node *item_node = 0;
+
+	Arena_Checkpoint checkpoint = arena_checkpoint_set(arena);
+	{
+		// NOTE(ariel) Find the first item tag in the XML/RSS tree.
+		Stack s = {0};
+		push_node(arena, &s, root);
+		while (!is_stack_empty(&s)) {
+			RSS_Tree_Node *node = pop_node(&s);
+			if (!node) continue;
+
+			if (string_match(item_string, node->token->text) || string_match(entry_string, node->token->text)) {
+				item_node = node;
+				break;
+			}
+
+			push_node(arena, &s, node->next_sibling);
+			push_node(arena, &s, node->first_child);
+		}
+	}
+	arena_checkpoint_restore(checkpoint);
+
+	return item_node;
+}

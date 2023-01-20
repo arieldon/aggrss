@@ -123,6 +123,19 @@ parse_feed(Worker *worker, String url)
 	RSS_Token_List tokens = tokenize_rss(&worker->persistent_arena, rss);
 	RSS_Tree *feed = parse_rss(&worker->persistent_arena, tokens);
 
+	if (feed->root) {
+		feed->feed_title = find_feed_title(&worker->scratch_arena, feed->root);
+		if (!feed->feed_title) {
+			// NOTE(ariel) Invalidate feeds without a title tag.
+			++work_queue.nfails;
+			return;
+		}
+
+		// NOTE(ariel) Feeds don't necessarily need to be filled; that is, empty
+		// feeds are valid.
+		feed->first_item = find_item_node(&worker->scratch_arena, feed->root);
+	}
+
 	// NOTE(ariel) Push results in persistent arena to global tree.
 	pthread_spin_lock(&feeds.lock);
 	{
@@ -135,6 +148,7 @@ parse_feed(Worker *worker, String url)
 		}
 	}
 	pthread_spin_unlock(&feeds.lock);
+
 	++work_queue.ncompletions;
 }
 
@@ -214,109 +228,6 @@ format_fail_message(void)
 	return fail_message;
 }
 
-typedef struct Node {
-	void *data;
-	struct Node *next;
-} Node;
-
-typedef struct {
-	Node *top;
-} Stack;
-
-internal void
-push_node(Stack *s, void *data)
-{
-	Node *node = arena_alloc(&g_arena, sizeof(Node));
-	node->data = data;
-	node->next = s->top;
-	s->top = node;
-}
-
-internal void *
-pop_node(Stack *s)
-{
-	Node *node = s->top;
-	s->top = s->top->next;
-	return node->data;
-}
-
-internal inline bool
-is_stack_empty(Stack *s)
-{
-	return !s->top;
-}
-
-internal RSS_Tree_Node *
-find_feed_title(RSS_Tree_Node *root)
-{
-	local_persist String title = {
-		.str = "title",
-		.len = 5,
-	};
-
-	RSS_Tree_Node *title_node = 0;
-
-	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
-	{
-		// NOTE(ariel) Find the first title tag in the XML/RSS tree.
-		Stack s = {0};
-		push_node(&s, root);
-		while (!is_stack_empty(&s)) {
-			RSS_Tree_Node *node = pop_node(&s);
-			if (!node) continue;
-
-			if (string_match(title, node->token->text)) {
-				title_node = node;
-				break;
-			}
-
-			push_node(&s, node->next_sibling);
-			push_node(&s, node->first_child);
-		}
-	}
-	arena_checkpoint_restore(checkpoint);
-
-	return title_node;
-}
-
-internal RSS_Tree_Node *
-find_item_node(RSS_Tree_Node *root)
-{
-	// NOTE(ariel) RSS uses the keyword "item". Atom uses the keyword "entry".
-	local_persist String item = {
-		.str = "item",
-		.len = 4,
-	};
-	local_persist String entry = {
-		.str = "entry",
-		.len = 5,
-	};
-
-	RSS_Tree_Node *item_node = 0;
-
-	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
-	{
-		// NOTE(ariel) Find the first item tag in the XML/RSS tree.
-		Stack s = {0};
-		push_node(&s, root);
-		while (!is_stack_empty(&s)) {
-			RSS_Tree_Node *node = pop_node(&s);
-			if (!node) continue;
-
-			if (string_match(item, node->token->text) || string_match(entry, node->token->text)) {
-				item_node = node;
-				break;
-			}
-
-			push_node(&s, node->next_sibling);
-			push_node(&s, node->first_child);
-		}
-	}
-	arena_checkpoint_restore(checkpoint);
-
-	return item_node;
-}
-
 internal void
 process_frame(mu_Context *ctx)
 {
@@ -335,28 +246,15 @@ process_frame(mu_Context *ctx)
 		{
 			RSS_Tree *feed = feeds.list.first;
 			while (feed) {
-				RSS_Tree_Node *root = feed->root;
-				RSS_Tree_Node *title_node = find_feed_title(root);
-				RSS_Tree_Node *item_node = find_item_node(root);
-
-				char *title = string_terminate(&g_arena, title_node->content);
-				if (mu_header_ex(ctx, title, 0) && item_node) {
+				RSS_Tree_Node *item_node = feed->first_item;
+				char *title = string_terminate(&g_arena, feed->feed_title->content);
+				if (mu_header_ex(ctx, title, 0)) {
 					while (item_node) {
-						RSS_Tree_Node *node = item_node->first_child;
-						while (node) {
-							local_persist String title = {
-								.str = "title",
-								.len = 5,
-							};
-							if (string_match(title, node->token->text)) {
-								break;
-							}
-							node = node->next_sibling;
+						RSS_Tree_Node *item_title_node = find_item_title(item_node);
+						if (item_title_node) {
+							char *label = string_terminate(&g_arena, item_title_node->content);
+							mu_label(ctx, label);
 						}
-
-						char *label = string_terminate(&g_arena, node->content);
-						mu_label(ctx, label);
-
 						item_node = item_node->next_sibling;
 					}
 				}
