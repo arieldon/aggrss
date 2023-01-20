@@ -58,7 +58,7 @@ more_source_exists(Tokenizer *tokenizer)
 internal inline char
 peek_char(Tokenizer *tokenizer)
 {
-	assert(tokenizer->source && tokenizer->cursor <= tokenizer->end);
+	assert(more_source_exists(tokenizer));
 	return tokenizer->source[tokenizer->cursor];
 }
 
@@ -123,7 +123,7 @@ peek_string(Tokenizer *tokenizer, String s)
 internal void
 ignore_whitespace(Tokenizer *tokenizer)
 {
-	for (;;) {
+	while (tokenizer->cursor < tokenizer->end) {
 		switch (peek_char(tokenizer)) {
 		case ' ':
 		case '\n':
