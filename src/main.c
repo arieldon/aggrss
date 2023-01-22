@@ -33,7 +33,6 @@ global const char key_map[256] = {
 	[SDLK_RETURN    & 0xff] = MU_KEY_RETURN,
 	[SDLK_BACKSPACE & 0xff] = MU_KEY_BACKSPACE,
 };
-global float background[3] = { 255, 255, 255 };
 
 // NOTE(ariel) The Intel Core i5-6500 processor in this machine has four total
 // (physical and logical) cores. The main thread requires one core, which
@@ -338,7 +337,6 @@ main(void)
 
 		process_frame(ctx);
 
-		r_clear(mu_color(background[0], background[1], background[2], 255));
 		mu_Command *cmd = NULL;
 		while (mu_next_command(ctx, &cmd)) {
 			switch (cmd->type) {
