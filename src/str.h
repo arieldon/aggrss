@@ -1,9 +1,6 @@
 #ifndef STRING_H
 #define STRING_H
 
-#include <stdbool.h>
-#include <stdlib.h>
-
 #include "base.h"
 
 bool string_match(String s, String t);
@@ -29,8 +26,8 @@ typedef struct {
 	isize list_size;
 } String_List;
 
-void push_string_node(String_List *ls, String_Node *n);
-void push_string(Arena *arena, String_List *ls, String s);
+void string_list_push_node(String_List *ls, String_Node *n);
+void string_list_push_string(Arena *arena, String_List *ls, String s);
 
 String_List string_split(Arena *arena, String s, u8 delim);
 String_List string_strsplit(Arena *arena, String s, String delim);

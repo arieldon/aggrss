@@ -119,17 +119,17 @@ format_get_request(Arena *arena, URL url)
 
 	String_List ls = {0};
 
-	push_string(arena, &ls, (String){ "GET ", 4 });
-	push_string(arena, &ls, url.path);
-	push_string(arena, &ls, (String){ " HTTP/1.1\r\n", 11 });
-	push_string(arena, &ls, (String){ "Host: ", 6 });
-	push_string(arena, &ls, url.domain);
-	push_string(arena, &ls, line_delimiter);
-	push_string(arena, &ls, user_agent);
-	push_string(arena, &ls, accept);
-	push_string(arena, &ls, accept_encoding);
-	push_string(arena, &ls, connection);
-	push_string(arena, &ls, line_delimiter);
+	string_list_push_string(arena, &ls, (String){ "GET ", 4 });
+	string_list_push_string(arena, &ls, url.path);
+	string_list_push_string(arena, &ls, (String){ " HTTP/1.1\r\n", 11 });
+	string_list_push_string(arena, &ls, (String){ "Host: ", 6 });
+	string_list_push_string(arena, &ls, url.domain);
+	string_list_push_string(arena, &ls, line_delimiter);
+	string_list_push_string(arena, &ls, user_agent);
+	string_list_push_string(arena, &ls, accept);
+	string_list_push_string(arena, &ls, accept_encoding);
+	string_list_push_string(arena, &ls, connection);
+	string_list_push_string(arena, &ls, line_delimiter);
 
 	String request = string_list_concat(arena, ls);
 	return request;
@@ -207,7 +207,7 @@ decode_chunked_encoding(Arena *persistent_arena, Arena *scratch_arena, String en
 		encoded_chunk = encoded_chunk->next;
 		while (encoded_chunk && decoded_length < expected_length) {
 			decoded_length += encoded_chunk->string.len;
-			push_string_node(&decoded_chunks, encoded_chunk);
+			string_list_push_node(&decoded_chunks, encoded_chunk);
 			encoded_chunk = encoded_chunk->next;
 		}
 	}

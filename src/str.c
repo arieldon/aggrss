@@ -135,7 +135,7 @@ string_to_int(String s, u8 base)
 }
 
 void
-push_string_node(String_List *ls, String_Node *n)
+string_list_push_node(String_List *ls, String_Node *n)
 {
 	if (!ls->head) {
 		ls->head = n;
@@ -151,11 +151,11 @@ push_string_node(String_List *ls, String_Node *n)
 }
 
 void
-push_string(Arena *arena, String_List *ls, String s)
+string_list_push_string(Arena *arena, String_List *ls, String s)
 {
 	String_Node *n = arena_alloc(arena, sizeof(String_Node));
 	n->string = s;
-	push_string_node(ls, n);
+	string_list_push_node(ls, n);
 }
 
 String_List
