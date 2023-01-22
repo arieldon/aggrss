@@ -11,7 +11,7 @@ WARNINGS="-Wall -Wextra -Wpedantic"
 LIBRARIES="-pthread -lssl -lcrypto `sdl2-config --cflags --libs` -lGL"
 FLAGS="$CFLAGS $WARNINGS $LIBRARIES"
 
-DEBUG="-DDEBUG -g -O0"
+DEBUG="-DDEBUG -ggdb -O0"
 RELEASE="-O2 -march=native"
 if [ $# -ge 1 ] && [ "$1" = "--debug" ]; then
 	FLAGS="$FLAGS $DEBUG"
