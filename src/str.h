@@ -1,6 +1,7 @@
 #ifndef STRING_H
 #define STRING_H
 
+#include "arena.h"
 #include "base.h"
 
 bool string_match(String s, String t);

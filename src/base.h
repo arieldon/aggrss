@@ -31,8 +31,9 @@ typedef struct {
 #define local_persist static
 #define  thread_local _Thread_local
 
-#define MIN(a, b) (a < b ? a : b)
-#define MAX(a, b) (a > b ? a : b)
+#define MIN(a, b)      ((a) < (b) ? (a) : (b))
+#define MAX(a, b)      ((a) > (b) ? (a) : (b))
+#define CLAMP(x, a, b) MIN(b, MAX(a, x))
 
 #define KB(n) (n << 10)
 #define MB(n) (n << 20)

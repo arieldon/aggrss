@@ -1,9 +1,9 @@
 
-enum { ATLAS_WHITE = MU_ICON_MAX, ATLAS_FONT };
+enum { ATLAS_WHITE = UI_ICON_MAX, ATLAS_FONT };
 enum { ATLAS_WIDTH = 128, ATLAS_HEIGHT = 128 };
 
 
-static unsigned char atlas_texture[ATLAS_WIDTH * ATLAS_HEIGHT] = {
+global u8 atlas_texture[ATLAS_WIDTH * ATLAS_HEIGHT] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -889,11 +889,11 @@ static unsigned char atlas_texture[ATLAS_WIDTH * ATLAS_HEIGHT] = {
 };
 
 
-static mu_Rect atlas[] = {
-  [ MU_ICON_CLOSE ] = { 88, 68, 16, 16 },
-  [ MU_ICON_CHECK ] = { 0, 0, 18, 18 },
-  [ MU_ICON_EXPANDED ] = { 118, 68, 7, 5 },
-  [ MU_ICON_COLLAPSED ] = { 113, 68, 5, 7 },
+static Rectangle atlas[] = {
+  [ UI_ICON_CLOSE ] = { 88, 68, 16, 16 },
+  [ UI_ICON_CHECK ] = { 0, 0, 18, 18 },
+  [ UI_ICON_EXPANDED ] = { 118, 68, 7, 5 },
+  [ UI_ICON_COLLAPSED ] = { 113, 68, 5, 7 },
   [ ATLAS_WHITE ] = { 125, 68, 3, 3 },
   [ ATLAS_FONT+32 ] = { 84, 68, 2, 17 },
   [ ATLAS_FONT+33 ] = { 39, 68, 3, 17 },

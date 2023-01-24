@@ -19,19 +19,19 @@
 global Arena g_arena;
 
 global const char button_map[256] = {
-	[SDL_BUTTON_LEFT   & 0xff] = MU_MOUSE_LEFT,
-	[SDL_BUTTON_RIGHT  & 0xff] = MU_MOUSE_RIGHT,
-	[SDL_BUTTON_MIDDLE & 0xff] = MU_MOUSE_MIDDLE,
+	[SDL_BUTTON_LEFT   & 0xff] = UI_MOUSE_LEFT,
+	[SDL_BUTTON_RIGHT  & 0xff] = UI_MOUSE_RIGHT,
+	[SDL_BUTTON_MIDDLE & 0xff] = UI_MOUSE_MIDDLE,
 };
 global const char key_map[256] = {
-	[SDLK_LSHIFT    & 0xff] = MU_KEY_SHIFT,
-	[SDLK_RSHIFT    & 0xff] = MU_KEY_SHIFT,
-	[SDLK_LCTRL     & 0xff] = MU_KEY_CTRL,
-	[SDLK_RCTRL     & 0xff] = MU_KEY_CTRL,
-	[SDLK_LALT      & 0xff] = MU_KEY_ALT,
-	[SDLK_RALT      & 0xff] = MU_KEY_ALT,
-	[SDLK_RETURN    & 0xff] = MU_KEY_RETURN,
-	[SDLK_BACKSPACE & 0xff] = MU_KEY_BACKSPACE,
+	[SDLK_LSHIFT    & 0xff] = UI_KEY_SHIFT,
+	[SDLK_RSHIFT    & 0xff] = UI_KEY_SHIFT,
+	[SDLK_LCTRL     & 0xff] = UI_KEY_CTRL,
+	[SDLK_RCTRL     & 0xff] = UI_KEY_CTRL,
+	[SDLK_LALT      & 0xff] = UI_KEY_ALT,
+	[SDLK_RALT      & 0xff] = UI_KEY_ALT,
+	[SDLK_RETURN    & 0xff] = UI_KEY_RETURN,
+	[SDLK_BACKSPACE & 0xff] = UI_KEY_BACKSPACE,
 };
 
 // NOTE(ariel) The Intel Core i5-6500 processor in this machine has four total
@@ -195,7 +195,7 @@ read_feeds(String feeds)
 }
 
 internal int
-text_width(mu_Font font, const char *text, int len)
+text_width(UI_Font font, const char *text, int len)
 {
 	(void)font;
 	if (len == -1) len = strlen(text);
@@ -203,7 +203,7 @@ text_width(mu_Font font, const char *text, int len)
 }
 
 internal int
-text_height(mu_Font font)
+text_height(UI_Font font)
 {
 	(void)font;
 	return r_get_text_height();
@@ -228,18 +228,18 @@ format_fail_message(void)
 }
 
 internal void
-process_frame(mu_Context *ctx)
+process_frame(UI_Context *ctx)
 {
-	mu_begin(ctx);
+	ui_begin(ctx);
 
-	i32 winopts = MU_OPT_NORESIZE | MU_OPT_NOCLOSE;
-	if (mu_begin_window_ex(ctx, "RSS", mu_rect(0, 0, 800, 600), winopts)) {
+	i32 winopts = UI_OPT_NORESIZE | UI_OPT_NOCLOSE;
+	if (ui_begin_window_ex(ctx, "RSS", (Rectangle){ 0, 0, 800, 600 }, winopts)) {
 		char *complete_message = format_complete_message();
 		char *fail_message = format_fail_message();
-		mu_layout_row(ctx, 1, (int[]){-1}, 0);
-		mu_text(ctx, complete_message);
-		mu_layout_row(ctx, 1, (int[]){-1}, 0);
-		mu_text(ctx, fail_message);
+		ui_layout_row(ctx, 1, (int[]){-1}, 0);
+		ui_text(ctx, complete_message);
+		ui_layout_row(ctx, 1, (int[]){-1}, 0);
+		ui_text(ctx, fail_message);
 
 		pthread_spin_lock(&feeds.lock);
 		{
@@ -247,12 +247,12 @@ process_frame(mu_Context *ctx)
 			while (feed) {
 				RSS_Tree_Node *item_node = feed->first_item;
 				char *title = string_terminate(&g_arena, feed->feed_title->content);
-				if (mu_header_ex(ctx, title, 0)) {
+				if (ui_header_ex(ctx, title, 0)) {
 					while (item_node) {
 						RSS_Tree_Node *item_title_node = find_item_title(item_node);
 						if (item_title_node) {
 							char *label = string_terminate(&g_arena, item_title_node->content);
-							mu_label(ctx, label);
+							ui_label(ctx, label);
 						}
 						item_node = item_node->next_sibling;
 					}
@@ -261,10 +261,10 @@ process_frame(mu_Context *ctx)
 			}
 		}
 		pthread_spin_unlock(&feeds.lock);
-		mu_end_window(ctx);
+		ui_end_window(ctx);
 	}
 
-	mu_end(ctx);
+	ui_end(ctx);
 }
 
 int
@@ -295,8 +295,8 @@ main(void)
 	SDL_Init(SDL_INIT_VIDEO);
 	r_init();
 
-	mu_Context *ctx = arena_alloc(&g_arena, sizeof(mu_Context));
-	mu_init(ctx);
+	UI_Context *ctx = arena_alloc(&g_arena, sizeof(UI_Context));
+	ui_init(ctx);
 	ctx->text_width = text_width;
 	ctx->text_height = text_height;
 
@@ -313,23 +313,23 @@ main(void)
 			switch (e.type) {
 			case SDL_QUIT: exit(EXIT_SUCCESS); break;
 
-			case SDL_MOUSEMOTION: mu_input_mousemove(ctx, e.motion.x, e.motion.y); break;
-			case SDL_MOUSEWHEEL:  mu_input_scroll(ctx, 0, e.wheel.y * -30); break;
-			case SDL_TEXTINPUT:   mu_input_text(ctx, e.text.text); break;
+			case SDL_MOUSEMOTION: ui_input_mousemove(ctx, e.motion.x, e.motion.y); break;
+			case SDL_MOUSEWHEEL:  ui_input_scroll(ctx, 0, e.wheel.y * -30); break;
+			case SDL_TEXTINPUT:   ui_input_text(ctx, e.text.text); break;
 
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP: {
 				int b = button_map[e.button.button & 0xff];
-				if (b && e.type == SDL_MOUSEBUTTONDOWN) mu_input_mousedown(ctx, e.button.x, e.button.y, b);
-				if (b && e.type == SDL_MOUSEBUTTONUP)   mu_input_mouseup(ctx, e.button.x, e.button.y, b);
+				if (b && e.type == SDL_MOUSEBUTTONDOWN) ui_input_mousedown(ctx, e.button.x, e.button.y, b);
+				if (b && e.type == SDL_MOUSEBUTTONUP)   ui_input_mouseup(ctx, e.button.x, e.button.y, b);
 				break;
 			}
 
 			case SDL_KEYDOWN:
 			case SDL_KEYUP: {
 				int c = key_map[e.key.keysym.sym & 0xff];
-				if (c && e.type == SDL_KEYDOWN) mu_input_keydown(ctx, c);
-				if (c && e.type == SDL_KEYUP)   mu_input_keyup(ctx, c);
+				if (c && e.type == SDL_KEYDOWN) ui_input_keydown(ctx, c);
+				if (c && e.type == SDL_KEYUP)   ui_input_keyup(ctx, c);
 				break;
 			}
 			}
@@ -337,13 +337,13 @@ main(void)
 
 		process_frame(ctx);
 
-		mu_Command *cmd = NULL;
-		while (mu_next_command(ctx, &cmd)) {
+		UI_Command *cmd = NULL;
+		while (ui_next_command(ctx, &cmd)) {
 			switch (cmd->type) {
-			case MU_COMMAND_TEXT: r_draw_text(cmd->text.str, cmd->text.pos, cmd->text.color); break;
-			case MU_COMMAND_RECT: r_draw_rect(cmd->rect.rect, cmd->rect.color); break;
-			case MU_COMMAND_ICON: r_draw_icon(cmd->icon.id, cmd->icon.rect, cmd->icon.color); break;
-			case MU_COMMAND_CLIP: r_set_clip_rect(cmd->clip.rect); break;
+			case UI_COMMAND_TEXT: r_draw_text(cmd->text.str, cmd->text.pos, cmd->text.color); break;
+			case UI_COMMAND_RECT: r_draw_rect(cmd->rect.rect, cmd->rect.color); break;
+			case UI_COMMAND_ICON: r_draw_icon(cmd->icon.id, cmd->icon.rect, cmd->icon.color); break;
+			case UI_COMMAND_CLIP: r_set_clip_rect(cmd->clip.rect); break;
 			}
 		}
 		r_present();
