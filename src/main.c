@@ -295,10 +295,10 @@ main(void)
 	SDL_Init(SDL_INIT_VIDEO);
 	r_init();
 
-	UI_Context *ctx = arena_alloc(&g_arena, sizeof(UI_Context));
-	ui_init(ctx);
-	ctx->text_width = text_width;
-	ctx->text_height = text_height;
+	UI_Context ctx = {0};
+	ui_init(&ctx);
+	ctx.text_width = text_width;
+	ctx.text_height = text_height;
 
 	FILE *file = fopen("./feeds", "rb");
 	if (!file) err_exit("failed to open feeds file");
@@ -313,32 +313,32 @@ main(void)
 			switch (e.type) {
 			case SDL_QUIT: exit(EXIT_SUCCESS); break;
 
-			case SDL_MOUSEMOTION: ui_input_mousemove(ctx, e.motion.x, e.motion.y); break;
-			case SDL_MOUSEWHEEL:  ui_input_scroll(ctx, 0, e.wheel.y * -30); break;
-			case SDL_TEXTINPUT:   ui_input_text(ctx, e.text.text); break;
+			case SDL_MOUSEMOTION: ui_input_mousemove(&ctx, e.motion.x, e.motion.y); break;
+			case SDL_MOUSEWHEEL:  ui_input_scroll(&ctx, 0, e.wheel.y * -30); break;
+			case SDL_TEXTINPUT:   ui_input_text(&ctx, e.text.text); break;
 
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP: {
 				int b = button_map[e.button.button & 0xff];
-				if (b && e.type == SDL_MOUSEBUTTONDOWN) ui_input_mousedown(ctx, e.button.x, e.button.y, b);
-				if (b && e.type == SDL_MOUSEBUTTONUP)   ui_input_mouseup(ctx, e.button.x, e.button.y, b);
+				if (b && e.type == SDL_MOUSEBUTTONDOWN) ui_input_mousedown(&ctx, e.button.x, e.button.y, b);
+				if (b && e.type == SDL_MOUSEBUTTONUP)   ui_input_mouseup(&ctx, e.button.x, e.button.y, b);
 				break;
 			}
 
 			case SDL_KEYDOWN:
 			case SDL_KEYUP: {
 				int c = key_map[e.key.keysym.sym & 0xff];
-				if (c && e.type == SDL_KEYDOWN) ui_input_keydown(ctx, c);
-				if (c && e.type == SDL_KEYUP)   ui_input_keyup(ctx, c);
+				if (c && e.type == SDL_KEYDOWN) ui_input_keydown(&ctx, c);
+				if (c && e.type == SDL_KEYUP)   ui_input_keyup(&ctx, c);
 				break;
 			}
 			}
 		}
 
-		process_frame(ctx);
+		process_frame(&ctx);
 
 		UI_Command *cmd = NULL;
-		while (ui_next_command(ctx, &cmd)) {
+		while (ui_next_command(&ctx, &cmd)) {
 			switch (cmd->type) {
 			case UI_COMMAND_TEXT: r_draw_text(cmd->text.str, cmd->text.pos, cmd->text.color); break;
 			case UI_COMMAND_RECT: r_draw_rect(cmd->rect.rect, cmd->rect.color); break;
