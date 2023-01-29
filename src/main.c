@@ -16,6 +16,9 @@
 #include "rss.h"
 #include "str.h"
 
+enum { FPS = 60 };
+global u32 delta_ms = 1000 / FPS;
+
 global Arena g_arena;
 
 global const char button_map[256] = {
@@ -308,6 +311,8 @@ main(void)
 
 	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
 	for (;;) {
+		u32 start = SDL_GetTicks();
+
 		SDL_Event e = {0};
 		while (SDL_PollEvent(&e)) {
 			switch (e.type) {
@@ -349,6 +354,12 @@ main(void)
 		r_present();
 
 		arena_checkpoint_restore(checkpoint);
+
+		// NOTE(ariel) Cap frames per second.
+		u32 duration = SDL_GetTicks() - start;
+		if (duration < delta_ms) {
+			SDL_Delay(delta_ms - duration);
+		}
 	}
 
 	arena_release(&g_arena);
