@@ -1,9 +1,10 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include "arena.h"
 #include "microui.h"
 
-void r_init(void);
+void r_init(Arena *arena);
 void r_draw_rect(Rectangle rect, Color color);
 void r_draw_text(const char *text, Vector2 pos, Color color);
 void r_draw_icon(int id, Rectangle rect, Color color);

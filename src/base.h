@@ -31,6 +31,8 @@ typedef struct {
 #define local_persist static
 #define  thread_local _Thread_local
 
+#define ARRAY_COUNT(x) (sizeof(x) / sizeof(*x))
+
 #define MIN(a, b)      ((a) < (b) ? (a) : (b))
 #define MAX(a, b)      ((a) > (b) ? (a) : (b))
 #define CLAMP(x, a, b) MIN(b, MAX(a, x))

@@ -296,7 +296,7 @@ main(void)
 	}
 
 	SDL_Init(SDL_INIT_VIDEO);
-	r_init();
+	r_init(&g_arena);
 
 	UI_Context ctx = {0};
 	ui_init(&ctx);

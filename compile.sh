@@ -28,4 +28,4 @@ fi
 # NOTE(ariel) Order of C source files and statically linked libraries matters.
 # Statically linked libraries (.a files) must follow all C source files because
 # it seems like `ld` discards routines left uncalled.
-cc src/*.c $FLAGS -o $BIN
+cc src/*.c src/*.a $FLAGS -o $BIN
