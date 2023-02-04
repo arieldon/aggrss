@@ -235,7 +235,7 @@ process_frame(UI_Context *ctx)
 {
 	ui_begin(ctx);
 
-	i32 winopts = UI_OPT_NORESIZE | UI_OPT_NOCLOSE;
+	i32 winopts = UI_OPT_NOINTERACT | UI_OPT_NOTITLE | UI_OPT_NORESIZE | UI_OPT_NOCLOSE;
 	if (ui_begin_window_ex(ctx, "RSS", (Rectangle){ 0, 0, 800, 600 }, winopts)) {
 		char *complete_message = format_complete_message();
 		char *fail_message = format_fail_message();
