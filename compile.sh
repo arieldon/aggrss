@@ -8,7 +8,9 @@ BIN="rss"
 # inline assembly asm().
 CFLAGS="-std=gnu11 -D_DEFAULT_SOURCE"
 WARNINGS="-Wall -Wextra -Wpedantic"
-LIBRARIES="-pthread -lssl -lcrypto `sdl2-config --cflags --libs` -lGL"
+LIBRARIES="-pthread -lssl -lcrypto"
+LIBRARIES="$LIBRARIES `pkg-config --cflags --libs freetype2`"
+LIBRARIES="$LIBRARIES `sdl2-config --cflags --static-libs` -lGL"
 FLAGS="$CFLAGS $WARNINGS $LIBRARIES"
 
 DEBUG="-DDEBUG -ggdb -O0"

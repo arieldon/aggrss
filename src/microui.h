@@ -55,13 +55,13 @@ enum {
 	UI_COLOR_MAX
 };
 
-enum {
-	UI_ICON_CLOSE = 1,
+typedef enum {
+	UI_ICON_CLOSE = 0,
 	UI_ICON_CHECK,
-	UI_ICON_COLLAPSED,
 	UI_ICON_EXPANDED,
+	UI_ICON_COLLAPSED,
 	UI_ICON_MAX
-};
+} UI_Icon;
 
 enum {
 	UI_RES_ACTIVE = (1 << 0),
@@ -152,7 +152,7 @@ typedef struct {
 typedef struct {
 	UI_Base_Command base;
 	Rectangle rect;
-	i32 id;
+	UI_Icon id;
 	Color color;
 } UI_Icon_Command;
 
