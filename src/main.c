@@ -342,6 +342,8 @@ main(void)
 
 		process_frame(&ctx);
 
+		local_persist Color background = { 50, 50, 50, 255 };
+		r_clear(background);
 		UI_Command *cmd = NULL;
 		while (ui_next_command(&ctx, &cmd)) {
 			switch (cmd->type) {
