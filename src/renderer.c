@@ -532,7 +532,7 @@ r_draw_text(const char *text, Vector2 pos, Color color)
 			.w = +(f32)atlas.glyphs[glyph_index].width,
 			.h = -(f32)atlas.glyphs[glyph_index].height,
 		};
-		destination.y += r_get_text_height();
+		destination.y += FONT_SIZE - FONT_SIZE / 4;
 		destination.w = source.w;
 		destination.h = source.h;
 		push_quad(destination, source, color);
@@ -551,12 +551,11 @@ r_draw_icon(UI_Icon icon, Rectangle rect, Color color)
 		.h = -(f32)atlas.glyphs[icon].height,
 	};
 	Rectangle destination = {
-		.x = rect.x,
-		.y = rect.y + (atlas.glyphs[icon].height - atlas.glyphs[icon].top),
+		.x = rect.x + (rect.w - source.w) / 2,
+		.y = rect.y + (rect.h - source.h) / 2,
 		.w = source.w,
 		.h = source.h,
 	};
-	destination.y += r_get_text_height();
 	push_quad(destination, source, color);
 }
 
