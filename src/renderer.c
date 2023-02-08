@@ -579,12 +579,9 @@ r_get_text_height(void)
 void
 r_set_clip_rect(Rectangle rect)
 {
+	// NOTE(ariel) The scissor test discards fragments outside the dimensions
+	// specified by this rectangle, so only pixels within it can be modified.
 	flush();
-	// FIXME(ariel) How does this work? It prevents primitives outside this area
-	// from being modified? When I cleared the background it cleared the screen
-	// and none of the primitives were redrawn. When I removed the clear, the
-	// primitivies remained, but somethings on the screen changed, and no need to
-	// redraw these old primitives?
 	glScissor(rect.x, HEIGHT - (rect.y + rect.h), rect.w, rect.h);
 }
 
