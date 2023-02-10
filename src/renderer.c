@@ -86,8 +86,6 @@ MessageCallback(
 	const GLchar *message,
 	const void *userParam)
 {
-	// TODO(ariel) Read debugging section on learnopengl.com to provide more
-	// helpful error messages.
 	(void)source;
 	(void)id;
 	(void)severity;
@@ -213,8 +211,12 @@ r_init(Arena *arena)
 	}
 
 	if (GLEW_ARB_debug_output) {
+		// NOTE(ariel) Enable all debug messages from OpenGL, and deliver them as
+		// soon as they occur.
 		glEnable(GL_DEBUG_OUTPUT);
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 		glDebugMessageCallback(MessageCallback, 0);
+		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, 0, GL_TRUE);
 	}
 #endif
 
@@ -434,7 +436,6 @@ next:
 	}
 
 	glUseProgram(0);
-	// TODO(ariel) Print a useful error message.
 	assert(glGetError() == GL_NO_ERROR);
 }
 
