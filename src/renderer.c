@@ -376,7 +376,6 @@ next:
 			// NOTE(ariel) Copy ASCII bitmaps from FreeType into OpenGL texture.
 			for (index = 32; index < 128; ++index) {
 				FT_Load_Char(face, index, FT_LOAD_RENDER);
-				FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
 
 				atlas.glyphs[index].width  = face->glyph->bitmap.width;
 				atlas.glyphs[index].height = face->glyph->bitmap.rows;
@@ -397,7 +396,6 @@ next:
 			FT_ULong char_code = FT_Get_First_Char(icons, &glyph_index);
 			while (glyph_index) {
 				FT_Load_Char(icons, char_code, FT_LOAD_RENDER);
-				FT_Render_Glyph(icons->glyph, FT_RENDER_MODE_NORMAL);
 
 				atlas.glyphs[index].width  = icons->glyph->bitmap.width;
 				atlas.glyphs[index].height = icons->glyph->bitmap.rows;
