@@ -169,7 +169,6 @@ link_shader_program(Arena *arena, GLuint *shaders, i32 n_shaders)
 }
 
 typedef struct {
-	u32 left;
 	u32 top;
 	u32 width;
 	u32 height;
@@ -335,7 +334,7 @@ r_init(Arena *arena)
 			// NOTE(ariel) Include standard ASCII characters in dimensions of
 			// texture.
 			for (i32 i = 32; i < 128; ++i) {
-				if (FT_Load_Char(face, i, FT_LOAD_RENDER)) {
+				if (FT_Load_Char(face, i, FT_LOAD_BITMAP_METRICS_ONLY)) {
 					fprintf(stderr, "ERROR: failed to load glyph %d from font\n", i);
 					continue;
 				}
@@ -349,7 +348,7 @@ r_init(Arena *arena)
 			FT_UInt glyph_index = 0;
 			FT_ULong char_code = FT_Get_First_Char(icons, &glyph_index);
 			while (glyph_index) {
-				if (FT_Load_Glyph(icons, glyph_index, FT_LOAD_RENDER)) {
+				if (FT_Load_Glyph(icons, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY)) {
 					fprintf(stderr, "ERROR: failed to load glyph %d from icons\n", glyph_index);
 					goto next;
 				}
@@ -381,7 +380,6 @@ next:
 
 				atlas.glyphs[index].width  = face->glyph->bitmap.width;
 				atlas.glyphs[index].height = face->glyph->bitmap.rows;
-				atlas.glyphs[index].left = face->glyph->bitmap_left;
 				atlas.glyphs[index].top  = face->glyph->bitmap_top;
 				atlas.glyphs[index].advance_x = face->glyph->advance.x >> 6;
 				atlas.glyphs[index].texture_offset = x_offset;
@@ -403,7 +401,6 @@ next:
 
 				atlas.glyphs[index].width  = icons->glyph->bitmap.width;
 				atlas.glyphs[index].height = icons->glyph->bitmap.rows;
-				atlas.glyphs[index].left = icons->glyph->bitmap_left;
 				atlas.glyphs[index].top  = icons->glyph->bitmap_top;
 				atlas.glyphs[index].advance_x = icons->glyph->advance.x >> 6;
 				atlas.glyphs[index].texture_offset = x_offset;
