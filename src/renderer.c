@@ -311,6 +311,15 @@ r_init(Arena *arena)
 			fprintf(stderr, "ERROR: failed to initialize FreeType library\n");
 			exit(EXIT_FAILURE);
 		}
+#ifdef DEBUG
+		{
+			i32 major = 0;
+			i32 minor = 0;
+			i32 patch = 0;
+			FT_Library_Version(library, &major, &minor, &patch);
+			fprintf(stderr, "FreeType INFO: Version %d.%d.%d\n", major, minor, patch);
+		}
+#endif
 		if (FT_New_Face(library, font_file_path, 0, &face)) {
 			fprintf(stderr, "ERROR: failed to initialize font face %s\n", font_file_path);
 			exit(EXIT_FAILURE);
