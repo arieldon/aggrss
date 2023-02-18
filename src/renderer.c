@@ -565,7 +565,8 @@ void
 r_draw_text(const char *text, Vector2 pos, Color color)
 {
 	for (const char *p = text; *p; ++p) {
-		i32 glyph_index = MIN(*p, 127);
+		// TODO(ariel) Support Unicode at some point.
+		i32 glyph_index = CLAMP(*p, 0, 127);
 		Rectangle destination = {
 			.x = pos.x,
 			.y = pos.y + (atlas.glyphs[glyph_index].height - atlas.glyphs[glyph_index].top),
@@ -608,7 +609,8 @@ r_get_text_width(const char *text, i32 len)
 {
 	i32 res = 0;
 	for (const char *p = text; *p && len--; p++) {
-		i32 glyph_index = MIN(*p, 127);
+		// TODO(ariel) Support Unicode at some point.
+		i32 glyph_index = CLAMP(*p, 0, 127);
 		res += atlas.glyphs[glyph_index].width;
 	}
 	return res;
