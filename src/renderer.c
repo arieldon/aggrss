@@ -336,7 +336,7 @@ r_init(Arena *arena)
 		}
 #endif
 
-		const char *font_file_path = "./assets/LiberationSans-Regular.ttf";
+		const char *font_file_path = "./assets/RobotoMono-Medium.ttf";
 		const char *icons_file_path = "./assets/icons.ttf";
 		FILE *font_file = fopen(font_file_path, "rb");
 		FILE *icons_file = fopen(icons_file_path, "rb");
