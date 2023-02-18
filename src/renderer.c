@@ -10,6 +10,7 @@
 #include "base.h"
 #include "linalg.h"
 #include "renderer.h"
+#include "str.h"
 
 global const char *vertex_shader_source =
 "#version 330 core\n"
@@ -168,6 +169,22 @@ link_shader_program(Arena *arena, GLuint *shaders, i32 n_shaders)
 	return result;
 }
 
+internal String
+load_file(Arena *arena, FILE *file)
+{
+	String contents = {0};
+
+	fseek(file, 0, SEEK_END);
+	contents.len = ftell(file);
+	rewind(file);
+	contents.str = arena_alloc(arena, contents.len + 1);
+	fread(contents.str, contents.len, sizeof(char), file);
+	contents.str[contents.len] = 0;
+	fclose(file);
+
+	return contents;
+}
+
 typedef struct {
 	u32 top;
 	u32 width;
@@ -187,6 +204,8 @@ global Font_Atlas atlas;
 void
 r_init(Arena *arena)
 {
+	Arena_Checkpoint checkpoint = arena_checkpoint_set(arena);
+
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -302,15 +321,11 @@ r_init(Arena *arena)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 		FT_Library library = {0};
-		FT_Face face = {0};
-		FT_Face icons = {0};
-		const char *font_file_path = "./assets/LiberationSans-Regular.ttf";
-		const char *icons_file_path = "./assets/icons.ttf";
-
 		if (FT_Init_FreeType(&library)) {
 			fprintf(stderr, "ERROR: failed to initialize FreeType library\n");
 			exit(EXIT_FAILURE);
 		}
+
 #ifdef DEBUG
 		{
 			i32 major = 0;
@@ -320,11 +335,31 @@ r_init(Arena *arena)
 			fprintf(stderr, "FreeType INFO: Version %d.%d.%d\n", major, minor, patch);
 		}
 #endif
-		if (FT_New_Face(library, font_file_path, 0, &face)) {
+
+		const char *font_file_path = "./assets/LiberationSans-Regular.ttf";
+		const char *icons_file_path = "./assets/icons.ttf";
+		FILE *font_file = fopen(font_file_path, "rb");
+		FILE *icons_file = fopen(icons_file_path, "rb");
+		String font_data = load_file(arena, font_file);
+		String icons_data = load_file(arena, icons_file);
+		FT_Open_Args face_args = {
+			.flags = FT_OPEN_MEMORY,
+			.memory_base = (const FT_Byte *)font_data.str,
+			.memory_size = font_data.len,
+		};
+		FT_Open_Args icons_args = {
+			.flags = FT_OPEN_MEMORY,
+			.memory_base = (const FT_Byte *)icons_data.str,
+			.memory_size = icons_data.len,
+		};
+		FT_Face face = {0};
+		FT_Face icons = {0};
+
+		if (FT_Open_Face(library, &face_args, 0, &face)) {
 			fprintf(stderr, "ERROR: failed to initialize font face %s\n", font_file_path);
 			exit(EXIT_FAILURE);
 		}
-		if (FT_New_Face(library, icons_file_path, 0, &icons)) {
+		if (FT_Open_Face(library, &icons_args, 0, &icons)) {
 			fprintf(stderr, "ERROR: failed to initialize icons face %s\n", icons_file_path);
 			exit(EXIT_FAILURE);
 		}
@@ -441,6 +476,8 @@ next:
 
 	glUseProgram(0);
 	assert(glGetError() == GL_NO_ERROR);
+
+	arena_checkpoint_restore(checkpoint);
 }
 
 internal void
