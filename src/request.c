@@ -25,14 +25,8 @@ typedef struct {
 	String_Node *fields;
 } HTTP_Response_Header;
 
-global const String line_delimiter = {
-	.str = "\r\n",
-	.len = 2,
-};
-global const String header_terminator = {
-	.str = "\r\n\r\n",
-	.len = 4,
-};
+global const String line_delimiter = static_string_literal("\r\n");
+global const String header_terminator = static_string_literal("\r\n\r\n");
 
 URL
 parse_http_url(String urlstr)
@@ -41,16 +35,10 @@ parse_http_url(String urlstr)
 
 	// NOTE(ariel) Parse scheme.
 	{
-		local_persist String http_scheme = {
-			.str = "http://",
-			.len =  7,
-		};
+		local_persist String http_scheme = static_string_literal("http://");
 		url.scheme = string_prefix(urlstr, 7);
 		if (!string_match(url.scheme, http_scheme)) {
-			local_persist String https_scheme = {
-				.str = "https://",
-				.len = 8,
-			};
+			local_persist String https_scheme = static_string_literal("https://");
 			url.scheme = string_prefix(urlstr, 8);
 			if (!string_match(url.scheme, https_scheme)) {
 				err_exit("failed to match scheme of %.*s to HTTP or HTTPS",
@@ -100,32 +88,20 @@ format_get_request(Arena *arena, URL url)
 	// response from most servers today. Update: I don't think this is true
 	// anymore. There was a different issue with the client, and I guess I fixed
 	// it in tandem with these changes.
-	local_persist String user_agent = {
-		.str = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0\r\n",
-		.len = 84,
-	};
-	local_persist String accept = {
-		.str = "Accept: text/html,application/rss+xml,application/xhtml+xml,application/xml\r\n",
-		.len = 77,
-	};
-	local_persist String accept_encoding = {
-		.str = "Accept-Encoding: identity\r\n",
-		.len = 27
-	};
-	local_persist String connection = {
-		.str = "Connection: close\r\n",
-		.len = 19,
-	};
+	local_persist String accept = static_string_literal(
+		"Accept: text/html,application/rss+xml,application/xhtml+xml,application/xml\r\n"
+	);
+	local_persist String accept_encoding = static_string_literal("Accept-Encoding: identity\r\n");
+	local_persist String connection = static_string_literal("Connection: close\r\n");
 
 	String_List ls = {0};
 
-	string_list_push_string(arena, &ls, (String){ "GET ", 4 });
+	string_list_push_string(arena, &ls, string_literal("GET "));
 	string_list_push_string(arena, &ls, url.path);
-	string_list_push_string(arena, &ls, (String){ " HTTP/1.1\r\n", 11 });
-	string_list_push_string(arena, &ls, (String){ "Host: ", 6 });
+	string_list_push_string(arena, &ls, string_literal(" HTTP/1.1\r\n"));
+	string_list_push_string(arena, &ls, string_literal("Host: "));
 	string_list_push_string(arena, &ls, url.domain);
 	string_list_push_string(arena, &ls, line_delimiter);
-	string_list_push_string(arena, &ls, user_agent);
 	string_list_push_string(arena, &ls, accept);
 	string_list_push_string(arena, &ls, accept_encoding);
 	string_list_push_string(arena, &ls, connection);
@@ -138,10 +114,7 @@ format_get_request(Arena *arena, URL url)
 internal i32
 get_content_length(HTTP_Response_Header header)
 {
-	local_persist String content_length_field = {
-		.str = "Content-Length",
-		.len = 14,
-	};
+	local_persist String content_length_field = static_string_literal("Content-Length");
 	i32 content_length = -1;
 
 	String_Node *field_node = header.fields;
@@ -167,10 +140,7 @@ get_content_length(HTTP_Response_Header header)
 internal String
 get_transfer_encoding(HTTP_Response_Header header)
 {
-	local_persist String transfer_encoding_field = {
-		.str = "Transfer-Encoding",
-		.len = 17,
-	};
+	local_persist String transfer_encoding_field = static_string_literal("Transfer-Encoding");
 	String transfer_encoding = {0};
 
 	String_Node *field_node = header.fields;
@@ -323,10 +293,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 		// NOTE(ariel) Only handle chuncked encoding for now -- no compression of
 		// any sort.
 		String transfer_encoding = get_transfer_encoding(header);
-		local_persist String chunked = {
-			.str = "chunked",
-			.len = 7
-		};
+		local_persist String chunked = static_string_literal("chunked");
 		if (!string_match(transfer_encoding, chunked)) goto exit;
 
 		i32 nzeros = 0;
@@ -341,10 +308,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 				nzeros = 0;
 			}
 
-			local_persist String chunk_terminator = {
-				.str = "\r\n0\r\n\r\n",
-				.len = 7,
-			};
+			local_persist String chunk_terminator = static_string_literal("\r\n0\r\n\r\n");
 			String trailing_bytes = string_suffix(
 				chunked_encoding, chunked_encoding.len - chunk_terminator.len);
 			if (string_match(trailing_bytes, chunk_terminator)) {

@@ -179,10 +179,7 @@ tokenize_attribute_value(Tokenizer *tokenizer, char quote)
 internal RSS_Token_Node *
 tokenize_cdata_open(Tokenizer *tokenizer)
 {
-	local_persist String cdata = {
-		.str = "CDATA",
-		.len = 5,
-	};
+	local_persist String cdata = static_string_literal("CDATA");
 
 	if (eat_string(tokenizer, cdata)) {
 		if (match_char(tokenizer, '[')) {
@@ -264,10 +261,7 @@ start:
 	} else if (tokenizer->cursor_location == CURSOR_IN_CDATA) {
 		// NOTE(ariel) Tokenize character data -- temporarily drop the meaning of
 		// strings in RSS/XML, barring the CDATA close tag "]]>".
-		local_persist String cdata_close_tag = {
-			.str = "]]>",
-			.len = 3,
-		};
+		local_persist String cdata_close_tag = static_string_literal("]]>");
 		while (!peek_string(tokenizer, cdata_close_tag)) ++tokenizer->cursor;
 		if (!more_source_exists(tokenizer)) return make_error_token(tokenizer, "unterminated cdata");
 		tokenizer->cursor_location = CURSOR_IN_TAG;
@@ -575,18 +569,9 @@ typedef struct {
 } Stack;
 
 // NOTE(ariel) RSS uses the keyword "item". Atom uses the keyword "entry".
-global String item_string = {
-	.str = "item",
-	.len = 4,
-};
-global String entry_string = {
-	.str = "entry",
-	.len = 5,
-};
-global String title_string = {
-	.str = "title",
-	.len = 5,
-};
+global String item_string = static_string_literal("item");
+global String entry_string = static_string_literal("entry");
+global String title_string = static_string_literal("title");
 
 internal inline void
 push_node(Arena *arena, Stack *s, void *data)

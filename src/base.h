@@ -25,6 +25,8 @@ typedef struct {
 	char *str;
 	i32 len;
 } String;
+#define static_string_literal(s)  { .str = (char *)(s), .len = sizeof(s) - 1 }
+#define string_literal(s) (String){ .str = (char *)(s), .len = sizeof(s) - 1 }
 
 #define      internal static
 #define        global static
