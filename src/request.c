@@ -338,6 +338,7 @@ void
 log_string(String s)
 {
 	FILE *file = fopen("./log", "w+");
+	if (!file) abort();
 	fprintf(file, "%.*s\n", s.len, s.str);
 	fclose(file);
 }
