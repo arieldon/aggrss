@@ -8,7 +8,7 @@
 
 #include "SDL.h"
 #include "renderer.h"
-#include "microui.h"
+#include "ui.h"
 
 #include "arena.h"
 #include "err.h"
@@ -21,18 +21,7 @@ global u32 delta_ms = 1000 / FPS;
 
 global Arena g_arena;
 
-global const char button_map[256] = {
-	[SDL_BUTTON_LEFT   & 0xff] = UI_MOUSE_LEFT,
-	[SDL_BUTTON_RIGHT  & 0xff] = UI_MOUSE_RIGHT,
-	[SDL_BUTTON_MIDDLE & 0xff] = UI_MOUSE_MIDDLE,
-};
-global const char key_map[256] = {
-	[SDLK_LSHIFT    & 0xff] = UI_KEY_SHIFT,
-	[SDLK_RSHIFT    & 0xff] = UI_KEY_SHIFT,
-	[SDLK_LCTRL     & 0xff] = UI_KEY_CTRL,
-	[SDLK_RCTRL     & 0xff] = UI_KEY_CTRL,
-	[SDLK_LALT      & 0xff] = UI_KEY_ALT,
-	[SDLK_RALT      & 0xff] = UI_KEY_ALT,
+global char modifier_key_map[256] = {
 	[SDLK_RETURN    & 0xff] = UI_KEY_RETURN,
 	[SDLK_BACKSPACE & 0xff] = UI_KEY_BACKSPACE,
 };
@@ -197,77 +186,64 @@ read_feeds(String feeds)
 	}
 }
 
-internal int
-text_width(UI_Font font, const char *text, int len)
-{
-	(void)font;
-	if (len == -1) len = strlen(text);
-	return r_get_text_width(text, len);
-}
-
-internal int
-text_height(UI_Font font)
-{
-	(void)font;
-	return r_get_text_height();
-}
-
-internal char *
+internal String
 format_complete_message(void)
 {
 	local_persist char success_message[32] = {0};
-	snprintf(success_message, sizeof(success_message),
+
+	String message = {0};
+	message.len = snprintf(success_message, sizeof(success_message),
 		"%d of %d success", work_queue.ncompletions, work_queue.n_max_entries);
-	return success_message;
+	message.str = success_message;
+
+	return message;
 }
 
-internal char *
+internal String
 format_fail_message(void)
 {
 	local_persist char fail_message[32] = {0};
-	snprintf(fail_message, sizeof(fail_message),
+
+	String message = {0};
+	message.len = snprintf(fail_message, sizeof(fail_message),
 		"%d of %d fail", work_queue.nfails, work_queue.n_max_entries);
-	return fail_message;
+	message.str = fail_message;
+
+	return message;
 }
 
 internal void
-process_frame(UI_Context *ctx)
+process_frame(void)
 {
-	ui_begin(ctx);
+	ui_begin();
 
-	i32 winopts = UI_OPT_NOINTERACT | UI_OPT_NOTITLE | UI_OPT_NORESIZE | UI_OPT_NOCLOSE;
-	if (ui_begin_window_ex(ctx, "RSS", (Rectangle){ 0, 0, 800, 600 }, winopts)) {
-		char *complete_message = format_complete_message();
-		char *fail_message = format_fail_message();
-		ui_layout_row(ctx, 1, (int[]){-1}, 0);
-		ui_text(ctx, complete_message);
-		ui_layout_row(ctx, 1, (int[]){-1}, 0);
-		ui_text(ctx, fail_message);
+	String complete_message = format_complete_message();
+	String fail_message = format_fail_message();
+	ui_layout_row(1);
+	ui_text(complete_message);
+	ui_layout_row(1);
+	ui_text(fail_message);
 
-		pthread_spin_lock(&feeds.lock);
-		{
-			RSS_Tree *feed = feeds.list.first;
-			while (feed) {
-				RSS_Tree_Node *item_node = feed->first_item;
-				char *title = string_terminate(&g_arena, feed->feed_title->content);
-				if (ui_header_ex(ctx, title, 0)) {
-					while (item_node) {
-						RSS_Tree_Node *item_title_node = find_item_title(item_node);
-						if (item_title_node) {
-							char *label = string_terminate(&g_arena, item_title_node->content);
-							ui_label(ctx, label);
-						}
-						item_node = item_node->next_sibling;
+	pthread_spin_lock(&feeds.lock);
+	{
+		RSS_Tree *feed = feeds.list.first;
+		while (feed) {
+			RSS_Tree_Node *item_node = feed->first_item;
+			if (ui_header(feed->feed_title->content)) {
+				while (item_node) {
+					RSS_Tree_Node *item_title_node = find_item_title(item_node);
+					if (item_title_node) {
+						ui_label(item_title_node->content);
 					}
+					item_node = item_node->next_sibling;
 				}
-				feed = feed->next;
 			}
+			feed = feed->next;
 		}
-		pthread_spin_unlock(&feeds.lock);
-		ui_end_window(ctx);
 	}
+	pthread_spin_unlock(&feeds.lock);
 
-	ui_end(ctx);
+	ui_end();
 }
 
 int
@@ -298,10 +274,7 @@ main(void)
 	SDL_Init(SDL_INIT_VIDEO);
 	r_init(&g_arena);
 
-	UI_Context ctx = {0};
-	ui_init(&ctx);
-	ctx.text_width = text_width;
-	ctx.text_height = text_height;
+	ui_init(r_get_text_width, r_get_text_height);
 
 	FILE *file = fopen("./feeds", "rb");
 	if (!file) err_exit("failed to open feeds file");
@@ -318,41 +291,25 @@ main(void)
 			switch (e.type) {
 			case SDL_QUIT: exit(EXIT_SUCCESS); break;
 
-			case SDL_MOUSEMOTION: ui_input_mousemove(&ctx, e.motion.x, e.motion.y); break;
-			case SDL_MOUSEWHEEL:  ui_input_scroll(&ctx, 0, e.wheel.y * -30); break;
-			case SDL_TEXTINPUT:   ui_input_text(&ctx, e.text.text); break;
+			case SDL_MOUSEMOTION: ui_input_mouse_move(e.motion.x, e.motion.y); break;
+			case SDL_MOUSEWHEEL:  ui_input_mouse_scroll(0, e.wheel.y); break;
+			case SDL_MOUSEBUTTONDOWN: ui_input_mouse_down(e.button.x, e.button.y, 1); break;
+			case SDL_MOUSEBUTTONUP: ui_input_mouse_up(e.button.x, e.button.y, 1); break;
 
-			case SDL_MOUSEBUTTONDOWN:
-			case SDL_MOUSEBUTTONUP: {
-				int b = button_map[e.button.button & 0xff];
-				if (b && e.type == SDL_MOUSEBUTTONDOWN) ui_input_mousedown(&ctx, e.button.x, e.button.y, b);
-				if (b && e.type == SDL_MOUSEBUTTONUP)   ui_input_mouseup(&ctx, e.button.x, e.button.y, b);
-				break;
-			}
-
-			case SDL_KEYDOWN:
-			case SDL_KEYUP: {
-				int c = key_map[e.key.keysym.sym & 0xff];
-				if (c && e.type == SDL_KEYDOWN) ui_input_keydown(&ctx, c);
-				if (c && e.type == SDL_KEYUP)   ui_input_keyup(&ctx, c);
-				break;
-			}
+			case SDL_TEXTINPUT: ui_input_text(e.text.text); break;
+			case SDL_KEYDOWN: {
+				int modifier_key = modifier_key_map[e.key.keysym.sym & 0xff];
+				if (modifier_key) {
+					ui_input_key(modifier_key);
+				}
+			} break;
 			}
 		}
 
-		process_frame(&ctx);
+		process_frame();
 
 		local_persist Color background = { 50, 50, 50, 255 };
 		r_clear(background);
-		UI_Command *cmd = NULL;
-		while (ui_next_command(&ctx, &cmd)) {
-			switch (cmd->type) {
-			case UI_COMMAND_TEXT: r_draw_text(cmd->text.str, cmd->text.pos, cmd->text.color); break;
-			case UI_COMMAND_RECT: r_draw_rect(cmd->rect.rect, cmd->rect.color); break;
-			case UI_COMMAND_ICON: r_draw_icon(cmd->icon.id, cmd->icon.rect, cmd->icon.color); break;
-			case UI_COMMAND_CLIP: r_set_clip_rect(cmd->clip.rect); break;
-			}
-		}
 		r_present();
 
 		arena_checkpoint_restore(checkpoint);

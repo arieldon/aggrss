@@ -500,7 +500,7 @@ flush(void)
 }
 
 internal void
-push_quad(Rectangle dst, Rectangle src, Color color)
+push_quad(Quad dst, Quad src, Color color)
 {
 	if (vertices_cursor == N_MAX_QUADS) {
 		flush();
@@ -550,9 +550,9 @@ push_quad(Rectangle dst, Rectangle src, Color color)
 }
 
 void
-r_draw_rect(Rectangle rect, Color color)
+r_draw_rect(Quad rect, Color color)
 {
-	Rectangle source = {
+	Quad source = {
 		.x = +(f32)atlas.glyphs[UI_BLANK].texture_offset,
 		.y = +(f32)atlas.glyphs[UI_BLANK].height,
 		.w = +(f32)atlas.glyphs[UI_BLANK].width,
@@ -562,16 +562,16 @@ r_draw_rect(Rectangle rect, Color color)
 }
 
 void
-r_draw_text(const char *text, Vector2 pos, Color color)
+r_draw_text(String text, Vector2 pos, Color color)
 {
-	for (const char *p = text; *p; ++p) {
+	for (i32 i = 0; i < text.len; ++i) {
 		// TODO(ariel) Support Unicode at some point.
-		i32 glyph_index = CLAMP(*p, 0, 127);
-		Rectangle destination = {
+		i32 glyph_index = CLAMP(text.str[i], 0, 127);
+		Quad destination = {
 			.x = pos.x,
 			.y = pos.y + (atlas.glyphs[glyph_index].height - atlas.glyphs[glyph_index].top),
 		};
-		Rectangle source = {
+		Quad source = {
 			.x = +(f32)atlas.glyphs[glyph_index].texture_offset,
 			.y = +(f32)atlas.glyphs[glyph_index].height,
 			.w = +(f32)atlas.glyphs[glyph_index].width,
@@ -586,16 +586,16 @@ r_draw_text(const char *text, Vector2 pos, Color color)
 }
 
 void
-r_draw_icon(UI_Icon icon, Rectangle rect, Color color)
+r_draw_icon(UI_Icon icon, Quad rect, Color color)
 {
 	assert(icon < UI_ICON_MAX);
-	Rectangle source = {
+	Quad source = {
 		.x = +(f32)atlas.glyphs[icon].texture_offset,
 		.y = +(f32)atlas.glyphs[icon].height,
 		.w = +(f32)atlas.glyphs[icon].width,
 		.h = -(f32)atlas.glyphs[icon].height,
 	};
-	Rectangle destination = {
+	Quad destination = {
 		.x = rect.x + (rect.w - source.w) / 2,
 		.y = rect.y + (rect.h - source.h) / 2,
 		.w = source.w,
@@ -605,25 +605,26 @@ r_draw_icon(UI_Icon icon, Rectangle rect, Color color)
 }
 
 i32
-r_get_text_width(const char *text, i32 len)
+r_get_text_width(String text)
 {
-	i32 res = 0;
-	for (const char *p = text; *p && len--; p++) {
-		// TODO(ariel) Support Unicode at some point.
-		i32 glyph_index = CLAMP(*p, 0, 127);
-		res += atlas.glyphs[glyph_index].width;
+	i32 width = 0;
+	for (i32 i = 0; i < text.len; ++i) {
+		i32 glyph_index = CLAMP(text.str[i], 0, 127);
+		i32 glyph_width = MAX(atlas.glyphs[glyph_index].width, atlas.glyphs[glyph_index].advance_x);
+		width += glyph_width;
 	}
-	return res;
+	return width;
 }
 
 i32
-r_get_text_height(void)
+r_get_text_height(String text)
 {
+	(void)text;
 	return FONT_SIZE;
 }
 
 void
-r_set_clip_rect(Rectangle rect)
+r_set_clip_rect(Quad rect)
 {
 	// NOTE(ariel) The scissor test discards fragments outside the dimensions
 	// specified by this rectangle, so only pixels within it can be modified.
@@ -634,7 +635,7 @@ r_set_clip_rect(Rectangle rect)
 void
 r_clear(Color color)
 {
-	flush();
+	// flush();
 	glClearColor(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 }
