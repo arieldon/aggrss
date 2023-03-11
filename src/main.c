@@ -273,8 +273,7 @@ main(void)
 
 	SDL_Init(SDL_INIT_VIDEO);
 	r_init(&g_arena);
-
-	ui_init(r_get_text_width, r_get_text_height);
+	ui_init();
 
 	FILE *file = fopen("./feeds", "rb");
 	if (!file) err_exit("failed to open feeds file");

@@ -624,18 +624,8 @@ r_get_text_height(String text)
 }
 
 void
-r_set_clip_rect(Quad rect)
-{
-	// NOTE(ariel) The scissor test discards fragments outside the dimensions
-	// specified by this rectangle, so only pixels within it can be modified.
-	flush();
-	glScissor(rect.x, HEIGHT - (rect.y + rect.h), rect.w, rect.h);
-}
-
-void
 r_clear(Color color)
 {
-	// flush();
 	glClearColor(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 }
