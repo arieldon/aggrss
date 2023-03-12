@@ -402,6 +402,10 @@ parse_processing_instructions(Parser *parser)
 		expect_token(parser, RSS_TOKEN_ATTRIBUTE_VALUE, "expected attribute value");
 	}
 	expect_token(parser, RSS_TOKEN_PI_CLOSE, "expected ?>");
+
+	if (peek_token(parser)->type == RSS_TOKEN_PI_OPEN) {
+		parse_processing_instructions(parser);
+	}
 }
 
 typedef enum {
