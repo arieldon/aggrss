@@ -103,7 +103,7 @@ typedef struct {
 #	define assert(c) if (!(c)) *(volatile int *)0 = 0
 #endif
 #else
-#	include <assert.h>
+#	define assert(ignore) ((void)0)
 #endif
 
 #ifdef DEBUG
