@@ -110,8 +110,7 @@ parse_feed(Worker *worker, String url)
 	}
 #endif
 
-	RSS_Token_List tokens = tokenize_rss(&worker->persistent_arena, rss);
-	RSS_Tree *feed = parse_rss(&worker->persistent_arena, tokens);
+	RSS_Tree *feed = parse_rss(&worker->persistent_arena, rss);
 
 	if (feed->root) {
 		feed->feed_title = find_feed_title(&worker->scratch_arena, feed->root);
