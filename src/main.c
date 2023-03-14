@@ -82,9 +82,8 @@ load_file(Arena *arena, FILE *file)
 	fseek(file, 0, SEEK_END);
 	contents.len = ftell(file);
 	rewind(file);
-	contents.str = arena_alloc(arena, contents.len + 1);
+	contents.str = arena_alloc(arena, contents.len);
 	fread(contents.str, contents.len, sizeof(char), file);
-	contents.str[contents.len] = 0;
 	fclose(file);
 
 	return contents;
