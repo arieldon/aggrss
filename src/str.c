@@ -163,38 +163,30 @@ string_split(Arena *arena, String s, u8 delim)
 {
 	String_List ls = {0};
 
-	for (i32 i = 0, prev_split = 0; i < s.len; ++i) {
-		if (s.str[i] == delim) {
-			if (i == s.len - 1) {
-				ls.tail->string.len -= 1;
-				break;
-			}
+	i32 j = 0;
+	for (i32 i = 0; i < s.len; ++i)
+	{
+		if (s.str[i] == delim)
+		{
+			String segment =
+			{
+				.str = s.str + j,
+				.len = i - j,
+			};
+			string_list_push_string(arena, &ls, segment);
 
-			String_Node *n = arena_alloc(arena, sizeof(String_Node));
-			n->string.str = s.str + i + 1;
-			n->string.len = s.len - i - 1;
-			ls.total_len += n->string.len;
-			++ls.list_size;
-
-			if (!ls.head) {
-				ls.head = arena_alloc(arena, sizeof(String_Node));
-				ls.head->string.str = s.str;
-				ls.head->string.len = i;
-				ls.head->next = n;
-				ls.tail = n;
-				ls.total_len += i;
-				++ls.list_size;
-			} else {
-				ls.total_len -= ls.tail->string.len;
-				ls.tail->string.len = i - prev_split - 1;
-				ls.total_len += ls.tail->string.len;
-
-				ls.tail->next = n;
-				ls.tail = n;
-			}
-
-			prev_split = i;
+			j = i + 1;
 		}
+	}
+
+	String segment =
+	{
+		.str = s.str + j,
+		.len = s.len - j,
+	};
+	if (segment.len > 0)
+	{
+		string_list_push_string(arena, &ls, segment);
 	}
 
 	return ls;
