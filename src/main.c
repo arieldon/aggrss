@@ -112,6 +112,19 @@ parse_feed(Worker *worker, String url)
 
 	RSS_Tree *feed = parse_rss(&worker->persistent_arena, rss);
 
+	if (feed->errors.first)
+	{
+		err_msg("failed to parse %.*s", url.len, url.str);
+		RSS_Error *error = feed->errors.first;
+		while (error)
+		{
+			fprintf(stderr, "\t%.*s\n", error->text.len, error->text.str);
+			error = error->next;
+		}
+		++work_queue.nfails;
+		return;
+	}
+
 	if (feed->root) {
 		feed->feed_title = find_feed_title(&worker->scratch_arena, feed->root);
 		if (!feed->feed_title) {
