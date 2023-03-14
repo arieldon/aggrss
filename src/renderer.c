@@ -37,7 +37,7 @@ global const char *fragment_shader_source =
 "}\n";
 
 enum {
-	N_MAX_QUADS = 16384,
+	N_MAX_QUADS = (1 << 16),
 
 	WIDTH  = 800,
 	HEIGHT = 600,
