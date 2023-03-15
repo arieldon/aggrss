@@ -435,6 +435,28 @@ find_item_title(RSS_Tree_Node *item)
 }
 
 RSS_Tree_Node *
+find_item_link(RSS_Tree_Node *item)
+{
+	RSS_Tree_Node *item_link_node = 0;
+
+	if (string_match(item_string, item->name) || string_match(entry_string, item->name))
+	{
+		RSS_Tree_Node *node = item->first_child;
+		while (node)
+		{
+			if (string_match(string_literal("link"), node->name))
+			{
+				item_link_node = node;
+				break;
+			}
+			node = node->next_sibling;
+		}
+	}
+
+	return item_link_node;
+}
+
+RSS_Tree_Node *
 find_item_node(Arena *arena, RSS_Tree_Node *root)
 {
 	RSS_Tree_Node *item_node = 0;

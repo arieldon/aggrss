@@ -5,6 +5,8 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "SDL.h"
 #include "renderer.h"
@@ -244,7 +246,21 @@ process_frame(void)
 				while (item_node) {
 					RSS_Tree_Node *item_title_node = find_item_title(item_node);
 					if (item_title_node) {
-						ui_label(item_title_node->content);
+						if (ui_link(item_title_node->content))
+						{
+							RSS_Tree_Node *link_node = find_item_link(item_node);
+							if (link_node && link_node->content.len > 0)
+							{
+								pid_t pid = fork();
+								if (pid == 0)
+								{
+									char *url = string_terminate(&g_arena, link_node->content);
+									char *args[] = { "xdg-open", url, 0 };
+									execvp("xdg-open", args);
+									exit(1);
+								}
+							}
+						}
 					}
 					item_node = item_node->next_sibling;
 				}
