@@ -36,7 +36,8 @@ global const char *fragment_shader_source =
 	"gl_FragColor = texture(font, output_uv).r * output_color;\n"
 "}\n";
 
-enum {
+enum
+{
 	N_MAX_QUADS = (1 << 16),
 
 	WIDTH  = 800,
@@ -57,18 +58,21 @@ global GLuint shader_program;
 
 global SDL_Window *window;
 
-typedef enum {
+typedef enum
+{
 	VERTEX_ATTRIB_POSITION = 0,
 	VERTEX_ATTRIB_COLOR,
 	VERTEX_ATTRIB_UV,
 	N_VERTEX_ATTRIBS,
 } Vertex_Attribs;
 
-typedef struct {
+typedef struct Vertex Vertex;
+struct Vertex
+{
 	Vector2f position;
 	Color color;
 	Vector2f uv;
-} Vertex;
+};
 
 // NOTE(ariel) 4 vertices define 1 quad, and 1 quad consists of 2 triangles or
 // 6 total (not necessarily unique) points.
@@ -92,18 +96,23 @@ MessageCallback(
 	(void)severity;
 	(void)length;
 	(void)userParam;
-	if (type == GL_DEBUG_TYPE_ERROR) {
+	if (type == GL_DEBUG_TYPE_ERROR)
+	{
 		fprintf(stderr, "GL ERROR: %s\n", message);
-	} else {
+	}
+	else
+	{
 		fprintf(stderr, "GL INFO: %s\n", message);
 	}
 }
 #endif
 
-typedef struct {
+typedef struct Shader_Handle Shader_Handle;
+struct Shader_Handle
+{
 	GLuint handle;
 	String error;
-} Shader_Handle;
+};
 
 internal Shader_Handle
 compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_type)
@@ -116,11 +125,14 @@ compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_typ
 
 	GLint compile_status = 0;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &compile_status);
-	if (!compile_status) {
+	if (!compile_status)
+	{
 		GLint info_log_length = 0;
 		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_length);
-		if (info_log_length > 0) {
-			String error = {
+		if (info_log_length > 0)
+		{
+			String error =
+			{
 				.str = arena_alloc(arena, info_log_length + 1),
 				.len = 0,
 			};
@@ -142,18 +154,22 @@ link_shader_program(Arena *arena, GLuint *shaders, i32 n_shaders)
 	Shader_Handle result = {0};
 
 	GLuint program = glCreateProgram();
-	for (i32 i = 0; i < n_shaders; ++i) {
+	for (i32 i = 0; i < n_shaders; ++i)
+	{
 		glAttachShader(program, shaders[i]);
 	}
 	glLinkProgram(program);
 
 	GLint link_status = 0;
 	glGetProgramiv(program, GL_LINK_STATUS, &link_status);
-	if (!link_status) {
+	if (!link_status)
+	{
 		GLint info_log_length = 0;
 		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &info_log_length);
-		if (info_log_length) {
-			String error = {
+		if (info_log_length)
+		{
+			String error =
+			{
 				.str = arena_alloc(arena, info_log_length + 1),
 				.len = 0,
 			};
@@ -184,19 +200,23 @@ load_file(Arena *arena, FILE *file)
 	return contents;
 }
 
-typedef struct {
+typedef struct Glyph Glyph;
+struct Glyph
+{
 	u32 top;
 	u32 width;
 	u32 height;
 	u32 advance_x;
 	u32 texture_offset;
-} Glyph;
+};
 
-typedef struct {
+typedef struct Font_Atlas Font_Atlas;
+struct Font_Atlas
+{
 	u32 width;
 	u32 height;
 	Glyph glyphs[128];
-} Font_Atlas;
+};
 
 global Font_Atlas atlas;
 
@@ -227,7 +247,8 @@ r_init(Arena *arena)
 		fprintf(stderr, "GL INFO: Version %d.%d\n", major, minor);
 	}
 
-	if (GLEW_ARB_debug_output) {
+	if (GLEW_ARB_debug_output)
+	{
 		// NOTE(ariel) Enable all debug messages from OpenGL, and deliver them as
 		// soon as they occur.
 		glEnable(GL_DEBUG_OUTPUT);
@@ -274,19 +295,22 @@ r_init(Arena *arena)
 
 	{
 		Shader_Handle vertex_shader = compile_shader(arena, &vertex_shader_source, GL_VERTEX_SHADER);
-		if (vertex_shader.error.len) {
+		if (vertex_shader.error.len)
+		{
 			fprintf(stderr, "VERTEX SHADER ERROR: %.*s", vertex_shader.error.len, vertex_shader.error.str);
 			exit(EXIT_FAILURE);
 		}
 		Shader_Handle fragment_shader = compile_shader(arena, &fragment_shader_source, GL_FRAGMENT_SHADER);
-		if (fragment_shader.error.len) {
+		if (fragment_shader.error.len)
+		{
 			fprintf(stderr, "FRAGMENT SHADER ERROR: %.*s", fragment_shader.error.len, fragment_shader.error.str);
 			exit(EXIT_FAILURE);
 		}
 
 		GLuint shaders[] = { vertex_shader.handle, fragment_shader.handle };
 		Shader_Handle program = link_shader_program(arena, shaders, ARRAY_COUNT(shaders));
-		if (program.error.len) {
+		if (program.error.len)
+		{
 			fprintf(stderr, "SHADER PROGRAM ERROR: %.*s", program.error.len, program.error.str);
 			exit(EXIT_FAILURE);
 		}
@@ -320,7 +344,8 @@ r_init(Arena *arena)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 		FT_Library library = {0};
-		if (FT_Init_FreeType(&library)) {
+		if (FT_Init_FreeType(&library))
+		{
 			fprintf(stderr, "ERROR: failed to initialize FreeType library\n");
 			exit(EXIT_FAILURE);
 		}
@@ -354,19 +379,23 @@ r_init(Arena *arena)
 		FT_Face face = {0};
 		FT_Face icons = {0};
 
-		if (FT_Open_Face(library, &face_args, 0, &face)) {
+		if (FT_Open_Face(library, &face_args, 0, &face))
+		{
 			fprintf(stderr, "ERROR: failed to initialize font face %s\n", font_file_path);
 			exit(EXIT_FAILURE);
 		}
-		if (FT_Open_Face(library, &icons_args, 0, &icons)) {
+		if (FT_Open_Face(library, &icons_args, 0, &icons))
+		{
 			fprintf(stderr, "ERROR: failed to initialize icons face %s\n", icons_file_path);
 			exit(EXIT_FAILURE);
 		}
-		if (FT_Set_Pixel_Sizes(face, 0, FONT_SIZE)) {
+		if (FT_Set_Pixel_Sizes(face, 0, FONT_SIZE))
+		{
 			fprintf(stderr, "ERROR: failed to set size of %s\n", font_file_path);
 			exit(EXIT_FAILURE);
 		}
-		if (FT_Set_Pixel_Sizes(icons, 0, FONT_SIZE)) {
+		if (FT_Set_Pixel_Sizes(icons, 0, FONT_SIZE))
+		{
 			fprintf(stderr, "ERROR: failed to set size of %s\n", icons_file_path);
 			exit(EXIT_FAILURE);
 		}
@@ -376,13 +405,16 @@ r_init(Arena *arena)
 		{
 			// NOTE(ariel) Include standard ASCII characters in dimensions of
 			// texture.
-			for (i32 i = 32; i < 128; ++i) {
-				if (FT_Load_Char(face, i, FT_LOAD_BITMAP_METRICS_ONLY)) {
+			for (i32 i = 32; i < 128; ++i)
+			{
+				if (FT_Load_Char(face, i, FT_LOAD_BITMAP_METRICS_ONLY))
+				{
 					fprintf(stderr, "ERROR: failed to load glyph %d from font\n", i);
 					continue;
 				}
 				atlas.width += face->glyph->bitmap.width;
-				if (atlas.height < face->glyph->bitmap.rows) {
+				if (atlas.height < face->glyph->bitmap.rows)
+				{
 					atlas.height = face->glyph->bitmap.rows;
 				}
 			}
@@ -390,13 +422,16 @@ r_init(Arena *arena)
 			// NOTE(ariel) Inlcude icons in dimensions of texture.
 			FT_UInt glyph_index = 0;
 			FT_ULong char_code = FT_Get_First_Char(icons, &glyph_index);
-			while (glyph_index) {
-				if (FT_Load_Glyph(icons, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY)) {
+			while (glyph_index)
+			{
+				if (FT_Load_Glyph(icons, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY))
+				{
 					fprintf(stderr, "ERROR: failed to load glyph %d from icons\n", glyph_index);
 					goto next;
 				}
 				atlas.width += icons->glyph->bitmap.width;
-				if (atlas.height < icons->glyph->bitmap.rows) {
+				if (atlas.height < icons->glyph->bitmap.rows)
+				{
 					atlas.height = icons->glyph->bitmap.rows;
 				}
 next:
@@ -417,7 +452,8 @@ next:
 			i32 x_offset = 0;
 
 			// NOTE(ariel) Copy ASCII bitmaps from FreeType into OpenGL texture.
-			for (index = 32; index < 128; ++index) {
+			for (index = 32; index < 128; ++index)
+			{
 				FT_Load_Char(face, index, FT_LOAD_RENDER);
 
 				atlas.glyphs[index].width  = face->glyph->bitmap.width;
@@ -437,7 +473,8 @@ next:
 			index = 0;
 			FT_UInt glyph_index = 0;
 			FT_ULong char_code = FT_Get_First_Char(icons, &glyph_index);
-			while (glyph_index) {
+			while (glyph_index)
+			{
 				FT_Load_Char(icons, char_code, FT_LOAD_RENDER);
 
 				atlas.glyphs[index].width  = icons->glyph->bitmap.width;
@@ -482,7 +519,8 @@ next:
 internal void
 flush(void)
 {
-	if (vertices_cursor) {
+	if (vertices_cursor)
+	{
 		glUseProgram(shader_program);
 		glBindVertexArray(vao);
 
@@ -551,7 +589,8 @@ push_quad(Quad dst, Quad src, Color color)
 void
 r_draw_rect(Quad rect, Color color)
 {
-	Quad source = {
+	Quad source =
+	{
 		.x = +(f32)atlas.glyphs[UI_BLANK].texture_offset,
 		.y = +(f32)atlas.glyphs[UI_BLANK].height,
 		.w = +(f32)atlas.glyphs[UI_BLANK].width,
@@ -563,14 +602,17 @@ r_draw_rect(Quad rect, Color color)
 void
 r_draw_text(String text, Vector2 pos, Color color)
 {
-	for (i32 i = 0; i < text.len; ++i) {
+	for (i32 i = 0; i < text.len; ++i)
+	{
 		// TODO(ariel) Support Unicode at some point.
 		i32 glyph_index = CLAMP(text.str[i], 0, 127);
-		Quad destination = {
+		Quad destination =
+		{
 			.x = pos.x,
 			.y = pos.y + (atlas.glyphs[glyph_index].height - atlas.glyphs[glyph_index].top),
 		};
-		Quad source = {
+		Quad source =
+		{
 			.x = +(f32)atlas.glyphs[glyph_index].texture_offset,
 			.y = +(f32)atlas.glyphs[glyph_index].height,
 			.w = +(f32)atlas.glyphs[glyph_index].width,
@@ -588,13 +630,15 @@ void
 r_draw_icon(UI_Icon icon, Quad rect, Color color)
 {
 	assert(icon < UI_ICON_MAX);
-	Quad source = {
+	Quad source =
+	{
 		.x = +(f32)atlas.glyphs[icon].texture_offset,
 		.y = +(f32)atlas.glyphs[icon].height,
 		.w = +(f32)atlas.glyphs[icon].width,
 		.h = -(f32)atlas.glyphs[icon].height,
 	};
-	Quad destination = {
+	Quad destination =
+	{
 		.x = rect.x + (rect.w - source.w) / 2,
 		.y = rect.y + (rect.h - source.h) / 2,
 		.w = source.w,
@@ -607,7 +651,8 @@ i32
 r_get_text_width(String text)
 {
 	i32 width = 0;
-	for (i32 i = 0; i < text.len; ++i) {
+	for (i32 i = 0; i < text.len; ++i)
+	{
 		i32 glyph_index = CLAMP(text.str[i], 0, 127);
 		i32 glyph_width = MAX(atlas.glyphs[glyph_index].width, atlas.glyphs[glyph_index].advance_x);
 		width += glyph_width;

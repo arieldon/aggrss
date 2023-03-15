@@ -299,14 +299,18 @@ parse_tree(Parser *parser)
 internal void
 print_rss_tree_recursively(RSS_Tree_Node *node, i8 layer)
 {
- while (node) {
-	 for (int i = 0; i < layer; ++i) putc('\t', stdout);
-	 fprintf(stdout, "%.*s -> %.*s\n",
-		 node->name.len, node->name.str,
-		 node->content.len, node->content.str);
-	 print_rss_tree_recursively(node->first_child, layer + 1);
-	 node = node->next_sibling;
- }
+	while (node)
+	{
+		for (int i = 0; i < layer; ++i)
+		{
+			putc('\t', stdout);
+		}
+		fprintf(stdout, "%.*s -> %.*s\n",
+		node->name.len, node->name.str,
+		node->content.len, node->content.str);
+		print_rss_tree_recursively(node->first_child, layer + 1);
+		node = node->next_sibling;
+	}
 }
 
 internal void

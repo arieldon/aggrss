@@ -12,7 +12,10 @@ err_out(va_list args, char *fmt, int errcode)
 {
 	fprintf(stderr, "error: ");
 	vfprintf(stderr, fmt, args);
-	if (errcode) fprintf(stderr, " (%s)\n", strerror(errcode));
+	if (errcode)
+	{
+		fprintf(stderr, " (%s)\n", strerror(errcode));
+	}
 	else fprintf(stderr, "\n");
 }
 

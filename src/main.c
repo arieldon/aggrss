@@ -23,7 +23,8 @@ global u32 delta_ms = 1000 / FPS;
 
 global Arena g_arena;
 
-global char modifier_key_map[256] = {
+global char modifier_key_map[256] =
+{
 	[SDLK_RETURN    & 0xff] = UI_KEY_RETURN,
 	[SDLK_BACKSPACE & 0xff] = UI_KEY_BACKSPACE,
 };
@@ -36,7 +37,9 @@ global char modifier_key_map[256] = {
 // than three may improve throughput.
 enum { N_WORKERS = 3 };
 
-typedef struct {
+typedef struct Worker Worker;
+struct Worker
+{
 	pthread_t thread_id;
 
 	// NOTE(ariel) The scratch arena stores temporary data for the thread -- data
@@ -46,15 +49,19 @@ typedef struct {
 	// NOTE(ariel) The work arena stores persistent data for the program -- the
 	// main thread uses these results later.
 	Arena persistent_arena;
-} Worker;
+};
 
-typedef struct {
+typedef struct Work_Entry Work_Entry;
+struct Work_Entry
+{
 	String url;
-} Work_Entry;
+};
 
 // NOTE(ariel) This queue models the single producer, multiple consumer
 // problem.
-typedef struct {
+typedef struct Work_Queue Work_Queue;
+struct Work_Queue
+{
 	sem_t semaphore;
 
 	_Atomic(i32) next_entry_to_read;
@@ -64,15 +71,17 @@ typedef struct {
 
 	i32 n_max_entries;
 	Work_Entry *entries;
-} Work_Queue;
+};
 
 global Worker workers[N_WORKERS];
 global Work_Queue work_queue;
 
-typedef struct {
+typedef struct Feed_List Feed_List;
+struct Feed_List
+{
 	pthread_spinlock_t lock;
 	RSS_Tree_List list;
-} Feed_List;
+};
 
 global Feed_List feeds;
 
@@ -97,14 +106,16 @@ parse_feed(Worker *worker, String url)
 #if NO_NETWORK
 	char *domain = string_terminate(&worker->scratch_arena, parse_http_url(url).domain);
 	FILE *file = fopen(domain, "rb");
-	if (!file) {
+	if (!file)
+	{
 		++work_queue.nfails;
 		return;
 	}
 	String rss = load_file(&worker->persistent_arena, file);
 #else
 	String rss = download_resource(&worker->persistent_arena, &worker->scratch_arena, url);
-	if (!rss.len) {
+	if (!rss.len)
+	{
 		// TODO(ariel) Push error on global RSS tree instead of or in addition to
 		// logging a message here.
 		++work_queue.nfails;
@@ -127,9 +138,11 @@ parse_feed(Worker *worker, String url)
 		return;
 	}
 
-	if (feed->root) {
+	if (feed->root)
+	{
 		feed->feed_title = find_feed_title(&worker->scratch_arena, feed->root);
-		if (!feed->feed_title) {
+		if (!feed->feed_title)
+		{
 			// NOTE(ariel) Invalidate feeds without a title tag.
 			++work_queue.nfails;
 			return;
@@ -143,9 +156,12 @@ parse_feed(Worker *worker, String url)
 	// NOTE(ariel) Push results in persistent arena to global tree.
 	pthread_spin_lock(&feeds.lock);
 	{
-		if (!feeds.list.first) {
+		if (!feeds.list.first)
+		{
 			feeds.list.first = feeds.list.last = feed;
-		} else {
+		}
+		else
+		{
 			feeds.list.last->next = feed;
 			feeds.list.last = feed;
 			feed->next = 0;
@@ -163,7 +179,8 @@ get_work_entry(void *arg)
 	// (different) work from the queue simultaneously.
 	Worker *worker = arg;
 
-	for (;;) {
+	for (;;)
+	{
 		sem_wait(&work_queue.semaphore);
 		assert(work_queue.next_entry_to_read < work_queue.n_max_entries);
 		Work_Entry entry = work_queue.entries[work_queue.next_entry_to_read++];
@@ -193,7 +210,8 @@ read_feeds(String feeds)
 	work_queue.entries = arena_alloc(&g_arena, work_queue.n_max_entries * sizeof(Work_Entry));
 
 	String_Node *url = urls.head;
-	while (url) {
+	while (url)
+	{
 		add_work_entry(url->string);
 		url = url->next;
 	}
@@ -240,12 +258,16 @@ process_frame(void)
 	pthread_spin_lock(&feeds.lock);
 	{
 		RSS_Tree *feed = feeds.list.first;
-		while (feed) {
+		while (feed)
+		{
 			RSS_Tree_Node *item_node = feed->first_item;
-			if (ui_header(feed->feed_title->content)) {
-				while (item_node) {
+			if (ui_header(feed->feed_title->content))
+			{
+				while (item_node)
+				{
 					RSS_Tree_Node *item_title_node = find_item_title(item_node);
-					if (item_title_node) {
+					if (item_title_node)
+					{
 						if (ui_link(item_title_node->content))
 						{
 							RSS_Tree_Node *link_node = find_item_link(item_node);
@@ -279,18 +301,22 @@ main(void)
 	arena_init(&g_arena);
 
 	// NOTE(ariel) Initialize tree that stores parsed RSS feeds.
-	if (pthread_spin_init(&feeds.lock, PTHREAD_PROCESS_PRIVATE)) {
+	if (pthread_spin_init(&feeds.lock, PTHREAD_PROCESS_PRIVATE))
+	{
 		err_exit("failed to initialize spin lock for list of parsed RSS feeds");
 	}
 
 	// NOTE(ariel) Initialize work queue.
 	{
-		if (sem_init(&work_queue.semaphore, 0, 0) == -1) {
+		if (sem_init(&work_queue.semaphore, 0, 0) == -1)
+		{
 			err_exit("failed to initialize semaphore for workers");
 		}
-		for (i8 i = 0; i < N_WORKERS; ++i) {
+		for (i8 i = 0; i < N_WORKERS; ++i)
+		{
 			Worker *worker = &workers[i];
-			if (pthread_create(&worker->thread_id, 0, get_work_entry, worker)) {
+			if (pthread_create(&worker->thread_id, 0, get_work_entry, worker))
+			{
 				err_exit("failed to launch thread");
 			}
 			arena_init(&worker->scratch_arena);
@@ -303,32 +329,40 @@ main(void)
 	ui_init();
 
 	FILE *file = fopen("./feeds", "rb");
-	if (!file) err_exit("failed to open feeds file");
+	if (!file)
+	{
+		err_exit("failed to open feeds file");
+	}
 
 	String feeds = load_file(&g_arena, file);
 	read_feeds(feeds);
 
 	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
-	for (;;) {
+	for (;;)
+	{
 		u32 start = SDL_GetTicks();
 
 		SDL_Event e = {0};
-		while (SDL_PollEvent(&e)) {
-			switch (e.type) {
-			case SDL_QUIT: exit(EXIT_SUCCESS); break;
+		while (SDL_PollEvent(&e))
+		{
+			switch (e.type)
+			{
+				case SDL_QUIT: exit(EXIT_SUCCESS); break;
 
-			case SDL_MOUSEMOTION: ui_input_mouse_move(e.motion.x, e.motion.y); break;
-			case SDL_MOUSEWHEEL:  ui_input_mouse_scroll(0, e.wheel.y); break;
-			case SDL_MOUSEBUTTONDOWN: ui_input_mouse_down(e.button.x, e.button.y, 1); break;
-			case SDL_MOUSEBUTTONUP: ui_input_mouse_up(e.button.x, e.button.y, 1); break;
+				case SDL_MOUSEMOTION: ui_input_mouse_move(e.motion.x, e.motion.y); break;
+				case SDL_MOUSEWHEEL:  ui_input_mouse_scroll(0, e.wheel.y); break;
+				case SDL_MOUSEBUTTONDOWN: ui_input_mouse_down(e.button.x, e.button.y, 1); break;
+				case SDL_MOUSEBUTTONUP: ui_input_mouse_up(e.button.x, e.button.y, 1); break;
 
-			case SDL_TEXTINPUT: ui_input_text(e.text.text); break;
-			case SDL_KEYDOWN: {
-				int modifier_key = modifier_key_map[e.key.keysym.sym & 0xff];
-				if (modifier_key) {
-					ui_input_key(modifier_key);
-				}
-			} break;
+				case SDL_TEXTINPUT: ui_input_text(e.text.text); break;
+				case SDL_KEYDOWN:
+				{
+					int modifier_key = modifier_key_map[e.key.keysym.sym & 0xff];
+					if (modifier_key)
+					{
+						ui_input_key(modifier_key);
+					}
+				} break;
 			}
 		}
 
@@ -342,7 +376,8 @@ main(void)
 
 		// NOTE(ariel) Cap frames per second.
 		u32 duration = SDL_GetTicks() - start;
-		if (duration < delta_ms) {
+		if (duration < delta_ms)
+		{
 			SDL_Delay(delta_ms - duration);
 		}
 	}

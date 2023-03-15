@@ -20,10 +20,12 @@
 
 enum { READ_BUF_SIZ = KB(8) };
 
-typedef struct {
+typedef struct HTTP_Response_Header HTTP_Response_Header;
+struct HTTP_Response_Header
+{
 	i16 status_code;
 	String_Node *fields;
-} HTTP_Response_Header;
+};
 
 global const String line_delimiter = static_string_literal("\r\n");
 global const String header_terminator = static_string_literal("\r\n\r\n");
@@ -37,10 +39,12 @@ parse_http_url(String urlstr)
 	{
 		local_persist String http_scheme = static_string_literal("http://");
 		url.scheme = string_prefix(urlstr, 7);
-		if (!string_match(url.scheme, http_scheme)) {
+		if (!string_match(url.scheme, http_scheme))
+		{
 			local_persist String https_scheme = static_string_literal("https://");
 			url.scheme = string_prefix(urlstr, 8);
-			if (!string_match(url.scheme, https_scheme)) {
+			if (!string_match(url.scheme, https_scheme))
+			{
 				err_exit("failed to match scheme of %.*s to HTTP or HTTPS",
 					url.scheme.len, url.scheme.str);
 			}
@@ -51,7 +55,10 @@ parse_http_url(String urlstr)
 	{
 		url.domain = string_suffix(urlstr, url.scheme.len);
 		i32 delimiter = string_find_ch(url.domain, '/');
-		if (delimiter > 0) url.domain = string_prefix(url.domain, delimiter);
+		if (delimiter > 0)
+		{
+			url.domain = string_prefix(url.domain, delimiter);
+		}
 	}
 
 	// NOTE(ariel) Parse path.
@@ -68,10 +75,12 @@ parse_header(Arena *arena, String str)
 	HTTP_Response_Header header = { .status_code = -1 };
 
 	String_List lines = string_strsplit(arena, str, line_delimiter);
-	if (lines.head) {
+	if (lines.head)
+	{
 		String status_line = lines.head->string;
 		String_List ls_status_line = string_split(arena, status_line, ' ');
-		if (ls_status_line.list_size == 3) {
+		if (ls_status_line.list_size == 3)
+		{
 			String status_code = ls_status_line.head->next->string;
 			header.status_code = string_to_int(status_code, 10);
 		}
@@ -118,13 +127,16 @@ get_content_length(HTTP_Response_Header header)
 	i32 content_length = -1;
 
 	String_Node *field_node = header.fields;
-	while (field_node && content_length < 0) {
+	while (field_node && content_length < 0)
+	{
 		String field = field_node->string;
 
 		i32 colon_index = string_find_ch(field, ':');
-		if (colon_index > 0) {
+		if (colon_index > 0)
+		{
 			String name = string_prefix(field, colon_index);
-			if (string_match(name, content_length_field)) {
+			if (string_match(name, content_length_field))
+			{
 				String remainder = string_suffix(field, colon_index + 1);
 				String value = string_trim_spaces(remainder);
 				content_length = string_to_int(value, 10);
@@ -144,13 +156,16 @@ get_transfer_encoding(HTTP_Response_Header header)
 	String transfer_encoding = {0};
 
 	String_Node *field_node = header.fields;
-	while (field_node && !transfer_encoding.str) {
+	while (field_node && !transfer_encoding.str)
+	{
 		String field = field_node->string;
 
 		i32 colon_index = string_find_ch(field, ':');
-		if (colon_index > 0) {
+		if (colon_index > 0)
+		{
 			String name = string_prefix(field, colon_index);
-			if (string_match(name, transfer_encoding_field)) {
+			if (string_match(name, transfer_encoding_field))
+			{
 				String remainder = string_suffix(field, colon_index + 1);
 				transfer_encoding = string_trim_spaces(remainder);
 			}
@@ -170,12 +185,14 @@ decode_chunked_encoding(Arena *persistent_arena, Arena *scratch_arena, String en
 
 	String_List encoded_chunks = string_strsplit(scratch_arena, encoded, line_delimiter);
 	String_Node *encoded_chunk = encoded_chunks.head;
-	while (encoded_chunk) {
+	while (encoded_chunk)
+	{
 		i32 decoded_length = 0;
 		i32 expected_length = string_to_int(encoded_chunk->string, 16);
 
 		encoded_chunk = encoded_chunk->next;
-		while (encoded_chunk && decoded_length < expected_length) {
+		while (encoded_chunk && decoded_length < expected_length)
+		{
 			decoded_length += encoded_chunk->string.len;
 			string_list_push_node(&decoded_chunks, encoded_chunk);
 			encoded_chunk = encoded_chunk->next;
@@ -193,7 +210,8 @@ receive(Arena *arena, BIO *bio, String *read_buffer)
 	read_buffer->str = arena_realloc(arena, upper_bound);
 
 	i32 nbytes = BIO_read(bio, read_buffer->str + read_buffer->len, READ_BUF_SIZ);
-	if (nbytes > 0) {
+	if (nbytes > 0)
+	{
 		read_buffer->len += nbytes;
 		read_buffer->str = arena_realloc(arena, read_buffer->len);
 	}
@@ -214,19 +232,30 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	URL url = parse_http_url(urlstr);
 	char *domain = string_terminate(scratch_arena, url.domain);
 
-	if (url.scheme.len == 8) {
-		if (!ssl_ctx) {
+	if (url.scheme.len == 8)
+	{
+		if (!ssl_ctx)
+		{
 			const SSL_METHOD *method = TLS_client_method();
-			if (!method) goto exit;
+			if (!method)
+			{
+				goto exit;
+			}
 
 			ssl_ctx = SSL_CTX_new(TLS_client_method());
-			if (!ssl_ctx) goto exit;
-			if (!SSL_CTX_set_default_verify_paths(ssl_ctx)) goto exit;
+			if (!ssl_ctx || !SSL_CTX_set_default_verify_paths(ssl_ctx))
+			{
+				goto exit;
+			}
 		}
 
-		if (!https_bio) {
+		if (!https_bio)
+		{
 			https_bio = BIO_new_ssl_connect(ssl_ctx);
-			if (!https_bio) goto exit;
+			if (!https_bio)
+			{
+				goto exit;
+			}
 		}
 		bio = https_bio;
 
@@ -236,17 +265,26 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 		SSL_set_tlsext_host_name(ssl, domain);
 
 		BIO_set_conn_port(bio, HTTPS_PORT);
-	} else {
-		if (!http_bio) {
+	}
+	else
+	{
+		if (!http_bio)
+		{
 			http_bio = BIO_new(BIO_s_connect());
-			if (!http_bio) goto exit;
+			if (!http_bio)
+			{
+				goto exit;
+			}
 		}
 		bio = http_bio;
 		BIO_set_conn_port(bio, HTTP_PORT);
 	}
 
 	BIO_set_conn_hostname(bio, domain);
-	if (BIO_do_connect(bio) <= 0) goto exit;
+	if (BIO_do_connect(bio) <= 0)
+	{
+		goto exit;
+	}
 
 	String request = format_get_request(scratch_arena, url);
 	BIO_write(bio, request.str, request.len);
@@ -256,26 +294,33 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	// It's important than no other allocations occur using _this_ arena. The
 	// code below assumes the string remains contiguous.
 	String raw_header = {0};
-	String response = {
+	String response =
+	{
 		.str = arena_alloc(persistent_arena, 0),
 		.len = 0,
 	};
 
 	i32 delimiter_index = -1;
-	do {
+	do
+	{
 		receive(persistent_arena, bio, &response);
 		delimiter_index = string_find_substr(response, header_terminator);
-		if (delimiter_index >= 0) {
+		if (delimiter_index >= 0)
+		{
 			raw_header.str = response.str;
 			raw_header.len = delimiter_index;
 		}
 	} while (delimiter_index < 0);
 
 	HTTP_Response_Header header = parse_header(scratch_arena, raw_header);
-	if (header.status_code != 200) goto exit;
+	if (header.status_code != 200)
+	{
+		goto exit;
+	}
 
 	body.str = response.str + raw_header.len + header_terminator.len;
-	if (response.len > raw_header.len + header_terminator.len) {
+	if (response.len > raw_header.len + header_terminator.len)
+	{
 		// NOTE(ariel) Only set the length if it's valid, and if the pointer isn't
 		// valid now, it will be by the end of the function.
 		body.len = response.len - raw_header.len - header_terminator.len;
@@ -283,35 +328,50 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	assert(body.len >= 0);
 
 	i32 content_length = get_content_length(header);
-	if (content_length != -1) {
-		while (body.len < content_length) {
+	if (content_length != -1)
+	{
+		while (body.len < content_length)
+		{
 			i32 nbytes = receive(persistent_arena, bio, &response);
 			body.len += nbytes;
 		}
 		assert(content_length == body.len);
-	} else {
+	}
+	else
+	{
 		// NOTE(ariel) Only handle chuncked encoding for now -- no compression of
 		// any sort.
 		String transfer_encoding = get_transfer_encoding(header);
 		local_persist String chunked = static_string_literal("chunked");
-		if (!string_match(transfer_encoding, chunked)) goto exit;
+		if (!string_match(transfer_encoding, chunked))
+		{
+			goto exit;
+		}
 
 		i32 nzeros = 0;
 		String chunked_encoding = string_duplicate(scratch_arena, body);
-		for (;;) {
+		for (;;)
+		{
 			i32 nbytes = receive(scratch_arena, bio, &chunked_encoding);
 			// TODO(ariel) Replace with BIO_should_retry()?
-			if (nbytes == 0) {
+			if (nbytes == 0)
+			{
 				++nzeros;
-				if (nzeros == 3) goto exit;
-			} else {
+				if (nzeros == 3)
+				{
+					goto exit;
+				}
+			}
+			else
+			{
 				nzeros = 0;
 			}
 
 			local_persist String chunk_terminator = static_string_literal("\r\n0\r\n\r\n");
 			String trailing_bytes = string_suffix(
 				chunked_encoding, chunked_encoding.len - chunk_terminator.len);
-			if (string_match(trailing_bytes, chunk_terminator)) {
+			if (string_match(trailing_bytes, chunk_terminator))
+			{
 				chunked_encoding.len -= chunk_terminator.len;
 				break;
 			}
@@ -320,7 +380,10 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	}
 
 exit:
-	if (bio) BIO_reset(bio);
+	if (bio)
+	{
+		BIO_reset(bio);
+	}
 	return body;
 }
 
@@ -338,7 +401,10 @@ void
 log_string(String s)
 {
 	FILE *file = fopen("./log", "w+");
-	if (!file) abort();
+	if (!file)
+	{
+		abort();
+	}
 	fprintf(file, "%.*s\n", s.len, s.str);
 	fclose(file);
 }

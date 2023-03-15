@@ -12,23 +12,31 @@
 
 typedef u32 UI_ID;
 
-typedef struct {
+typedef struct Quad Quad;
+struct Quad
+{
 	f32 x, y, w, h;
-} Quad;
+};
 
-typedef struct {
+typedef struct Color Color;
+struct Color
+{
 	u8 r, g, b, a;
-} Color;
+};
 
-typedef union {
+typedef union Vector2 Vector2;
+union Vector2
+{
 	struct { i32 x, y; };
 	struct { i32 w, h; };
-} Vector2;
+};
 
-typedef struct {
+typedef struct Buffer Buffer;
+struct Buffer
+{
 	String data;
 	i32 cap;
-} Buffer;
+};
 
 
 /* ---
@@ -36,7 +44,8 @@ typedef struct {
  * ---
  */
 
-typedef enum {
+typedef enum
+{
 	UI_ICON_CLOSE = 0,
 	UI_ICON_CHECK,
 	UI_ICON_EXPANDED,
@@ -44,13 +53,17 @@ typedef enum {
 	UI_ICON_MAX,
 } UI_Icon;
 
-enum {
+enum
+{
 	UI_KEY_BACKSPACE = 1 << 0,
 	UI_KEY_RETURN    = 1 << 1,
 };
 
-typedef struct {
-	struct {
+typedef struct UI_Layout UI_Layout;
+struct UI_Layout
+{
+	struct
+	{
 		i32 current_block;
 		i32 total_blocks;
 	} current_row;
@@ -60,7 +73,7 @@ typedef struct {
 	i32 row_height;
 	i32 x;
 	i32 y;
-} UI_Layout;
+};
 
 
 /* ---
@@ -70,18 +83,24 @@ typedef struct {
 
 enum { N_MAX_BLOCKS  = 64 };
 
-typedef struct {
+typedef struct UI_Block UI_Block;
+struct UI_Block
+{
 	UI_ID id;
 	b32 expanded;
 	i32 last_frame_updated;
-} UI_Block;
+};
 
-typedef struct {
+typedef struct UI_Block_Pool UI_Block_Pool;
+struct UI_Block_Pool
+{
 	i32 index;
 	UI_Block blocks[N_MAX_BLOCKS];
-} UI_Block_Pool;
+};
 
-typedef struct {
+typedef struct UI_Context UI_Context;
+struct UI_Context
+{
 	u64 frame;
 
 	i32 mouse_x;
@@ -104,7 +123,7 @@ typedef struct {
 
 	// NOTE(ariel) Store some state for each UI block between frames.
 	UI_Block_Pool block_pool;
-} UI_Context;
+};
 
 
 /* ---

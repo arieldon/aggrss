@@ -38,19 +38,26 @@ ui_end(void)
 {
 	// TODO(ariel) Handle if mouse leaves window frame?
 	// NOTE(ariel) Reset active block if left untouched by user.
-	if (!ui.mouse_down) {
+	if (!ui.mouse_down)
+	{
 		ui.active_block = 0;
-	} else if (ui.active_block == 0) {
+	}
+	else if (ui.active_block == 0)
+	{
 		ui.active_block = -1;
 	}
 
 	// FIXME(ariel) I don't understand why this works -- review both upward and
 	// downward scrolling behavior.
 	i32 scroll = ui.scroll_y + ui.scroll_delta_y;
-	if (ui.scroll_delta_y > 0) {
+	if (ui.scroll_delta_y > 0)
+	{
 		ui.scroll_y = CLAMP(ui.scroll_y, 0, scroll);
-	} else if (ui.scroll_delta_y < 0) {
-		if (ui.layout.y - ui.scroll_delta_y > ui.layout.height) {
+	}
+	else if (ui.scroll_delta_y < 0)
+	{
+		if (ui.layout.y - ui.scroll_delta_y > ui.layout.height)
+		{
 			ui.scroll_y = scroll;
 		}
 	}
@@ -79,7 +86,8 @@ ui_layout_next_block(void)
 
 	// NOTE(ariel) Automagically create a new row for this block if the previous
 	// call exhausted the current row.
-	if (ui.layout.current_row.current_block == ui.layout.current_row.total_blocks) {
+	if (ui.layout.current_row.current_block == ui.layout.current_row.total_blocks)
+	{
 		ui_layout_row(1);
 	}
 
@@ -97,11 +105,14 @@ ui_layout_next_block(void)
 internal inline b32
 ui_mouse_overlaps(Quad target)
 {
-   return (
-			ui.mouse_x >= target.x &&
-			ui.mouse_x <= target.x + target.w &&
-			ui.mouse_y >= target.y &&
-			ui.mouse_y <= target.y + target.h);
+	b32 overlaps =
+	(
+		ui.mouse_x >= target.x &&
+		ui.mouse_x <= target.x + target.w &&
+		ui.mouse_y >= target.y &&
+		ui.mouse_y <= target.y + target.h
+	);
+	return overlaps;
 }
 
 internal inline b32
@@ -114,9 +125,11 @@ ui_click(UI_ID id)
 internal inline void
 ui_update_control(UI_ID id, Quad dimensions)
 {
-	if (ui_mouse_overlaps(dimensions)) {
+	if (ui_mouse_overlaps(dimensions))
+	{
 		ui.hot_block = id;
-		if (ui.active_block == 0 && ui.mouse_down) {
+		if (ui.active_block == 0 && ui.mouse_down)
+		{
 			ui.active_block = id;
 			ui.active_keyboard_block = 0;
 		}
@@ -127,7 +140,8 @@ internal UI_ID
 get_id(String s)
 {
 	UI_ID hash = 2166136261;
-	for (i32 i = 0; i < s.len; ++i) {
+	for (i32 i = 0; i < s.len; ++i)
+	{
 		hash = (hash ^ s.str[i]) * 16777619;
 	}
 	return hash;
@@ -136,8 +150,10 @@ get_id(String s)
 internal i32
 find_block(UI_ID id)
 {
-	for (i32 i = 0; i < N_MAX_BLOCKS; ++i) {
-		if (id == ui.block_pool.blocks[i].id) {
+	for (i32 i = 0; i < N_MAX_BLOCKS; ++i)
+	{
+		if (id == ui.block_pool.blocks[i].id)
+		{
 			return i;
 		}
 	}
@@ -149,19 +165,21 @@ alloc_block(UI_ID id)
 {
 	i32 block_index = -1;
 
-	if (ui.block_pool.index < N_MAX_BLOCKS) {
+	if (ui.block_pool.index < N_MAX_BLOCKS)
+	{
 		block_index = ui.block_pool.index++;
-	} else {
+	}
+	else
+	{
 		i32 least_recently_updated_index = 0;
-		for (i32 i = 0; i < N_MAX_BLOCKS; ++i) {
+		for (i32 i = 0; i < N_MAX_BLOCKS; ++i)
+		{
 			least_recently_updated_index = MIN(
 				ui.block_pool.blocks[i].last_frame_updated, least_recently_updated_index);
 		}
 		block_index = least_recently_updated_index;
 	}
 
-	// TODO(ariel) Allocate dynamically using an arena to create a pool, a la
-	// Ryan Fleury's article.
 	assert(block_index != -1);
 	ui.block_pool.blocks[block_index].id = id;
 	return block_index;
@@ -171,22 +189,31 @@ internal inline Color
 color_block(UI_ID id)
 {
 	Color color = {0};
-	if (id == ui.hot_block) {
-		if (id == ui.active_block) {
+
+	if (id == ui.hot_block)
+	{
+		if (id == ui.active_block)
+		{
 			color = active_color;
-		} else {
+		}
+		else
+		{
 			color = hot_color;
 		}
-	} else {
+	}
+	else
+	{
 		color = blank_color;
 	}
+
 	return color;
 }
 
 internal Vector2
 get_text_dimensions(String text)
 {
-	Vector2 text_dimensions = {
+	Vector2 text_dimensions =
+	{
 		.w = r_get_text_width(text),
 		.h = r_get_text_height(text),
 	};
@@ -203,7 +230,8 @@ ui_button(String label)
 	Color button_color = color_block(id);
 
 	Vector2 text_dimensions = get_text_dimensions(label);
-	Vector2 text_position = (Vector2){
+	Vector2 text_position =
+	{
 		.x = target.x + (target.w - text_dimensions.w) / 2,
 		.y = target.y + (target.h - text_dimensions.h) / 2,
 	};
@@ -220,7 +248,8 @@ ui_header(String label)
 	UI_ID id = get_id(label);
 
 	i32 block_index = find_block(id);
-	if (block_index == -1) {
+	if (block_index == -1)
+	{
 		block_index = alloc_block(id);
 	}
 	UI_Block *persistent_block = &ui.block_pool.blocks[block_index];
@@ -233,7 +262,8 @@ ui_header(String label)
 	r_draw_rect(target, header_color);
 
 	i32 icon_index = persistent_block->expanded ? UI_ICON_EXPANDED : UI_ICON_COLLAPSED;
-	Quad icon_dimensions = (Quad){
+	Quad icon_dimensions =
+	{
 		.x = target.x,
 		.y = target.y,
 		.w = 18,
@@ -241,7 +271,8 @@ ui_header(String label)
 	};
 	r_draw_icon(icon_index, icon_dimensions, text_color);
 
-	Vector2 text_position = {
+	Vector2 text_position =
+	{
 		.x = target.x + 18 * 1.2,
 		.y = target.y,
 	};
@@ -279,26 +310,32 @@ ui_textbox(Buffer *buffer)
 	Quad target = ui_layout_next_block();
 
 	ui_update_control(id, target);
-	if (!ui.active_keyboard_block) {
+	if (!ui.active_keyboard_block)
+	{
 		ui.active_keyboard_block = ui.active_block;
 	}
 
-	if (id == ui.active_keyboard_block) {
+	if (id == ui.active_keyboard_block)
+	{
 		i32 n = MIN(buffer->cap - buffer->data.len, ui.input_text.data.len);
-		if (n > 0) {
+		if (n > 0)
+		{
 			memcpy(buffer->data.str + buffer->data.len, ui.input_text.data.str, n);
 			buffer->data.len += n;
 		}
 
-		if (ui.key_press & UI_KEY_BACKSPACE && buffer->data.len > 0) {
+		if (ui.key_press & UI_KEY_BACKSPACE && buffer->data.len > 0)
+		{
 			--buffer->data.len;
 		}
 
 		submit_text = ui.key_press & UI_KEY_RETURN;
 	}
 
-	if (id == ui.active_keyboard_block) {
-		Quad cursor = {
+	if (id == ui.active_keyboard_block)
+	{
+		Quad cursor =
+		{
 			.x = r_get_text_width(buffer->data),
 			.y = target.y,
 			.w = r_get_text_height(buffer->data) / 2,
@@ -306,10 +343,13 @@ ui_textbox(Buffer *buffer)
 		};
 		r_draw_rect(target, active_color);
 		r_draw_rect(cursor, text_color);
-	} else {
+	}
+	else
+	{
 		r_draw_rect(target, blank_color);
 	}
-	Vector2 text_position = {
+	Vector2 text_position =
+	{
 		.x = target.x,
 		.y = target.y,
 	};
@@ -326,13 +366,16 @@ ui_text(String text)
 
 	i32 offset = 0;
 	i32 previous_offset = 0;
-	for (; offset < text.len; ++offset) {
+	for (; offset < text.len; ++offset)
+	{
 		char c = text.str[offset];
-		if (c == ' ' || c == '\n') {
+		if (c == ' ' || c == '\n')
+		{
 			i32 length = offset - previous_offset;
 			substr = string_substr(text, previous_offset, length);
 			i32 width = r_get_text_width(substr);
-			if (width >= max_width) {
+			if (width >= max_width)
+			{
 				Quad target = ui_layout_next_block();
 				Vector2 text_position = (Vector2){
 					.x = target.x,
@@ -347,19 +390,24 @@ ui_text(String text)
 		}
 	}
 
-	if (previous_offset != offset) {
+	if (previous_offset != offset)
+	{
 		i32 length = text.len - previous_offset;
 		substr = string_substr(text, previous_offset, length);
 		Quad target = ui_layout_next_block();
-		Vector2 text_position = (Vector2){
+		Vector2 text_position =
+		{
 			.x = target.x,
 			.y = target.y,
 		};
 		substr = string_trim_spaces(substr);
 		r_draw_text(substr, text_position, text_color);
-	} else if (previous_offset == 0) {
+	}
+	else if (previous_offset == 0)
+	{
 		Quad target = ui_layout_next_block();
-		Vector2 text_position = (Vector2){
+		Vector2 text_position =
+		{
 			.x = target.x,
 			.y = target.y,
 		};
@@ -419,7 +467,8 @@ void
 ui_input_mouse_down(i32 x, i32 y, i32 mouse_button)
 {
 	ui_input_mouse_move(x, y);
-	if (mouse_button == 1) {
+	if (mouse_button == 1)
+	{
 		ui.mouse_down = true;
 	}
 }
@@ -428,7 +477,8 @@ void
 ui_input_mouse_up(i32 x, i32 y, i32 mouse_button)
 {
 	ui_input_mouse_move(x, y);
-	if (mouse_button == 1) {
+	if (mouse_button == 1)
+	{
 		ui.mouse_down = false;
 	}
 }

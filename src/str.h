@@ -15,17 +15,21 @@ i32 string_find_substr(String haystack, String needle);
 i32 string_find_ch(String s, char c);
 u64 string_to_int(String s, u8 base);
 
-typedef struct String_Node {
-	struct String_Node *next;
+typedef struct String_Node String_Node;
+struct String_Node
+{
+	String_Node *next;
 	String string;
-} String_Node;
+};
 
-typedef struct {
+typedef struct String_List String_List;
+struct String_List
+{
 	String_Node *head;
 	String_Node *tail;
 	isize total_len;
 	isize list_size;
-} String_List;
+};
 
 void string_list_push_node(String_List *ls, String_Node *n);
 void string_list_push_string(Arena *arena, String_List *ls, String s);

@@ -5,30 +5,41 @@
 
 #define ONE_DEG_IN_RAD (( 2.0f * M_PI ) / 360.0f)
 
-typedef struct {
+typedef struct Vector2f Vector2f;
+struct Vector2f
+{
 	f32 x, y;
-} Vector2f;
+};
 
-typedef struct {
+typedef struct Vector2i Vector2i;
+struct Vector2i
+{
 	i32 x, y;
-} Vector2i;
+};
 
-typedef union {
+typedef union Vector3f Vector3f;
+union Vector3f
+{
 	struct { f32 x, y, z; };
 	struct { f32 r, g, b; };
-} Vector3f;
+};
 
-typedef union {
+typedef union Vector4u Vector4u;
+union Vector4u
+{
 	struct { u8 x, y, z, w; };
 	struct { u8 r, g, b, a; };
-} Vector4u;
+};
 
-typedef union {
+typedef union Vector4f Vector4f;
+union Vector4f
+{
 	struct { f32 x, y, z, w; };
 	struct { f32 r, g, b, a; };
-} Vector4f;
+};
 
-typedef struct { f32 e[4][4]; } Matrix4f;
+typedef struct Matrix4f Matrix4f;
+struct Matrix4f { f32 e[4][4]; };
 
 f32 convert_degrees_to_radians(f32 degrees);
 f32 convert_radians_to_degrees(f32 radians);
