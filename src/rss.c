@@ -239,6 +239,83 @@ continue_past_end_of_tag(Parser *parser)
 	}
 }
 
+internal b32
+expect_char(Parser *parser, char c)
+{
+	b32 expected = false;
+	if (c == peek_char(parser))
+	{
+		++parser->cursor;
+		expected = true;
+	}
+	else
+	{
+		error(parser, string_literal("encountered unexpected character"));
+	}
+	return expected;
+}
+
+internal String
+expect_string_literal(Parser *parser)
+{
+	String s = {0};
+
+	char quote = peek_char(parser);
+	if (quote == '"' || quote == '\'')
+	{
+		expect_char(parser, quote);
+		i32 start = parser->cursor;
+		continue_past_char(parser, quote);
+		s.str = parser->source.str + start;
+		s.len = parser->cursor - start;
+		expect_char(parser, quote);
+	}
+	else
+	{
+		error(parser, string_literal("expected single or double quote for string literal"));
+	}
+
+	return s;
+}
+
+internal RSS_Attribute *
+accept_attributes(Parser *parser)
+{
+	RSS_Attribute *attributes = 0;
+
+	for (;;)
+	{
+		skip_whitespace(parser);
+		if (parser->cursor >= parser->source.len || parser->tree->errors.first)
+		{
+			break;
+		}
+
+		char c = peek_char(parser);
+		if (c == '/' || c == '>')
+		{
+			break;
+		}
+
+		RSS_Attribute *attribute = arena_alloc(parser->arena, sizeof(RSS_Attribute));
+		attribute->name = expect_name(parser);
+		expect_char(parser, '=');
+		attribute->value = expect_string_literal(parser);
+
+		if (attributes)
+		{
+			attribute->next = attributes;
+		}
+		else
+		{
+			attribute->next = 0;
+		}
+		attributes = attribute;
+	}
+
+	return attributes;
+}
+
 internal void
 parse_tree(Parser *parser)
 {
@@ -280,6 +357,10 @@ parse_tree(Parser *parser)
 			{
 				push_rss_node(parser);
 				parser->current_node->name = expect_name(parser);
+				if (string_match(string_literal("link"), parser->current_node->name))
+				{
+					parser->current_node->attributes = accept_attributes(parser);
+				}
 				continue_past_end_of_tag(parser);
 			}
 		}
@@ -491,4 +572,43 @@ find_item_node(Arena *arena, RSS_Tree_Node *root)
 	arena_checkpoint_restore(checkpoint);
 
 	return item_node;
+}
+
+RSS_Attribute *
+find_url(RSS_Tree_Node *item)
+{
+	RSS_Attribute *href = 0;
+
+	for (RSS_Tree_Node *child = item->first_child; !href && child; child = child->next_sibling)
+	{
+		if (string_match(child->name, string_literal("link")))
+		{
+			b32 type_equals_html = false;
+			b32 rel_equals_alternate = false;
+			RSS_Attribute *potential_href = 0;
+			for (RSS_Attribute *attr = child->attributes; attr != 0; attr = attr->next)
+			{
+				if (string_match(attr->name, string_literal("href")))
+				{
+					potential_href = attr;
+				}
+				else if (string_match(attr->name, string_literal("rel")))
+				{
+					rel_equals_alternate = string_match(attr->value, string_literal("alternate"));
+				}
+				else if (string_match(attr->name, string_literal("type")))
+				{
+					type_equals_html = string_match(attr->value, string_literal("text/html"));
+				}
+
+				if (rel_equals_alternate && type_equals_html)
+				{
+					href = potential_href;
+					break;
+				}
+			}
+		}
+	}
+
+	return href;
 }

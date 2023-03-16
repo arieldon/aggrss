@@ -270,17 +270,26 @@ process_frame(void)
 					{
 						if (ui_link(item_title_node->content))
 						{
+							char *url = 0;
 							RSS_Tree_Node *link_node = find_item_link(item_node);
 							if (link_node && link_node->content.len > 0)
 							{
-								pid_t pid = fork();
-								if (pid == 0)
+								url = string_terminate(&g_arena, link_node->content);
+							}
+							else
+							{
+								RSS_Attribute *href = find_url(item_node);
+								if (href)
 								{
-									char *url = string_terminate(&g_arena, link_node->content);
-									char *args[] = { "xdg-open", url, 0 };
-									execvp("xdg-open", args);
-									exit(1);
+									url = string_terminate(&g_arena, href->value);
 								}
+							}
+							pid_t pid = fork();
+							if (pid == 0)
+							{
+								char *args[] = { "xdg-open", url, 0 };
+								execvp("xdg-open", args);
+								exit(1);
 							}
 						}
 					}

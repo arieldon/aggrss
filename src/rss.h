@@ -5,6 +5,14 @@
 #include "base.h"
 #include "str.h"
 
+typedef struct RSS_Attribute RSS_Attribute;
+struct RSS_Attribute
+{
+	RSS_Attribute *next;
+	String name;
+	String value;
+};
+
 typedef struct RSS_Tree_Node RSS_Tree_Node;
 struct RSS_Tree_Node
 {
@@ -13,6 +21,7 @@ struct RSS_Tree_Node
 	RSS_Tree_Node *last_child;
 	RSS_Tree_Node *prev_sibling;
 	RSS_Tree_Node *next_sibling;
+	RSS_Attribute *attributes;
 	String name;
 	String content;
 };
@@ -57,5 +66,6 @@ RSS_Tree_Node *find_feed_title(Arena *arena, RSS_Tree_Node *root);
 RSS_Tree_Node *find_item_title(RSS_Tree_Node *item);
 RSS_Tree_Node *find_item_link(RSS_Tree_Node *item);
 RSS_Tree_Node *find_item_node(Arena *arena, RSS_Tree_Node *root);
+RSS_Attribute *find_url(RSS_Tree_Node *item);
 
 #endif
