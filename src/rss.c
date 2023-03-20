@@ -153,7 +153,7 @@ expect_name(Parser *parser)
 }
 
 internal void
-continue_past_char(Parser *parser, char c)
+continue_to_char(Parser *parser, char c)
 {
 	while (parser->cursor < parser->source.len && c != parser->source.str[parser->cursor])
 	{
@@ -162,7 +162,7 @@ continue_past_char(Parser *parser, char c)
 }
 
 internal void
-continue_past_string(Parser *parser, String s)
+continue_to_string(Parser *parser, String s)
 {
 	while (parser->cursor < parser->source.len && !accept_string(parser, s))
 	{
@@ -265,7 +265,7 @@ expect_string_literal(Parser *parser)
 	{
 		expect_char(parser, quote);
 		i32 start = parser->cursor;
-		continue_past_char(parser, quote);
+		continue_to_char(parser, quote);
 		s.str = parser->source.str + start;
 		s.len = parser->cursor - start;
 		expect_char(parser, quote);
@@ -332,7 +332,7 @@ parse_tree(Parser *parser)
 			if (accept_char(parser, '/'))
 			{
 				pop_rss_node(parser);
-				continue_past_string(parser, string_literal(">"));
+				continue_to_string(parser, string_literal(">"));
 			}
 			else if (accept_char(parser, '!'))
 			{
@@ -340,18 +340,18 @@ parse_tree(Parser *parser)
 				{
 					i32 start = parser->cursor;
 					String cdend = string_literal("]]>");
-					continue_past_string(parser, cdend);
+					continue_to_string(parser, cdend);
 					parser->current_node->content.str = parser->source.str + start;
 					parser->current_node->content.len = parser->cursor - start - cdend.len;
 				}
 				else if (accept_string(parser, string_literal("--")))
 				{
-					continue_past_string(parser, string_literal("--!>"));
+					continue_to_string(parser, string_literal("--!>"));
 				}
 			}
 			else if (accept_char(parser, '?'))
 			{
-				continue_past_string(parser, string_literal("?>"));
+				continue_to_string(parser, string_literal("?>"));
 			}
 			else
 			{
@@ -367,7 +367,7 @@ parse_tree(Parser *parser)
 		else
 		{
 			i32 start = parser->cursor;
-			continue_past_char(parser, '<');
+			continue_to_char(parser, '<');
 			parser->current_node->content.str = parser->source.str + start;
 			parser->current_node->content.len = parser->cursor - start;
 		}
