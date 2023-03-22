@@ -346,7 +346,7 @@ parse_tree(Parser *parser)
 				}
 				else if (accept_string(parser, string_literal("--")))
 				{
-					continue_to_string(parser, string_literal("--!>"));
+					continue_to_string(parser, string_literal("-->"));
 				}
 			}
 			else if (accept_char(parser, '?'))
