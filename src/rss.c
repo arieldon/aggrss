@@ -162,7 +162,7 @@ continue_to_char(Parser *parser, char c)
 }
 
 internal void
-continue_to_string(Parser *parser, String s)
+continue_past_string(Parser *parser, String s)
 {
 	while (parser->cursor < parser->source.len && !accept_string(parser, s))
 	{
@@ -332,7 +332,7 @@ parse_tree(Parser *parser)
 			if (accept_char(parser, '/'))
 			{
 				pop_rss_node(parser);
-				continue_to_string(parser, string_literal(">"));
+				continue_past_string(parser, string_literal(">"));
 			}
 			else if (accept_char(parser, '!'))
 			{
@@ -340,13 +340,13 @@ parse_tree(Parser *parser)
 				{
 					i32 start = parser->cursor;
 					String cdend = string_literal("]]>");
-					continue_to_string(parser, cdend);
+					continue_past_string(parser, cdend);
 					parser->current_node->content.str = parser->source.str + start;
 					parser->current_node->content.len = parser->cursor - start - cdend.len;
 				}
 				else if (accept_string(parser, string_literal("--")))
 				{
-					continue_to_string(parser, string_literal("-->"));
+					continue_past_string(parser, string_literal("-->"));
 				}
 				else if (accept_string(parser, string_literal("DOCTYPE")))
 				{
@@ -355,7 +355,7 @@ parse_tree(Parser *parser)
 			}
 			else if (accept_char(parser, '?'))
 			{
-				continue_to_string(parser, string_literal("?>"));
+				continue_past_string(parser, string_literal("?>"));
 			}
 			else
 			{
