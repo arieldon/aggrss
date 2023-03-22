@@ -348,6 +348,10 @@ parse_tree(Parser *parser)
 				{
 					continue_to_string(parser, string_literal("-->"));
 				}
+				else if (accept_string(parser, string_literal("DOCTYPE")))
+				{
+					continue_past_end_of_tag(parser);
+				}
 			}
 			else if (accept_char(parser, '?'))
 			{
