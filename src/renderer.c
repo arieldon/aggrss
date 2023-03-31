@@ -1,7 +1,4 @@
-#define GLEW_STATIC
-#include "GL/glew.h"
 #include "SDL.h"
-#include "SDL_opengl.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -9,6 +6,7 @@
 #include "arena.h"
 #include "base.h"
 #include "linalg.h"
+#include "load_opengl.h"
 #include "renderer.h"
 #include "str.h"
 
@@ -235,8 +233,11 @@ r_init(Arena *arena)
 		WIDTH, HEIGHT, SDL_WINDOW_OPENGL);
 	SDL_GL_CreateContext(window);
 
-	glewExperimental = GL_TRUE;
-	glewInit();
+	if (!load_gl_procedures())
+	{
+		fprintf(stderr, "failed to load necessary OpenGL function(s)\n");
+		exit(EXIT_FAILURE);
+	}
 
 #ifdef DEBUG
 	{
@@ -247,7 +248,7 @@ r_init(Arena *arena)
 		fprintf(stderr, "GL INFO: Version %d.%d\n", major, minor);
 	}
 
-	if (GLEW_ARB_debug_output)
+	if (confirm_gl_extension_support(string_literal("GL_ARB_debug_output")))
 	{
 		// NOTE(ariel) Enable all debug messages from OpenGL, and deliver them as
 		// soon as they occur.
@@ -255,6 +256,10 @@ r_init(Arena *arena)
 		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 		glDebugMessageCallback(MessageCallback, 0);
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, 0, GL_TRUE);
+	}
+	else
+	{
+		fprintf(stderr, "GL INFO: Unable to load debug output extension\n");
 	}
 #endif
 
@@ -539,7 +544,8 @@ flush(void)
 internal void
 push_quad(Quad dst, Quad src, Color color)
 {
-	if (vertices_cursor == N_MAX_QUADS) {
+	if (vertices_cursor == N_MAX_QUADS)
+	{
 		flush();
 	}
 
