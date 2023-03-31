@@ -4,9 +4,7 @@ set -eux
 
 BIN="rss"
 
-# NOTE(ariel) I only use the GNU11 standard rather than the C11 standard for
-# inline assembly asm().
-CFLAGS="-std=gnu11 -D_DEFAULT_SOURCE"
+CFLAGS="-std=c11 -D_DEFAULT_SOURCE"
 WARNINGS="-Wall -Wextra -Wpedantic"
 LIBRARIES="-pthread -lssl -lcrypto"
 LIBRARIES="$LIBRARIES `pkg-config --cflags --libs freetype2`"
