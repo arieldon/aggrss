@@ -109,6 +109,7 @@ parse_feed(Worker *worker, String url)
 	if (!file)
 	{
 		++work_queue.nfails;
+		err_msg("failed to read file of %.*s", url.len, url.str);
 		return;
 	}
 	String rss = load_file(&worker->persistent_arena, file);
@@ -119,6 +120,7 @@ parse_feed(Worker *worker, String url)
 		// TODO(ariel) Push error on global RSS tree instead of or in addition to
 		// logging a message here.
 		++work_queue.nfails;
+		err_msg("failed to download %.*s\n", url.len, url.str);
 		return;
 	}
 #endif
@@ -145,6 +147,7 @@ parse_feed(Worker *worker, String url)
 		{
 			// NOTE(ariel) Invalidate feeds without a title tag.
 			++work_queue.nfails;
+			err_msg("failed to parse title of %.*s", url.len, url.str);
 			return;
 		}
 
