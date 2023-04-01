@@ -273,26 +273,17 @@ process_frame(void)
 					{
 						if (ui_link(item_title_node->content))
 						{
-							char *url = 0;
-							RSS_Tree_Node *link_node = find_item_link(item_node);
-							if (link_node && link_node->content.len > 0)
+							String link = find_link(item_node);
+							if (link.len > 0)
 							{
-								url = string_terminate(&g_arena, link_node->content);
-							}
-							else
-							{
-								RSS_Attribute *href = find_url(item_node);
-								if (href)
+								pid_t pid = fork();
+								if (pid == 0)
 								{
-									url = string_terminate(&g_arena, href->value);
+									char *terminated_link = string_terminate(&g_arena, link);
+									char *args[] = { "xdg-open", terminated_link, 0 };
+									execvp("xdg-open", args);
+									exit(1);
 								}
-							}
-							pid_t pid = fork();
-							if (pid == 0)
-							{
-								char *args[] = { "xdg-open", url, 0 };
-								execvp("xdg-open", args);
-								exit(1);
 							}
 						}
 					}

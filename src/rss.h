@@ -66,6 +66,6 @@ RSS_Tree_Node *find_feed_title(Arena *arena, RSS_Tree_Node *root);
 RSS_Tree_Node *find_item_title(RSS_Tree_Node *item);
 RSS_Tree_Node *find_item_link(RSS_Tree_Node *item);
 RSS_Tree_Node *find_item_node(Arena *arena, RSS_Tree_Node *root);
-RSS_Attribute *find_url(RSS_Tree_Node *item);
+String find_link(RSS_Tree_Node *item);
 
 #endif

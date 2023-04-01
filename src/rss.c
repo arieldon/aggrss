@@ -578,19 +578,24 @@ find_item_node(Arena *arena, RSS_Tree_Node *root)
 	return item_node;
 }
 
-RSS_Attribute *
-find_url(RSS_Tree_Node *item)
+String
+find_link(RSS_Tree_Node *item)
 {
-	RSS_Attribute *href = 0;
+	String link = {0};
 
-	for (RSS_Tree_Node *child = item->first_child; !href && child; child = child->next_sibling)
+	RSS_Tree_Node *link_node = find_item_link(item);
+	if (link_node)
 	{
-		if (string_match(child->name, string_literal("link")))
+		if (link_node->content.len > 0)
+		{
+			link = link_node->content;
+		}
+		else
 		{
 			b32 type_equals_html = false;
 			b32 rel_equals_alternate = false;
 			RSS_Attribute *potential_href = 0;
-			for (RSS_Attribute *attr = child->attributes; attr != 0; attr = attr->next)
+			for (RSS_Attribute *attr = link_node->attributes; attr != 0; attr = attr->next)
 			{
 				if (string_match(attr->name, string_literal("href")))
 				{
@@ -605,14 +610,14 @@ find_url(RSS_Tree_Node *item)
 					type_equals_html = string_match(attr->value, string_literal("text/html"));
 				}
 
-				if (rel_equals_alternate && type_equals_html)
+				if (rel_equals_alternate && type_equals_html && potential_href)
 				{
-					href = potential_href;
+					link = potential_href->value;
 					break;
 				}
 			}
 		}
 	}
 
-	return href;
+	return link;
 }
