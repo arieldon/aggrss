@@ -502,6 +502,28 @@ find_feed_title(Arena *arena, RSS_Tree_Node *root)
 }
 
 RSS_Tree_Node *
+find_item_child_node(RSS_Tree_Node *item, String name)
+{
+	RSS_Tree_Node *child_node = 0;
+
+	if (string_match(item_string, item->name) || string_match(entry_string, item->name))
+	{
+		RSS_Tree_Node *node = item->first_child;
+		while (node)
+		{
+			if (string_match(name, node->name))
+			{
+				child_node = node;
+				break;
+			}
+			node = node->next_sibling;
+		}
+	}
+
+	return child_node;
+}
+
+RSS_Tree_Node *
 find_item_title(RSS_Tree_Node *item)
 {
 	RSS_Tree_Node *item_title_node = 0;

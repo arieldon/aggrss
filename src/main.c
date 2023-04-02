@@ -12,6 +12,8 @@
 #include "renderer.h"
 #include "ui.h"
 
+#include "db.h"
+
 #include "arena.h"
 #include "err.h"
 #include "request.h"
@@ -22,6 +24,7 @@ enum { FPS = 60 };
 global u32 delta_ms = 1000 / FPS;
 
 global Arena g_arena;
+global sqlite3 *db;
 
 global char modifier_key_map[256] =
 {
@@ -76,44 +79,9 @@ struct Work_Queue
 global Worker workers[N_WORKERS];
 global Work_Queue work_queue;
 
-typedef struct Feed_List Feed_List;
-struct Feed_List
-{
-	pthread_spinlock_t lock;
-	RSS_Tree_List list;
-};
-
-global Feed_List feeds;
-
-internal String
-load_file(Arena *arena, FILE *file)
-{
-	String contents = {0};
-
-	fseek(file, 0, SEEK_END);
-	contents.len = ftell(file);
-	rewind(file);
-	contents.str = arena_alloc(arena, contents.len);
-	fread(contents.str, contents.len, sizeof(char), file);
-	fclose(file);
-
-	return contents;
-}
-
 internal void
 parse_feed(Worker *worker, String url)
 {
-#if NO_NETWORK
-	char *domain = string_terminate(&worker->scratch_arena, parse_http_url(url).domain);
-	FILE *file = fopen(domain, "rb");
-	if (!file)
-	{
-		++work_queue.nfails;
-		err_msg("failed to read file of %.*s", url.len, url.str);
-		return;
-	}
-	String rss = load_file(&worker->persistent_arena, file);
-#else
 	String rss = download_resource(&worker->persistent_arena, &worker->scratch_arena, url);
 	if (!rss.len)
 	{
@@ -123,7 +91,6 @@ parse_feed(Worker *worker, String url)
 		err_msg("failed to download %.*s\n", url.len, url.str);
 		return;
 	}
-#endif
 
 	RSS_Tree *feed = parse_rss(&worker->persistent_arena, rss);
 
@@ -156,21 +123,10 @@ parse_feed(Worker *worker, String url)
 		feed->first_item = find_item_node(&worker->scratch_arena, feed->root);
 	}
 
-	// NOTE(ariel) Push results in persistent arena to global tree.
-	pthread_spin_lock(&feeds.lock);
+	for (RSS_Tree_Node *item = feed->first_item; item; item = item->next_sibling)
 	{
-		if (!feeds.list.first)
-		{
-			feeds.list.first = feeds.list.last = feed;
-		}
-		else
-		{
-			feeds.list.last->next = feed;
-			feeds.list.last = feed;
-			feed->next = 0;
-		}
+		db_add_item(db, url, item);
 	}
-	pthread_spin_unlock(&feeds.lock);
 
 	++work_queue.ncompletions;
 }
@@ -203,21 +159,6 @@ add_work_entry(String url)
 	assert(work_queue.next_entry_to_write < work_queue.n_max_entries);
 	work_queue.entries[work_queue.next_entry_to_write++] = entry;
 	sem_post(&work_queue.semaphore);
-}
-
-internal void
-read_feeds(String feeds)
-{
-	String_List urls = string_split(&g_arena, feeds, '\n');
-	work_queue.n_max_entries = urls.list_size;
-	work_queue.entries = arena_alloc(&g_arena, work_queue.n_max_entries * sizeof(Work_Entry));
-
-	String_Node *url = urls.head;
-	while (url)
-	{
-		add_work_entry(url->string);
-		url = url->next;
-	}
 }
 
 internal String
@@ -258,42 +199,46 @@ process_frame(void)
 	ui_layout_row(1);
 	ui_text(fail_message);
 
-	pthread_spin_lock(&feeds.lock);
+	if (ui_button(string_literal("Reload")))
 	{
-		RSS_Tree *feed = feeds.list.first;
-		while (feed)
+		work_queue.n_max_entries = db_count_rows(db);
+		work_queue.entries = arena_alloc(&g_arena, work_queue.n_max_entries * sizeof(Work_Entry));
+
+		String feed_link = {0};
+		String feed_title = {0};
+		while (db_iterate_feeds(db, &feed_link, &feed_title))
 		{
-			RSS_Tree_Node *item_node = feed->first_item;
-			if (ui_header(feed->feed_title->content))
-			{
-				while (item_node)
-				{
-					RSS_Tree_Node *item_title_node = find_item_title(item_node);
-					if (item_title_node)
-					{
-						if (ui_link(item_title_node->content))
-						{
-							String link = find_link(item_node);
-							if (link.len > 0)
-							{
-								pid_t pid = fork();
-								if (pid == 0)
-								{
-									char *terminated_link = string_terminate(&g_arena, link);
-									char *args[] = { "xdg-open", terminated_link, 0 };
-									execvp("xdg-open", args);
-									exit(1);
-								}
-							}
-						}
-					}
-					item_node = item_node->next_sibling;
-				}
-			}
-			feed = feed->next;
+			add_work_entry(string_duplicate(&g_arena, feed_link));
 		}
 	}
-	pthread_spin_unlock(&feeds.lock);
+
+	String feed_link = {0};
+	String feed_title = {0};
+	while (db_iterate_feeds(db, &feed_link, &feed_title))
+	{
+		if (ui_header(feed_title))
+		{
+			String item_link = {0};
+			String item_title = {0};
+			while (db_iterate_items(db, feed_link, &item_link, &item_title))
+			{
+				if (ui_link(item_title))
+				{
+					if (item_link.len > 0)
+					{
+						pid_t pid = fork();
+						if (pid == 0)
+						{
+							char *terminated_link = string_terminate(&g_arena, item_link);
+							char *args[] = { "xdg-open", terminated_link, 0 };
+							execvp("xdg-open", args);
+							exit(1);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	ui_end();
 }
@@ -302,12 +247,6 @@ int
 main(void)
 {
 	arena_init(&g_arena);
-
-	// NOTE(ariel) Initialize tree that stores parsed RSS feeds.
-	if (pthread_spin_init(&feeds.lock, PTHREAD_PROCESS_PRIVATE))
-	{
-		err_exit("failed to initialize spin lock for list of parsed RSS feeds");
-	}
 
 	// NOTE(ariel) Initialize work queue.
 	{
@@ -330,15 +269,7 @@ main(void)
 	SDL_Init(SDL_INIT_VIDEO);
 	r_init(&g_arena);
 	ui_init();
-
-	FILE *file = fopen("./feeds", "rb");
-	if (!file)
-	{
-		err_exit("failed to open feeds file");
-	}
-
-	String feeds = load_file(&g_arena, file);
-	read_feeds(feeds);
+	db_init(&db);
 
 	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
 	for (;;)
@@ -350,7 +281,7 @@ main(void)
 		{
 			switch (e.type)
 			{
-				case SDL_QUIT: exit(EXIT_SUCCESS); break;
+				case SDL_QUIT: goto exit;
 
 				case SDL_MOUSEMOTION: ui_input_mouse_move(e.motion.x, e.motion.y); break;
 				case SDL_MOUSEWHEEL:  ui_input_mouse_scroll(0, e.wheel.y); break;
@@ -385,6 +316,8 @@ main(void)
 		}
 	}
 
+exit:
+	db_free(db);
 	arena_release(&g_arena);
 	return 0;
 }
