@@ -16,10 +16,10 @@ ui_init(void)
 	ui.frame = 0;
 	ui.layout.row_height = r_get_text_height(string_literal("")) * 1.2f;
 
-	local_persist char input_text[32];
+	local_persist char input_text[128];
 	ui.input_text.data.str = input_text;
 	ui.input_text.data.len = 0;
-	ui.input_text.cap = 32;
+	ui.input_text.cap = 128;
 }
 
 // TODO(ariel) Consolidate where variables of the UI context are reset.
