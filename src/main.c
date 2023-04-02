@@ -30,6 +30,8 @@ global char modifier_key_map[256] =
 {
 	[SDLK_RETURN    & 0xff] = UI_KEY_RETURN,
 	[SDLK_BACKSPACE & 0xff] = UI_KEY_BACKSPACE,
+	[SDLK_LCTRL     & 0xff] = UI_KEY_CONTROL,
+	[SDLK_RCTRL     & 0xff] = UI_KEY_CONTROL,
 };
 
 // NOTE(ariel) The Intel Core i5-6500 processor in this machine has four total
@@ -288,15 +290,27 @@ main(void)
 				case SDL_MOUSEBUTTONDOWN: ui_input_mouse_down(e.button.x, e.button.y, 1); break;
 				case SDL_MOUSEBUTTONUP: ui_input_mouse_up(e.button.x, e.button.y, 1); break;
 
-				case SDL_TEXTINPUT: ui_input_text(e.text.text); break;
 				case SDL_KEYDOWN:
 				{
-					int modifier_key = modifier_key_map[e.key.keysym.sym & 0xff];
+					i32 modifier_key = modifier_key_map[e.key.keysym.sym & 0xff];
 					if (modifier_key)
 					{
 						ui_input_key(modifier_key);
 					}
+					else
+					{
+						b32 ctrl = SDL_GetModState() & KMOD_CTRL;
+						b32 v = e.key.keysym.sym == SDLK_v;
+						b32 clipboard = SDL_HasClipboardText();
+						if (ctrl && v && clipboard)
+						{
+							char *text = SDL_GetClipboardText();
+							ui_input_text(text);
+							SDL_free(text);
+						}
+					}
 				} break;
+				case SDL_TEXTINPUT: ui_input_text(e.text.text); break;
 			}
 		}
 

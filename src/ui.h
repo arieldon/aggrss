@@ -57,6 +57,7 @@ enum
 {
 	UI_KEY_BACKSPACE = 1 << 0,
 	UI_KEY_RETURN    = 1 << 1,
+	UI_KEY_CONTROL   = 1 << 2,
 };
 
 typedef struct UI_Layout UI_Layout;
