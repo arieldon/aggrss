@@ -616,12 +616,12 @@ find_link(RSS_Tree_Node *item)
 		{
 			b32 type_equals_html = false;
 			b32 rel_equals_alternate = false;
-			RSS_Attribute *potential_href = 0;
+			RSS_Attribute *href = 0;
 			for (RSS_Attribute *attr = link_node->attributes; attr != 0; attr = attr->next)
 			{
 				if (string_match(attr->name, string_literal("href")))
 				{
-					potential_href = attr;
+					href = attr;
 				}
 				else if (string_match(attr->name, string_literal("rel")))
 				{
@@ -632,11 +632,18 @@ find_link(RSS_Tree_Node *item)
 					type_equals_html = string_match(attr->value, string_literal("text/html"));
 				}
 
-				if (rel_equals_alternate && type_equals_html && potential_href)
+				if (rel_equals_alternate && type_equals_html && href)
 				{
-					link = potential_href->value;
+					link = href->value;
 					break;
 				}
+			}
+
+			if (!link.str)
+			{
+				// NOTE(ariel) Choose any link if no tag strictly matches the
+				// requirements above.
+				link = href->value;
 			}
 		}
 	}
