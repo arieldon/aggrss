@@ -218,7 +218,8 @@ process_frame(void)
 	String feed_title = {0};
 	while (db_iterate_feeds(db, &feed_link, &feed_title))
 	{
-		if (ui_header(feed_title))
+		String display_name = feed_title.len ? feed_title : feed_link;
+		if (ui_header(display_name))
 		{
 			String item_link = {0};
 			String item_title = {0};
