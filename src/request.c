@@ -35,23 +35,25 @@ parse_http_url(String urlstr)
 {
 	URL url = {0};
 
-	// NOTE(ariel) Parse scheme.
 	{
-		local_persist String http_scheme = static_string_literal("http://");
-		url.scheme = string_prefix(urlstr, 7);
-		if (!string_match(url.scheme, http_scheme))
+		String scheme = {0};
+		String http = string_literal("http://");
+		String https = string_literal("https://");
+
+		scheme = string_prefix(urlstr, http.len);
+		if (string_match(scheme, http))
 		{
-			local_persist String https_scheme = static_string_literal("https://");
-			url.scheme = string_prefix(urlstr, 8);
-			if (!string_match(url.scheme, https_scheme))
-			{
-				err_exit("failed to match scheme of %.*s to HTTP or HTTPS",
-					url.scheme.len, url.scheme.str);
-			}
+			url.scheme = scheme;
+		}
+
+		scheme = string_prefix(urlstr, https.len);
+		if (string_match(scheme, https))
+		{
+			url.scheme = scheme;
 		}
 	}
 
-	// NOTE(ariel) Parse domain.
+	if (url.scheme.str)
 	{
 		url.domain = string_suffix(urlstr, url.scheme.len);
 		i32 delimiter = string_find_ch(url.domain, '/');
@@ -61,7 +63,7 @@ parse_http_url(String urlstr)
 		}
 	}
 
-	// NOTE(ariel) Parse path.
+	if (url.scheme.str)
 	{
 		url.path = string_suffix(urlstr, url.scheme.len + url.domain.len);
 	}
@@ -230,6 +232,10 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 
 	BIO *bio = 0;
 	URL url = parse_http_url(urlstr);
+	if (!url.scheme.str || !url.domain.str)
+	{
+		goto exit;
+	}
 	char *domain = string_terminate(scratch_arena, url.domain);
 
 	if (url.scheme.len == 8)
