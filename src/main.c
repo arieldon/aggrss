@@ -59,6 +59,7 @@ struct Worker
 typedef struct Work_Entry Work_Entry;
 struct Work_Entry
 {
+	Work_Entry *next;
 	String url;
 };
 
@@ -68,13 +69,13 @@ typedef struct Work_Queue Work_Queue;
 struct Work_Queue
 {
 	sem_t semaphore;
+	pthread_spinlock_t big_lock;
 
-	_Atomic(i32) next_entry_to_read;
-	_Atomic(i32) next_entry_to_write;
-	_Atomic(i32) ncompletions;
-	_Atomic(i32) nfails;
+	Work_Entry *head;
+	Work_Entry *tail;
+	i32 ncompletions;
+	i32 nfails;
 
-	i32 n_max_entries;
 	Work_Entry *entries;
 };
 
@@ -125,6 +126,7 @@ parse_feed(Worker *worker, String url)
 		feed->first_item = find_item_node(&worker->scratch_arena, feed->root);
 	}
 
+	db_add_feed(db, url, feed->feed_title->content);
 	for (RSS_Tree_Node *item = feed->first_item; item; item = item->next_sibling)
 	{
 		db_add_item(db, url, item);
@@ -142,11 +144,20 @@ get_work_entry(void *arg)
 
 	for (;;)
 	{
+		Work_Entry *entry = 0;
 		sem_wait(&work_queue.semaphore);
-		assert(work_queue.next_entry_to_read < work_queue.n_max_entries);
-		Work_Entry entry = work_queue.entries[work_queue.next_entry_to_read++];
-		parse_feed(worker, entry.url);
+
+		pthread_spin_lock(&work_queue.big_lock);
+		{
+			entry = work_queue.head;
+			work_queue.head = work_queue.head->next;
+		}
+		pthread_spin_unlock(&work_queue.big_lock);
+
+		parse_feed(worker, entry->url);
 		arena_clear(&worker->scratch_arena);
+		free(entry->url.str);
+		free(entry);
 	}
 
 	return 0;
@@ -157,9 +168,30 @@ add_work_entry(String url)
 {
 	// NOTE(ariel) This routine serves as a producer. Only a single thread of
 	// execution adds entries to the work queue.
-	Work_Entry entry = {url};
-	assert(work_queue.next_entry_to_write < work_queue.n_max_entries);
-	work_queue.entries[work_queue.next_entry_to_write++] = entry;
+	// TODO(ariel) Create a custom pool allocator for the work queue?
+	Work_Entry *entry = calloc(1, sizeof(Work_Entry));
+	entry->next = 0;
+	entry->url.len = url.len;
+	entry->url.str = calloc(url.len, sizeof(char));
+	memcpy(entry->url.str, url.str, url.len);
+
+	pthread_spin_lock(&work_queue.big_lock);
+	{
+		if (!work_queue.head)
+		{
+			work_queue.head = entry;
+		}
+		else if (!work_queue.tail)
+		{
+			work_queue.head->next = work_queue.tail = entry;
+		}
+		else
+		{
+			work_queue.tail = work_queue.tail->next = entry;
+		}
+	}
+	pthread_spin_unlock(&work_queue.big_lock);
+
 	sem_post(&work_queue.semaphore);
 }
 
@@ -202,16 +234,28 @@ process_frame(void)
 	ui_layout_row(1);
 	ui_text(fail_message);
 
-	if (ui_button(string_literal("Reload")))
+	local_persist char new_feed_input[1024];
+	local_persist Buffer new_feed =
 	{
-		work_queue.n_max_entries = db_count_rows(db);
-		work_queue.entries = arena_alloc(&g_arena, work_queue.n_max_entries * sizeof(Work_Entry));
+		.data.str = new_feed_input,
+		.cap = sizeof(new_feed_input),
+	};
+	ui_textbox(&new_feed);
+	if (ui_button(string_literal("Add Feed")))
+	{
+		// TODO(ariel) Confirm user input represents URL. Get feed at URL.
+		db_add_feed(db, new_feed.data, string_literal(""));
+	}
 
+	if (ui_button(string_literal("Reload All Feeds")))
+	{
+		// TODO(ariel) Prevent the user from reloading all feeds over and over. The
+		// previous set of reloads must finish before the user may reload again.
 		String feed_link = {0};
 		String feed_title = {0};
 		while (db_iterate_feeds(db, &feed_link, &feed_title))
 		{
-			add_work_entry(string_duplicate(&g_arena, feed_link));
+			add_work_entry(feed_link);
 		}
 	}
 
@@ -257,6 +301,10 @@ main(void)
 		if (sem_init(&work_queue.semaphore, 0, 0) == -1)
 		{
 			err_exit("failed to initialize semaphore for workers");
+		}
+		if (pthread_spin_init(&work_queue.big_lock, PTHREAD_PROCESS_PRIVATE))
+		{
+			err_exit("failed to initialize spin lock for workers");
 		}
 		for (i8 i = 0; i < N_WORKERS; ++i)
 		{
