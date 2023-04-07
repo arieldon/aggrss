@@ -164,26 +164,26 @@ add_work_entry(String url)
 }
 
 internal String
-format_complete_message(void)
+format_complete_message(i32 nrows)
 {
 	local_persist char success_message[32] = {0};
 
 	String message = {0};
 	message.len = snprintf(success_message, sizeof(success_message),
-		"%d of %d success", work_queue.ncompletions, work_queue.n_max_entries);
+		"%d of %d success", work_queue.ncompletions, nrows);
 	message.str = success_message;
 
 	return message;
 }
 
 internal String
-format_fail_message(void)
+format_fail_message(i32 nrows)
 {
 	local_persist char fail_message[32] = {0};
 
 	String message = {0};
 	message.len = snprintf(fail_message, sizeof(fail_message),
-		"%d of %d fail", work_queue.nfails, work_queue.n_max_entries);
+		"%d of %d fail", work_queue.nfails, nrows);
 	message.str = fail_message;
 
 	return message;
@@ -194,8 +194,9 @@ process_frame(void)
 {
 	ui_begin();
 
-	String complete_message = format_complete_message();
-	String fail_message = format_fail_message();
+	i32 nrows = db_count_rows(db);
+	String complete_message = format_complete_message(nrows);
+	String fail_message = format_fail_message(nrows);
 	ui_layout_row(1);
 	ui_text(complete_message);
 	ui_layout_row(1);
