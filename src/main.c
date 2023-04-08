@@ -245,6 +245,7 @@ process_frame(void)
 	{
 		// TODO(ariel) Confirm user input represents URL. Get feed at URL.
 		db_add_feed(db, new_feed.data, string_literal(""));
+		new_feed.data.len = 0;
 	}
 
 	if (ui_button(string_literal("Reload All Feeds")))
