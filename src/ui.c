@@ -363,10 +363,10 @@ ui_textbox(Buffer *buffer)
 	{
 		Quad cursor =
 		{
-			.x = r_get_text_width(buffer->data),
-			.y = target.y,
+			.x = r_get_text_width(buffer->data) + 10,
+			.y = target.y + 1,
 			.w = r_get_text_height(buffer->data) / 2,
-			.h = r_get_text_height(buffer->data),
+			.h = r_get_text_height(buffer->data) + 1,
 		};
 		r_draw_rect(target, active_color);
 		r_draw_rect(cursor, text_color);
