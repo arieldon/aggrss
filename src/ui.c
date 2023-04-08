@@ -27,7 +27,7 @@ void
 ui_begin(void)
 {
 	ui.hot_block = 0;
-	ui.layout.width = 800;
+	ui.layout.width = 780;
 	ui.layout.height = 600;
 	ui.layout.x = 0;
 	ui.layout.y = -ui.layout.row_height + ui.scroll_y;
@@ -73,8 +73,8 @@ void
 ui_layout_row(i32 total_blocks)
 {
 	assert(total_blocks > 0);
-	ui.layout.x = 0;
-	ui.layout.y += ui.layout.row_height;
+	ui.layout.x = 10;
+	ui.layout.y += ui.layout.row_height * 1.3;
 	ui.layout.current_row.current_block = 0;
 	ui.layout.current_row.total_blocks = total_blocks;
 }
