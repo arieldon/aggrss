@@ -233,7 +233,7 @@ ui_button(String label)
 	Vector2 text_position =
 	{
 		.x = target.x + (target.w - text_dimensions.w) / 2,
-		.y = target.y + (target.h - text_dimensions.h) / 2,
+		.y = target.y + (target.h - text_dimensions.h) / 2 + 2,
 	};
 	r_draw_rect(target, button_color);
 	r_draw_text(label, text_position, text_color);
@@ -284,7 +284,7 @@ ui_header(String label)
 	Vector2 text_position =
 	{
 		.x = target.x + 18 * 1.2,
-		.y = target.y,
+		.y = target.y + 2,
 	};
 	r_draw_text(label, text_position, text_color);
 
