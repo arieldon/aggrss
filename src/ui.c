@@ -242,7 +242,7 @@ ui_button(String label)
 	return clicked;
 }
 
-b32
+i32
 ui_header(String label)
 {
 	UI_ID id = get_id(label);
@@ -261,15 +261,25 @@ ui_header(String label)
 	Color header_color = color_block(id);
 	r_draw_rect(target, header_color);
 
-	i32 icon_index = persistent_block->expanded ? UI_ICON_EXPANDED : UI_ICON_COLLAPSED;
-	Quad icon_dimensions =
+	i32 chevron_icon_index = persistent_block->expanded ? UI_ICON_EXPANDED : UI_ICON_COLLAPSED;
+	Quad chevron_icon_dimensions =
 	{
 		.x = target.x,
 		.y = target.y,
 		.w = 18,
 		.h = 18,
 	};
-	r_draw_icon(icon_index, icon_dimensions, text_color);
+	r_draw_icon(chevron_icon_index, chevron_icon_dimensions, text_color);
+
+	i32 delete_icon_index = UI_ICON_CLOSE;
+	Quad delete_icon_dimensions =
+	{
+		.x = ui.layout.width - 18,
+		.y = target.y,
+		.w = 18,
+		.h = 18,
+	};
+	r_draw_icon(delete_icon_index, delete_icon_dimensions, text_color);
 
 	Vector2 text_position =
 	{
@@ -278,11 +288,28 @@ ui_header(String label)
 	};
 	r_draw_text(label, text_position, text_color);
 
+	i32 header_state = 0;
 	b32 clicked = ui_click(id);
-	persistent_block->expanded ^= clicked;
+	b32 deleted = clicked && ui_mouse_overlaps(delete_icon_dimensions);
+	header_state = persistent_block->expanded ^= clicked;
 	persistent_block->last_frame_updated = ui.frame;
 
-	return persistent_block->expanded;
+	header_state = (deleted << 16) | persistent_block->expanded;
+	return header_state;
+}
+
+inline b32
+ui_header_expanded(i32 header_state)
+{
+	b32 expanded = header_state == 1;
+	return expanded;
+}
+
+inline b32
+ui_header_deleted(i32 header_state)
+{
+	b32 deleted = header_state >> 16;
+	return deleted;
 }
 
 void

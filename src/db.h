@@ -14,6 +14,8 @@ i32 db_count_rows(sqlite3 *db);
 void db_add_feed(sqlite3 *db, String feed_link, String feed_title);
 void db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node);
 
+void db_del_feed(sqlite3 *db, String feed_link);
+
 // NOTE(ariel) The following functions assume one and only one thread calls
 // them until exhaustion.
 b32 db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title);

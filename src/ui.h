@@ -153,7 +153,9 @@ void ui_end(void);
 void ui_layout_row(i32 total_blocks);
 
 b32 ui_button(String label);
-b32 ui_header(String label);
+i32 ui_header(String label);
+b32 ui_header_expanded(i32 header_state);
+b32 ui_header_deleted(i32 header_state);
 b32 ui_textbox(Buffer *buffer);
 b32 ui_link(String text);
 void ui_text(String text);

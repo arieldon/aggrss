@@ -264,7 +264,8 @@ process_frame(void)
 	while (db_iterate_feeds(db, &feed_link, &feed_title))
 	{
 		String display_name = feed_title.len ? feed_title : feed_link;
-		if (ui_header(display_name))
+		i32 header_state = ui_header(display_name);
+		if (ui_header_expanded(header_state))
 		{
 			String item_link = {0};
 			String item_title = {0};
@@ -285,6 +286,10 @@ process_frame(void)
 					}
 				}
 			}
+		}
+		else if (ui_header_deleted(header_state))
+		{
+			db_del_feed(db, feed_link);
 		}
 	}
 

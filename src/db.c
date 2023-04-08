@@ -124,6 +124,17 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	sqlite3_finalize(statement);
 }
 
+void
+db_del_feed(sqlite3 *db, String feed_link)
+{
+	sqlite3_stmt *statement = 0;
+	String delete_feed = string_literal("DELETE FROM feeds WHERE link = ?");
+	sqlite3_prepare_v2(db, delete_feed.str, delete_feed.len, &statement, 0);
+	sqlite3_bind_text(statement, 1, feed_link.str, feed_link.len, SQLITE_STATIC);
+	sqlite3_step(statement);
+	sqlite3_finalize(statement);
+}
+
 enum
 {
 	LINK_COLUMN  = 0,
