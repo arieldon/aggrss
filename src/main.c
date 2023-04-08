@@ -91,7 +91,7 @@ parse_feed(Worker *worker, String url)
 		// TODO(ariel) Push error on global RSS tree instead of or in addition to
 		// logging a message here.
 		++work_queue.nfails;
-		err_msg("failed to download %.*s\n", url.len, url.str);
+		fprintf(stderr, "failed to download %.*s\n", url.len, url.str);
 		return;
 	}
 
@@ -99,7 +99,7 @@ parse_feed(Worker *worker, String url)
 
 	if (feed->errors.first)
 	{
-		err_msg("failed to parse %.*s", url.len, url.str);
+		fprintf(stderr, "failed to parse %.*s\n", url.len, url.str);
 		RSS_Error *error = feed->errors.first;
 		while (error)
 		{
@@ -117,7 +117,7 @@ parse_feed(Worker *worker, String url)
 		{
 			// NOTE(ariel) Invalidate feeds without a title tag.
 			++work_queue.nfails;
-			err_msg("failed to parse title of %.*s", url.len, url.str);
+			fprintf(stderr, "failed to parse title of %.*s\n", url.len, url.str);
 			return;
 		}
 
