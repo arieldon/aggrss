@@ -79,8 +79,8 @@ struct Work_Queue
 
 	Work_Entry *head;
 	Work_Entry *tail;
-	i32 ncompletions;
-	i32 nfails;
+	_Atomic i32 ncompletions;
+	_Atomic i32 nfails;
 
 	Work_Entry *entries;
 };
@@ -262,6 +262,9 @@ process_frame(void)
 
 	if (ui_button(string_literal("Reload All Feeds")))
 	{
+		work_queue.ncompletions = 0;
+		work_queue.nfails = 0;
+
 		// TODO(ariel) Prevent the user from reloading all feeds over and over. The
 		// previous set of reloads must finish before the user may reload again.
 		String feed_link = {0};
