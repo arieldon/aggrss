@@ -230,44 +230,35 @@ string_strsplit(Arena *arena, String s, String delim)
 {
 	String_List ls = {0};
 
-	i32 end = s.len - delim.len;
-	for (i32 i = 0, prev_split = 0; i < end; ++i)
+	i32 j = 0;
+	for (i32 i = 0; i < s.len; ++i)
 	{
-		String potential_delimiter =
+		String t =
 		{
 			.str = s.str + i,
 			.len = delim.len,
 		};
-		if (string_match(potential_delimiter, delim))
+		if (string_match(t, delim))
 		{
-			String_Node *n = arena_alloc(arena, sizeof(String_Node));
-			n->string.str = s.str + i + delim.len;
-			n->string.len = s.len - i - delim.len;
-			ls.total_len += n->string.len;
-			++ls.list_size;
-
-			if (!ls.head)
+			String segment =
 			{
-				ls.head = arena_alloc(arena, sizeof(String_Node));
-				ls.head->string.str = s.str;
-				ls.head->string.len = i;
-				ls.head->next = n;
-				ls.tail = n;
-				ls.total_len += i;
-				++ls.list_size;
-			}
-			else
-			{
-				ls.total_len -= ls.tail->string.len;
-				ls.tail->string.len = i - prev_split - delim.len;
-				ls.total_len += ls.tail->string.len;
+				.str = s.str + j,
+				.len = i - j,
+			};
+			string_list_push_string(arena, &ls, segment);
 
-				ls.tail->next = n;
-				ls.tail = n;
-			}
-
-			prev_split = i;
+			j = i + delim.len;
 		}
+	}
+
+	String segment =
+	{
+		.str = s.str + j,
+		.len = s.len - j,
+	};
+	if (segment.len > 0)
+	{
+		string_list_push_string(arena, &ls, segment);
 	}
 
 	return ls;
