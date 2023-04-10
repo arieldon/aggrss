@@ -157,6 +157,10 @@ get_work_entry(void *arg)
 		{
 			entry = work_queue.head;
 			work_queue.head = work_queue.head->next;
+			if (work_queue.head == work_queue.tail)
+			{
+				work_queue.tail = 0;
+			}
 		}
 		pthread_spin_unlock(&work_queue.big_lock);
 
