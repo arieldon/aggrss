@@ -68,4 +68,9 @@ RSS_Tree_Node *find_item_link(RSS_Tree_Node *item);
 RSS_Tree_Node *find_item_node(Arena *arena, RSS_Tree_Node *root);
 String find_link(RSS_Tree_Node *item);
 
+#ifdef PRINT_TREE_SUPPORT
+#include <stdio.h>
+void print_rss_tree(RSS_Tree *tree, FILE *stream);
+#endif
+
 #endif

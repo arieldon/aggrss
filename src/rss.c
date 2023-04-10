@@ -378,30 +378,28 @@ parse_tree(Parser *parser)
 	}
 }
 
-#ifdef PRINT_TREE
-#include <stdio.h>
-
+#ifdef PRINT_TREE_SUPPORT
 internal void
-print_rss_tree_recursively(RSS_Tree_Node *node, i8 layer)
+print_rss_tree_recursively(RSS_Tree_Node *node, i8 layer, FILE *stream)
 {
 	while (node)
 	{
 		for (int i = 0; i < layer; ++i)
 		{
-			putc('\t', stdout);
+			putc('\t', stream);
 		}
-		fprintf(stdout, "%.*s -> %.*s\n",
+		fprintf(stream, "%.*s -> %.*s\n",
 		node->name.len, node->name.str,
 		node->content.len, node->content.str);
-		print_rss_tree_recursively(node->first_child, layer + 1);
+		print_rss_tree_recursively(node->first_child, layer + 1, stream);
 		node = node->next_sibling;
 	}
 }
 
-internal void
-print_rss_tree(RSS_Tree *tree)
+void
+print_rss_tree(RSS_Tree *tree, FILE *stream)
 {
-	print_rss_tree_recursively(tree->root, 0);
+	print_rss_tree_recursively(tree->root, 0, stream);
 }
 #endif
 
@@ -416,9 +414,6 @@ parse_rss(Arena *arena, String source)
 	};
 	parse_tree(&parser);
 	assert(parser.cursor == parser.source.len);
-#ifdef PRINT_TREE
-	print_rss_tree(parser.tree);
-#endif
 	return parser.tree;
 }
 
