@@ -12,7 +12,14 @@ struct URL
 	String path;
 };
 
+typedef struct Resource Resource;
+struct Resource
+{
+	String result;
+	String error;
+};
+
 URL parse_http_url(String urlstr);
-String download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr);
+Resource download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr);
 
 #endif

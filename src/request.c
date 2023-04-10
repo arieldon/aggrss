@@ -196,19 +196,20 @@ receive(Arena *arena, BIO *bio, String *read_buffer)
 	return nbytes;
 }
 
-String
+Resource
 download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 {
 	local_persist thread_local SSL_CTX *ssl_ctx;
 	local_persist thread_local BIO *https_bio;
 	local_persist thread_local BIO *http_bio;
 
-	String body = {0};
+	Resource resource = {0};
 
 	BIO *bio = 0;
 	URL url = parse_http_url(urlstr);
 	if (!url.scheme.str || !url.domain.str)
 	{
+		resource.error = string_literal("failed to parse url");
 		goto exit;
 	}
 	char *domain = string_terminate(scratch_arena, url.domain);
@@ -220,12 +221,14 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 			const SSL_METHOD *method = TLS_client_method();
 			if (!method)
 			{
+				resource.error = string_literal("failed to initailize TLS client method");
 				goto exit;
 			}
 
-			ssl_ctx = SSL_CTX_new(TLS_client_method());
+			ssl_ctx = SSL_CTX_new(method);
 			if (!ssl_ctx || !SSL_CTX_set_default_verify_paths(ssl_ctx))
 			{
+				resource.error = string_literal("failed to initailize TLS context");
 				goto exit;
 			}
 		}
@@ -235,6 +238,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 			https_bio = BIO_new_ssl_connect(ssl_ctx);
 			if (!https_bio)
 			{
+				resource.error = string_literal("failed to intiailize BIO for HTTPS");
 				goto exit;
 			}
 		}
@@ -254,6 +258,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 			http_bio = BIO_new(BIO_s_connect());
 			if (!http_bio)
 			{
+				resource.error = string_literal("failed to initialize BIO for HTTP");
 				goto exit;
 			}
 		}
@@ -264,6 +269,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	BIO_set_conn_hostname(bio, domain);
 	if (BIO_do_connect(bio) <= 0)
 	{
+		resource.error = string_literal("failed to connect");
 		goto exit;
 	}
 
@@ -296,27 +302,28 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	HTTP_Response_Header header = parse_header(scratch_arena, raw_header);
 	if (header.status_code != 200)
 	{
+		resource.error = string_literal("client received status code != 200");
 		goto exit;
 	}
 
-	body.str = response.str + raw_header.len + header_terminator.len;
+	resource.result.str = response.str + raw_header.len + header_terminator.len;
 	if (response.len > raw_header.len + header_terminator.len)
 	{
 		// NOTE(ariel) Only set the length if it's valid, and if the pointer isn't
 		// valid now, it will be by the end of the function.
-		body.len = response.len - raw_header.len - header_terminator.len;
+		resource.result.len = response.len - raw_header.len - header_terminator.len;
 	}
-	assert(body.len >= 0);
+	assert(resource.result.len >= 0);
 
 	i32 content_length = get_content_length(header);
 	if (content_length != -1)
 	{
-		while (body.len < content_length)
+		while (resource.result.len < content_length)
 		{
 			i32 nbytes = receive(persistent_arena, bio, &response);
-			body.len += nbytes;
+			resource.result.len += nbytes;
 		}
-		assert(content_length == body.len);
+		assert(content_length == resource.result.len);
 	}
 	else
 	{
@@ -325,6 +332,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 		String transfer_encoding = get_transfer_encoding(header);
 		if (!string_match(string_literal("chunked"), transfer_encoding))
 		{
+			resource.error = string_literal("failed to recognize transfer encoding directive");
 			goto exit;
 		}
 
@@ -332,7 +340,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 		{
 			.str = arena_alloc(persistent_arena, 0),
 		};
-		String_List chunks = string_strsplit(scratch_arena, body, line_delimiter);
+		String_List chunks = string_strsplit(scratch_arena, resource.result, line_delimiter);
 		String_Node *node = chunks.head;
 		while (node)
 		{
@@ -340,9 +348,11 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 			{
 				if (!isxdigit(node->string.str[i]))
 				{
-					fprintf(stderr, "%.*s does not specify a length for chunk in body from %.*s\n\n",
-						node->string.len, node->string.str,
-						urlstr.len, urlstr.str);
+					String_List error = {0};
+					string_list_push_string(scratch_arena, &error, node->string);
+					string_list_push_string(scratch_arena, &error,
+						string_literal(" does not specify the length of chunk in the response"));
+					resource.error = string_list_concat(scratch_arena, error);
 					goto exit;
 				}
 			}
@@ -350,7 +360,7 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 			i32 expected_chunk_size = string_to_int(node->string, 16);
 			if (expected_chunk_size == 0)
 			{
-				body = decoded;
+				resource.result = decoded;
 				break;
 			}
 
@@ -404,7 +414,7 @@ exit:
 	{
 		BIO_reset(bio);
 	}
-	return body;
+	return resource;
 }
 
 #ifdef DEBUG

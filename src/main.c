@@ -91,16 +91,18 @@ global Work_Queue work_queue;
 internal void
 parse_feed(Worker *worker, String url)
 {
-	String rss = download_resource(&worker->persistent_arena, &worker->scratch_arena, url);
-	if (!rss.len)
+	Resource resource = download_resource(&worker->persistent_arena, &worker->scratch_arena, url);
+	if (resource.error.len > 0)
 	{
 		// TODO(ariel) Push error on global RSS tree instead of or in addition to
 		// logging a message here.
 		++work_queue.nfails;
-		fprintf(stderr, "failed to download %.*s\n", url.len, url.str);
+		fprintf(stderr, "failed to download %.*s: %.*s\n",
+			url.len, url.str, resource.error.len, resource.error.str);
 		return;
 	}
 
+	String rss = resource.result;
 	RSS_Tree *feed = parse_rss(&worker->persistent_arena, rss);
 
 	if (feed->errors.first)
