@@ -55,6 +55,12 @@ typedef enum
 
 enum
 {
+	UI_MOUSE_BUTTON_LEFT  = 1 << 0,
+	UI_MOUSE_BUTTON_RIGHT = 1 << 1,
+};
+
+enum
+{
 	UI_KEY_BACKSPACE = 1 << 0,
 	UI_KEY_RETURN    = 1 << 1,
 	UI_KEY_CONTROL   = 1 << 2,
@@ -106,7 +112,7 @@ struct UI_Context
 
 	i32 mouse_x;
 	i32 mouse_y;
-	b32 mouse_down;
+	i32 mouse_down;
 
 	i32 scroll_y;
 	i32 scroll_delta_y;

@@ -26,6 +26,12 @@ global u32 delta_ms = 1000 / FPS;
 global Arena g_arena;
 global sqlite3 *db;
 
+global char mouse_button_map[] =
+{
+	[SDL_BUTTON_LEFT  & 0xff] = UI_MOUSE_BUTTON_LEFT,
+	[SDL_BUTTON_RIGHT & 0xff] = UI_MOUSE_BUTTON_RIGHT,
+};
+
 global char modifier_key_map[256] =
 {
 	[SDLK_RETURN    & 0xff] = UI_KEY_RETURN,
@@ -343,8 +349,16 @@ main(void)
 
 				case SDL_MOUSEMOTION: ui_input_mouse_move(e.motion.x, e.motion.y); break;
 				case SDL_MOUSEWHEEL:  ui_input_mouse_scroll(0, e.wheel.y); break;
-				case SDL_MOUSEBUTTONDOWN: ui_input_mouse_down(e.button.x, e.button.y, 1); break;
-				case SDL_MOUSEBUTTONUP: ui_input_mouse_up(e.button.x, e.button.y, 1); break;
+				case SDL_MOUSEBUTTONDOWN:
+				{
+					i32 mouse_button = mouse_button_map[e.button.button & 0xff];
+					ui_input_mouse_down(e.button.x, e.button.y, mouse_button);
+				} break;
+				case SDL_MOUSEBUTTONUP:
+				{
+					i32 mouse_button = mouse_button_map[e.button.button & 0xff];
+					ui_input_mouse_up(e.button.x, e.button.y, mouse_button);
+				} break;
 
 				case SDL_KEYDOWN:
 				{

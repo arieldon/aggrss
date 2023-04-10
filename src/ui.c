@@ -38,7 +38,7 @@ ui_end(void)
 {
 	// TODO(ariel) Handle if mouse leaves window frame?
 	// NOTE(ariel) Reset active block if left untouched by user.
-	if (!ui.mouse_down)
+	if (!(ui.mouse_down & UI_MOUSE_BUTTON_LEFT))
 	{
 		ui.active_block = 0;
 	}
@@ -128,7 +128,7 @@ ui_update_control(UI_ID id, Quad dimensions)
 	if (ui_mouse_overlaps(dimensions))
 	{
 		ui.hot_block = id;
-		if (ui.active_block == 0 && ui.mouse_down)
+		if (ui.active_block == 0 && ui.mouse_down & UI_MOUSE_BUTTON_LEFT)
 		{
 			ui.active_block = id;
 			ui.active_keyboard_block = 0;
@@ -494,20 +494,14 @@ void
 ui_input_mouse_down(i32 x, i32 y, i32 mouse_button)
 {
 	ui_input_mouse_move(x, y);
-	if (mouse_button == 1)
-	{
-		ui.mouse_down = true;
-	}
+	ui.mouse_down |= mouse_button;
 }
 
 void
 ui_input_mouse_up(i32 x, i32 y, i32 mouse_button)
 {
 	ui_input_mouse_move(x, y);
-	if (mouse_button == 1)
-	{
-		ui.mouse_down = false;
-	}
+	ui.mouse_down &= ~mouse_button;
 }
 
 void
