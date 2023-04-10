@@ -116,8 +116,9 @@ ui_mouse_overlaps(Quad target)
 }
 
 internal inline b32
-ui_click(UI_ID id)
+ui_register_click(UI_ID id)
 {
+	// NOTE(ariel) The user must _release_ the mouse button to complete a click.
 	b32 clicked = !ui.mouse_down && id == ui.hot_block && id == ui.active_block;
 	return clicked;
 }
@@ -238,7 +239,7 @@ ui_button(String label)
 	r_draw_rect(target, button_color);
 	r_draw_text(label, text_position, text_color);
 
-	b32 clicked = ui_click(id);
+	b32 clicked = ui_register_click(id);
 	return clicked;
 }
 
@@ -289,7 +290,7 @@ ui_header(String label)
 	r_draw_text(label, text_position, text_color);
 
 	i32 header_state = 0;
-	b32 clicked = ui_click(id);
+	b32 clicked = ui_register_click(id);
 	b32 deleted = clicked && ui_mouse_overlaps(delete_icon_dimensions);
 	header_state = persistent_block->expanded ^= clicked;
 	persistent_block->last_frame_updated = ui.frame;
@@ -479,7 +480,7 @@ ui_link(String text)
 	};
 	r_draw_text(text, text_position, text_color);
 
-	b32 clicked = ui_click(id);
+	b32 clicked = ui_register_click(id);
 	return clicked;
 }
 
