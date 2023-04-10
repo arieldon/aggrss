@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 
@@ -179,32 +180,6 @@ get_transfer_encoding(HTTP_Response_Header header)
 	return transfer_encoding;
 }
 
-internal String
-decode_chunked_encoding(Arena *persistent_arena, Arena *scratch_arena, String encoded)
-{
-	String decoded = {0};
-	String_List decoded_chunks = {0};
-
-	String_List encoded_chunks = string_strsplit(scratch_arena, encoded, line_delimiter);
-	String_Node *encoded_chunk = encoded_chunks.head;
-	while (encoded_chunk)
-	{
-		i32 decoded_length = 0;
-		i32 expected_length = string_to_int(encoded_chunk->string, 16);
-
-		encoded_chunk = encoded_chunk->next;
-		while (encoded_chunk && decoded_length < expected_length)
-		{
-			decoded_length += encoded_chunk->string.len;
-			string_list_push_node(&decoded_chunks, encoded_chunk);
-			encoded_chunk = encoded_chunk->next;
-		}
-	}
-
-	decoded = string_list_concat(persistent_arena, decoded_chunks);
-	return decoded;
-}
-
 internal i32
 receive(Arena *arena, BIO *bio, String *read_buffer)
 {
@@ -345,44 +320,83 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 	}
 	else
 	{
-		// NOTE(ariel) Only handle chuncked encoding for now -- no compression of
+		// NOTE(ariel) Only handle chunked encoding for now -- no compression of
 		// any sort.
 		String transfer_encoding = get_transfer_encoding(header);
-		local_persist String chunked = static_string_literal("chunked");
-		if (!string_match(transfer_encoding, chunked))
+		if (!string_match(string_literal("chunked"), transfer_encoding))
 		{
 			goto exit;
 		}
 
-		i32 nzeros = 0;
-		String chunked_encoding = string_duplicate(scratch_arena, body);
-		for (;;)
+		String decoded =
 		{
-			i32 nbytes = receive(scratch_arena, bio, &chunked_encoding);
-			// TODO(ariel) Replace with BIO_should_retry()?
-			if (nbytes == 0)
+			.str = arena_alloc(persistent_arena, 0),
+		};
+		String_List chunks = string_strsplit(scratch_arena, body, line_delimiter);
+		String_Node *node = chunks.head;
+		while (node)
+		{
+			for (i32 i = 0; i < node->string.len; ++i)
 			{
-				++nzeros;
-				if (nzeros == 3)
+				if (!isxdigit(node->string.str[i]))
 				{
+					fprintf(stderr, "%.*s does not specify a length for chunk in body from %.*s\n\n",
+						node->string.len, node->string.str,
+						urlstr.len, urlstr.str);
 					goto exit;
 				}
 			}
-			else
-			{
-				nzeros = 0;
-			}
 
-			local_persist String chunk_terminator = static_string_literal("\r\n0\r\n\r\n");
-			String trailing_bytes = string_suffix(
-				chunked_encoding, chunked_encoding.len - chunk_terminator.len);
-			if (string_match(trailing_bytes, chunk_terminator))
+			i32 expected_chunk_size = string_to_int(node->string, 16);
+			if (expected_chunk_size == 0)
 			{
-				chunked_encoding.len -= chunk_terminator.len;
+				body = decoded;
 				break;
 			}
+
+			decoded.str = arena_realloc(persistent_arena, decoded.len + expected_chunk_size);
+			while (expected_chunk_size > 0)
+			{
+				if (!node->next)
+				{
+					String buf = {0};
+					buf.str = arena_alloc(scratch_arena, expected_chunk_size);
+					buf.len = BIO_read(bio, buf.str, expected_chunk_size);
+					buf.str = arena_realloc(scratch_arena, buf.len);
+					string_list_push_string(scratch_arena, &chunks, buf);
+				}
+				node = node->next;
+
+				assert(node->string.len > 0);
+				memcpy(decoded.str + decoded.len, node->string.str, node->string.len);
+				decoded.len += node->string.len;
+				expected_chunk_size -= node->string.len;
+			}
+
+			assert(expected_chunk_size >= 0);
+			while (!node->next)
+			{
+				String buf = {0};
+				buf.str = arena_alloc(scratch_arena, 16);
+				buf.len = BIO_read(bio, buf.str, 16);
+
+				String_List more_chunks = string_strsplit(scratch_arena, buf, line_delimiter);
+				if (more_chunks.head)
+				{
+					String_Node *n = more_chunks.head;
+					while (n)
+					{
+						// NOTE(ariel) Skip chunk terminator.
+						if (n->string.len > 0)
+						{
+							string_list_push_node(&chunks, n);
+						}
+						n = n->next;
+					}
+				}
+			}
+			node = node->next;
 		}
-		body = decode_chunked_encoding(persistent_arena, scratch_arena, chunked_encoding);
 	}
 
 exit:
