@@ -6,7 +6,11 @@
 #include "base.h"
 #include "err.h"
 
-enum { MEMORY_ALIGNMENT = (sizeof(void *) * 2) };
+enum
+{
+	MEMORY_ALIGNMENT = (sizeof(void *) * 2),
+	PAGE_SIZE = KB(8),
+};
 
 void
 arena_init(Arena *arena)
@@ -16,13 +20,13 @@ arena_init(Arena *arena)
 	{
 		abort();
 	}
-	if (mprotect(buf, KB(8), PROT_READ | PROT_WRITE) == -1)
+	if (mprotect(buf, PAGE_SIZE, PROT_READ | PROT_WRITE) == -1)
 	{
 		abort();
 	}
 
 	arena->buf = buf;
-	arena->cap = KB(8);
+	arena->cap = PAGE_SIZE;
 	arena->curr = 0;
 	arena->prev = 0;
 }
@@ -63,7 +67,7 @@ alloc:
 	}
 	else
 	{
-		arena->cap += KB(4);
+		arena->cap += PAGE_SIZE;
 		if (mprotect(arena->buf, arena->cap, PROT_READ | PROT_WRITE) == -1)
 		{
 			abort();
@@ -89,7 +93,7 @@ alloc:
 	}
 	else
 	{
-		arena->cap += KB(4);
+		arena->cap += PAGE_SIZE;
 		if (mprotect(arena->buf, arena->cap, PROT_READ | PROT_WRITE) == -1)
 		{
 			abort();
@@ -103,6 +107,14 @@ alloc:
 void
 arena_clear(Arena *arena)
 {
+	assert(arena->cap >= PAGE_SIZE);
+	u8 *buffer_offset = arena->buf + PAGE_SIZE;
+	usize remaining_capacity = arena->cap - PAGE_SIZE;
+	if (madvise(buffer_offset, remaining_capacity, MADV_FREE) == -1)
+	{
+		abort();
+	}
+	arena->cap = PAGE_SIZE;
 	arena->curr = arena->prev = 0;
 }
 
@@ -121,6 +133,22 @@ arena_checkpoint_set(Arena *arena)
 void
 arena_checkpoint_restore(Arena_Checkpoint checkpoint)
 {
-	checkpoint.arena->prev = checkpoint.prev;
-	checkpoint.arena->curr = checkpoint.curr;
+	Arena *arena = checkpoint.arena;
+
+	arena->prev = checkpoint.prev;
+	arena->curr = checkpoint.curr;
+
+	// NOTE(ariel) Compute the nearest page upper bound.
+	usize offset = MAX(checkpoint.curr, PAGE_SIZE);
+	usize bump = offset % PAGE_SIZE;
+	offset += (PAGE_SIZE - bump) * (bump != 0);
+	assert(offset % PAGE_SIZE == 0);
+
+	u8 *buffer_offset = arena->buf + offset;
+	usize remaining_capacity = arena->cap - offset;
+	assert(remaining_capacity < arena->cap);
+	if (madvise(buffer_offset, remaining_capacity, MADV_FREE) == -1)
+	{
+		abort();
+	}
 }
