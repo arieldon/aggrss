@@ -162,7 +162,7 @@ b32 ui_button(String label);
 i32 ui_header(String label);
 b32 ui_header_expanded(i32 header_state);
 b32 ui_header_deleted(i32 header_state);
-b32 ui_textbox(Buffer *buffer);
+b32 ui_textbox(Buffer *buffer, String placeholder);
 b32 ui_link(String text);
 void ui_text(String text);
 void ui_label(String text);

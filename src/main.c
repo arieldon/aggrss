@@ -252,7 +252,7 @@ process_frame(void)
 		.data.str = new_feed_input,
 		.cap = sizeof(new_feed_input),
 	};
-	ui_textbox(&new_feed);
+	ui_textbox(&new_feed, string_literal("URL of Feed"));
 	if (ui_button(string_literal("Add Feed")))
 	{
 		// TODO(ariel) Confirm user input represents URL. Get feed at URL.

@@ -325,7 +325,7 @@ ui_label(String text)
 }
 
 b32
-ui_textbox(Buffer *buffer)
+ui_textbox(Buffer *buffer, String placeholder)
 {
 	b32 submit_text = false;
 
@@ -360,14 +360,42 @@ ui_textbox(Buffer *buffer)
 		submit_text = ui.key_press & UI_KEY_RETURN;
 	}
 
+	String text = {0};
+	Color color = {0};
+	Vector2 text_dimensions = {0};
+	Vector2 text_position = {0};
+	if (id == ui.active_keyboard_block || buffer->data.len)
+	{
+		text = buffer->data;
+		color = text_color;
+		text_dimensions = get_text_dimensions(text);
+		text_position = (Vector2)
+		{
+			.x = target.x,
+			.y = target.y,
+		};
+	}
+	else
+	{
+		Color placeholder_color = {175, 175, 175, 255};
+		text = placeholder;
+		color = placeholder_color;
+		text_dimensions = get_text_dimensions(text);
+		text_position = (Vector2)
+		{
+			.x = target.x + (target.w - text_dimensions.w) / 2,
+			.y = target.y + (target.h - text_dimensions.h) / 2 + 2,
+		};
+	}
+
 	if (id == ui.active_keyboard_block)
 	{
 		Quad cursor =
 		{
-			.x = r_get_text_width(buffer->data) + 10,
+			.x = text_dimensions.w + 10,
 			.y = target.y + 1,
-			.w = r_get_text_height(buffer->data) / 2,
-			.h = r_get_text_height(buffer->data) + 1,
+			.w = text_dimensions.h / 2,
+			.h = text_dimensions.h + 1,
 		};
 		r_draw_rect(target, active_color);
 		r_draw_rect(cursor, text_color);
@@ -376,12 +404,7 @@ ui_textbox(Buffer *buffer)
 	{
 		r_draw_rect(target, blank_color);
 	}
-	Vector2 text_position =
-	{
-		.x = target.x,
-		.y = target.y,
-	};
-	r_draw_text(buffer->data, text_position, text_color);
+	r_draw_text(text, text_position, color);
 
 	return submit_text;
 }
