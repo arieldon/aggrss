@@ -285,22 +285,22 @@ process_frame(void)
 		i32 header_state = ui_header(display_name);
 		if (ui_header_expanded(header_state))
 		{
-			String item_link = {0};
-			String item_title = {0};
-			while (db_iterate_items(db, feed_link, &item_link, &item_title))
+			DB_Item item = {0};
+			while (db_iterate_items(db, feed_link, &item))
 			{
-				if (ui_link(item_title))
+				if (ui_link(item.title, item.unread))
 				{
-					if (item_link.len > 0)
+					if (item.link.len > 0)
 					{
 						pid_t pid = fork();
 						if (pid == 0)
 						{
-							char *terminated_link = string_terminate(&g_arena, item_link);
+							char *terminated_link = string_terminate(&g_arena, item.link);
 							char *args[] = { "xdg-open", terminated_link, 0 };
 							execvp("xdg-open", args);
 							exit(1);
 						}
+						db_mark_item_read(db, item.link);
 					}
 				}
 			}

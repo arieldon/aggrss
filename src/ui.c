@@ -467,7 +467,7 @@ ui_text(String text)
 }
 
 b32
-ui_link(String text)
+ui_link(String text, b32 unread)
 {
 	UI_ID id = get_id(text);
 	Quad target = ui_layout_next_block();
@@ -496,9 +496,20 @@ ui_link(String text)
 		}
 	}
 
-	Vector2 text_position =
+	i32 side_length = r_get_text_height(text) / 2;
+	Quad unread_marker =
 	{
 		.x = target.x,
+		.y = target.y + side_length / 2,
+		.w = side_length,
+		.h = side_length,
+	};
+	Color unread_marker_color = {95, 120, 180, 150 * unread};
+	r_draw_rect(unread_marker, unread_marker_color);
+
+	Vector2 text_position =
+	{
+		.x = target.x + side_length * 1.5,
 		.y = target.y,
 	};
 	r_draw_text(text, text_position, text_color);

@@ -47,6 +47,7 @@ db_init(sqlite3 **db)
 				"link TEXT PRIMARY KEY,"
 				"title TEXT,"
 				"description TEXT,"
+				"unread BOOLEAN,"
 				"feed REFERENCES feeds(link));";
 	error = sqlite3_exec(*db, create_items_table, 0, 0, &errmsg);
 	if (error)
@@ -114,8 +115,10 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 		description = description_node->content;
 	}
 
+	// NOTE(ariel) 1 in the VALUES(...) expression below indicates the item
+	// remains unread.
 	sqlite3_stmt *statement = 0;
-	String insert_items = string_literal("INSERT INTO items VALUES(?, ?, ?, ?);");
+	String insert_items = string_literal("INSERT INTO items VALUES(?, ?, ?, 1, ?);");
 	sqlite3_prepare_v2(db, insert_items.str, insert_items.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, link.str, link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, title.str, title.len, SQLITE_STATIC);
@@ -136,10 +139,22 @@ db_del_feed(sqlite3 *db, String feed_link)
 	sqlite3_finalize(statement);
 }
 
+void
+db_mark_item_read(sqlite3 *db, String item_link)
+{
+	sqlite3_stmt *statement = 0;
+	String update_item = string_literal("UPDATE items SET unread = 0 WHERE link = ?");
+	sqlite3_prepare_v2(db, update_item.str, update_item.len, &statement, 0);
+	sqlite3_bind_text(statement, 1, item_link.str, item_link.len, SQLITE_STATIC);
+	sqlite3_step(statement);
+	sqlite3_finalize(statement);
+}
+
 enum
 {
-	LINK_COLUMN  = 0,
-	TITLE_COLUMN = 1,
+	LINK_COLUMN   = 0,
+	TITLE_COLUMN  = 1,
+	UNREAD_COLUMN = 3,
 };
 
 b32
@@ -174,7 +189,7 @@ db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 }
 
 b32
-db_iterate_items(sqlite3 *db, String feed_link, String *item_link, String *item_title)
+db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 {
 	b32 item_exists = false;
 
@@ -190,10 +205,11 @@ db_iterate_items(sqlite3 *db, String feed_link, String *item_link, String *item_
 	if (status == SQLITE_ROW)
 	{
 		item_exists = true;
-		item_link->str = (char *)sqlite3_column_text(select_statement, LINK_COLUMN);
-		item_link->len = sqlite3_column_bytes(select_statement, LINK_COLUMN);
-		item_title->str = (char *)sqlite3_column_text(select_statement, TITLE_COLUMN);
-		item_title->len = sqlite3_column_bytes(select_statement, TITLE_COLUMN);
+		item->link.str = (char *)sqlite3_column_text(select_statement, LINK_COLUMN);
+		item->link.len = sqlite3_column_bytes(select_statement, LINK_COLUMN);
+		item->title.str = (char *)sqlite3_column_text(select_statement, TITLE_COLUMN);
+		item->title.len = sqlite3_column_bytes(select_statement, TITLE_COLUMN);
+		item->unread = sqlite3_column_int(select_statement, UNREAD_COLUMN);
 	}
 
 	if (!item_exists)
