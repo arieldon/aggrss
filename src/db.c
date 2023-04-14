@@ -85,8 +85,9 @@ db_free(sqlite3 *db)
 void
 db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 {
+	// NOTE(ariel) Use "REPLACE" to update the title of an existing feed.
 	sqlite3_stmt *statement = 0;
-	String insert_feed = string_literal("INSERT INTO feeds VALUES(?, ?);");
+	String insert_feed = string_literal("INSERT OR REPLACE INTO feeds VALUES(?, ?);");
 	sqlite3_prepare_v2(db, insert_feed.str, insert_feed.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, feed_link.str, feed_link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, feed_title.str, feed_title.len, SQLITE_STATIC);
