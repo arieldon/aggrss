@@ -496,20 +496,20 @@ ui_link(String text, b32 unread)
 		}
 	}
 
-	i32 side_length = r_get_text_height(text) / 2;
-	Quad unread_marker =
+	i32 side_length = r_get_text_height(text);
+	Quad unread_marker_target =
 	{
 		.x = target.x,
-		.y = target.y + side_length / 2,
+		.y = target.y,
 		.w = side_length,
 		.h = side_length,
 	};
-	Color unread_marker_color = {95, 120, 180, 150 * unread};
-	r_draw_rect(unread_marker, unread_marker_color);
+	Color unread_marker_color = {245, 165, 65, 255 * unread};
+	r_draw_icon(UI_ICON_DOT, unread_marker_target, unread_marker_color);
 
 	Vector2 text_position =
 	{
-		.x = target.x + side_length * 1.5,
+		.x = target.x + side_length,
 		.y = target.y,
 	};
 	r_draw_text(text, text_position, text_color);
