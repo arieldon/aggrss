@@ -48,7 +48,7 @@ db_init(sqlite3 **db)
 				"title TEXT,"
 				"description TEXT,"
 				"unread BOOLEAN,"
-				"feed REFERENCES feeds(link));";
+				"feed REFERENCES feeds(link) ON DELETE CASCADE);";
 	error = sqlite3_exec(*db, create_items_table, 0, 0, &errmsg);
 	if (error)
 	{
