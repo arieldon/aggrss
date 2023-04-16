@@ -42,10 +42,23 @@ is_popup_menu_blank(void)
 	return x | y | w | h;
 }
 
+internal inline b32
+ui_mouse_overlaps(Quad target)
+{
+	b32 overlaps =
+	(
+		ui.mouse_x >= target.x &&
+		ui.mouse_x <= target.x + target.w &&
+		ui.mouse_y >= target.y &&
+		ui.mouse_y <= target.y + target.h
+	);
+	return overlaps;
+}
+
 void
 ui_end(void)
 {
-	if (ui.mouse_down & UI_MOUSE_BUTTON_LEFT)
+	if (ui.mouse_down & UI_MOUSE_BUTTON_LEFT && !ui_mouse_overlaps(ui.popup_menu.target))
 	{
 		MEM_ZERO_STRUCT(&ui.popup_menu);
 	}
@@ -130,19 +143,6 @@ ui_layout_next_block(void)
 	++ui.layout.current_row.current_block;
 
 	return next_block;
-}
-
-internal inline b32
-ui_mouse_overlaps(Quad target)
-{
-	b32 overlaps =
-	(
-		ui.mouse_x >= target.x &&
-		ui.mouse_x <= target.x + target.w &&
-		ui.mouse_y >= target.y &&
-		ui.mouse_y <= target.y + target.h
-	);
-	return overlaps;
 }
 
 internal inline b32
@@ -403,6 +403,32 @@ ui_popup_menu(UI_Option_List options)
 		// NOTE(ariel) The given options must exist to draw later.
 		ui.popup_menu.options = options;
 	}
+	else
+	{
+		b32 pressed = ui.previous_mouse_down & UI_MOUSE_BUTTON_LEFT;
+		b32 released = !(ui.mouse_down & UI_MOUSE_BUTTON_LEFT);
+		if (pressed && released)
+		{
+			for (i32 i = 0; i < options.count; ++i)
+			{
+				Quad target =
+				{
+					.x = ui.popup_menu.target.x,
+					.y = ui.popup_menu.target.y + ui.layout.row_height * i,
+					.w = ui.popup_menu.target.w,
+					.h = ui.layout.row_height,
+				};
+
+				b32 overlaps = ui_mouse_overlaps(target);
+				if (overlaps)
+				{
+					MEM_ZERO_STRUCT(&ui.popup_menu);
+					return i;
+				}
+			}
+		}
+	}
+
 	return -1;
 }
 
