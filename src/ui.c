@@ -22,7 +22,6 @@ ui_init(void)
 	ui.input_text.cap = 128;
 }
 
-// TODO(ariel) Consolidate where variables of the UI context are reset.
 void
 ui_begin(void)
 {
@@ -33,10 +32,41 @@ ui_begin(void)
 	ui.layout.y = -ui.layout.row_height + ui.scroll_y;
 }
 
+internal b32
+is_popup_menu_blank(void)
+{
+	b32 x = !ui.popup_menu.target.x;
+	b32 y = !ui.popup_menu.target.y;
+	b32 w = !ui.popup_menu.target.w;
+	b32 h = !ui.popup_menu.target.h;
+	return x | y | w | h;
+}
+
 void
 ui_end(void)
 {
-	// TODO(ariel) Handle if mouse leaves window frame?
+	if (ui.mouse_down & UI_MOUSE_BUTTON_LEFT)
+	{
+		MEM_ZERO_STRUCT(&ui.popup_menu);
+	}
+	else if (!is_popup_menu_blank())
+	{
+		// NOTE(ariel) Draw the popup menu lazily here so it sits on top of all
+		// other blocks.
+		Color menu_color = {50, 50, 50, 255};
+		r_draw_rect(ui.popup_menu.target, menu_color);
+
+		for (i32 i = 0; i < ui.popup_menu.options.count; ++i)
+		{
+			Vector2 text_position =
+			{
+				.x = ui.popup_menu.target.x,
+				.y = ui.popup_menu.target.y + ui.layout.row_height * i,
+			};
+			r_draw_text(ui.popup_menu.options.names[i], text_position, text_color);
+		}
+	}
+
 	// NOTE(ariel) Reset active block if left untouched by user.
 	if (!(ui.mouse_down & UI_MOUSE_BUTTON_LEFT))
 	{
@@ -47,8 +77,6 @@ ui_end(void)
 		ui.active_block = -1;
 	}
 
-	// FIXME(ariel) I don't understand why this works -- review both upward and
-	// downward scrolling behavior.
 	i32 scroll = ui.scroll_y + ui.scroll_delta_y;
 	if (ui.scroll_delta_y > 0)
 	{
@@ -65,6 +93,8 @@ ui_end(void)
 
 	ui.input_text.data.len = 0;
 	ui.key_press = 0;
+
+	ui.previous_mouse_down = ui.mouse_down;
 
 	++ui.frame;
 }
@@ -116,17 +146,31 @@ ui_mouse_overlaps(Quad target)
 }
 
 internal inline b32
-ui_register_click(UI_ID id)
+ui_register_left_click(UI_ID id)
 {
 	// NOTE(ariel) The user must _release_ the mouse button to complete a click.
-	b32 clicked = !ui.mouse_down && id == ui.hot_block && id == ui.active_block;
+	b32 hot = id == ui.hot_block;
+	b32 active = id == ui.active_block;
+	b32 pressed = ui.previous_mouse_down & UI_MOUSE_BUTTON_LEFT;
+	b32 released = !(ui.mouse_down & UI_MOUSE_BUTTON_LEFT);
+	b32 clicked = pressed && released && hot && active;
+	return clicked;
+}
+
+internal inline b32
+ui_register_right_click(UI_ID id)
+{
+	b32 hot = id == ui.hot_block;
+	b32 previous_frame_button_state = ui.previous_mouse_down & UI_MOUSE_BUTTON_RIGHT;
+	b32 current_frame_button_state = ui.mouse_down & UI_MOUSE_BUTTON_RIGHT;
+	b32 clicked = hot && previous_frame_button_state && !current_frame_button_state;
 	return clicked;
 }
 
 internal inline void
 ui_update_control(UI_ID id, Quad dimensions)
 {
-	if (ui_mouse_overlaps(dimensions))
+	if (ui_mouse_overlaps(dimensions) && !ui_mouse_overlaps(ui.popup_menu.target))
 	{
 		ui.hot_block = id;
 		if (ui.active_block == 0 && ui.mouse_down & UI_MOUSE_BUTTON_LEFT)
@@ -183,6 +227,7 @@ alloc_block(UI_ID id)
 
 	assert(block_index != -1);
 	ui.block_pool.blocks[block_index].id = id;
+	ui.block_pool.blocks[block_index].expanded = false;
 	return block_index;
 }
 
@@ -239,7 +284,7 @@ ui_button(String label)
 	r_draw_rect(target, button_color);
 	r_draw_text(label, text_position, text_color);
 
-	b32 clicked = ui_register_click(id);
+	b32 clicked = ui_register_left_click(id);
 	return clicked;
 }
 
@@ -289,28 +334,47 @@ ui_header(String label)
 	};
 	r_draw_text(label, text_position, text_color);
 
-	i32 header_state = 0;
-	b32 clicked = ui_register_click(id);
-	b32 deleted = clicked && ui_mouse_overlaps(delete_icon_dimensions);
-	header_state = persistent_block->expanded ^= clicked;
+	b32 left_clicked = ui_register_left_click(id);
+	persistent_block->expanded ^= left_clicked;
 	persistent_block->last_frame_updated = ui.frame;
 
-	header_state = (deleted << 16) | persistent_block->expanded;
+	b32 right_clicked = ui_register_right_click(id);
+	if (right_clicked)
+	{
+		ui.popup_menu.id = id;
+		ui.popup_menu.block_index = block_index;
+		ui.popup_menu.target.x = ui.mouse_x;
+		ui.popup_menu.target.y = ui.mouse_y;
+	}
+
+	i32 header_state = 0;
+	i32 expanded = UI_HEADER_EXPANDED * persistent_block->expanded;
+	i32 prompted = UI_HEADER_PROMPTED * (id == ui.popup_menu.id);
+	i32 deleted = UI_HEADER_DELETED * (left_clicked && ui_mouse_overlaps(delete_icon_dimensions));
+	header_state = expanded | deleted | prompted;
+
 	return header_state;
 }
 
 inline b32
 ui_header_expanded(i32 header_state)
 {
-	b32 expanded = header_state == 1;
+	b32 expanded = header_state & UI_HEADER_EXPANDED;
 	return expanded;
 }
 
 inline b32
 ui_header_deleted(i32 header_state)
 {
-	b32 deleted = header_state >> 16;
+	b32 deleted = header_state & UI_HEADER_DELETED;
 	return deleted;
+}
+
+inline b32
+ui_header_prompted(i32 header_state)
+{
+	b32 prompted = header_state & UI_HEADER_PROMPTED;
+	return prompted;
 }
 
 void
@@ -322,6 +386,24 @@ ui_label(String text)
 		.y = target.y,
 	};
 	r_draw_text(text, text_position, text_color);
+}
+
+i32
+ui_popup_menu(UI_Option_List options)
+{
+	if (is_popup_menu_blank() && ui.popup_menu.id == ui.hot_block)
+	{
+		for (i32 i = 0; i < options.count; ++i)
+		{
+			Vector2 text_dimensions = get_text_dimensions(options.names[i]);
+			ui.popup_menu.target.w = MAX(ui.popup_menu.target.w, text_dimensions.w);
+			ui.popup_menu.target.h += ui.layout.row_height;
+		}
+
+		// NOTE(ariel) The given options must exist to draw later.
+		ui.popup_menu.options = options;
+	}
+	return -1;
 }
 
 b32
@@ -514,7 +596,7 @@ ui_link(String text, b32 unread)
 	};
 	r_draw_text(text, text_position, text_color);
 
-	b32 clicked = ui_register_click(id);
+	b32 clicked = ui_register_left_click(id);
 	return clicked;
 }
 

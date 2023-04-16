@@ -283,6 +283,10 @@ process_frame(void)
 	{
 		String display_name = feed_title.len ? feed_title : feed_link;
 		i32 header_state = ui_header(display_name);
+		if (ui_header_deleted(header_state))
+		{
+			db_del_feed(db, feed_link);
+		}
 		if (ui_header_expanded(header_state))
 		{
 			DB_Item item = {0};
@@ -305,9 +309,35 @@ process_frame(void)
 				}
 			}
 		}
-		else if (ui_header_deleted(header_state))
+		if (ui_header_prompted(header_state))
 		{
-			db_del_feed(db, feed_link);
+			local_persist String options[] =
+			{
+				static_string_literal("Mark All as Read"),
+				static_string_literal("Tag"),
+				static_string_literal("Delete"),
+			};
+
+			UI_Option_List option_list = {0};
+			option_list.names = options;
+			option_list.count = ARRAY_COUNT(options);
+
+			i32 selection = ui_popup_menu(option_list);
+			switch (selection)
+			{
+				case 0:
+				{
+					puts("MARK ALL AS READ");
+				} break;
+				case 1:
+				{
+					puts("TAG");
+				} break;
+				case 2:
+				{
+					puts("DELETE");
+				} break;
+			}
 		}
 	}
 

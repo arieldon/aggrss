@@ -3,7 +3,6 @@
 
 #include "arena.h"
 #include "base.h"
-#include "str.h"
 
 /* ---
  * Primitive UI Types
@@ -67,6 +66,13 @@ enum
 	UI_KEY_CONTROL   = 1 << 2,
 };
 
+enum
+{
+	UI_HEADER_EXPANDED = 1 << 0,
+	UI_HEADER_DELETED  = 1 << 1,
+	UI_HEADER_PROMPTED = 1 << 2,
+};
+
 typedef struct UI_Layout UI_Layout;
 struct UI_Layout
 {
@@ -81,6 +87,22 @@ struct UI_Layout
 	i32 row_height;
 	i32 x;
 	i32 y;
+};
+
+typedef struct UI_Option_List UI_Option_List;
+struct UI_Option_List
+{
+	String *names;
+	i32 count;
+};
+
+typedef struct UI_Popup_Menu UI_Popup_Menu;
+struct UI_Popup_Menu
+{
+	Quad target;
+	UI_Option_List options;
+	i32 block_index;
+	UI_ID id;
 };
 
 
@@ -114,6 +136,7 @@ struct UI_Context
 	i32 mouse_x;
 	i32 mouse_y;
 	i32 mouse_down;
+	i32 previous_mouse_down;
 
 	i32 scroll_y;
 	i32 scroll_delta_y;
@@ -122,6 +145,7 @@ struct UI_Context
 	Buffer input_text;
 
 	UI_Layout layout;
+	UI_Popup_Menu popup_menu;
 
 	// NOTE(ariel) The user hovers the cursor over hot items (about to interact)
 	// and clicks active item (currently interacting).
@@ -129,7 +153,9 @@ struct UI_Context
 	UI_ID active_block;
 	UI_ID active_keyboard_block;
 
-	// NOTE(ariel) Store some state for each UI block between frames.
+	// FIXME(ariel) This only supports 64 headers at a time.
+	// NOTE(ariel) Store some state for each UI block that demands some sort of
+	// persistence between frames.
 	UI_Block_Pool block_pool;
 };
 
@@ -163,10 +189,12 @@ b32 ui_button(String label);
 i32 ui_header(String label);
 b32 ui_header_expanded(i32 header_state);
 b32 ui_header_deleted(i32 header_state);
+b32 ui_header_prompted(i32 header_state);
 b32 ui_textbox(Buffer *buffer, String placeholder);
 b32 ui_link(String text, b32 unread);
 void ui_text(String text);
 void ui_label(String text);
+i32 ui_popup_menu(UI_Option_List options);
 
 void ui_input_mouse_move(i32 x, i32 y);
 void ui_input_mouse_down(i32 x, i32 y, i32 mouse_button);
