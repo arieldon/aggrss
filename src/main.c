@@ -314,6 +314,7 @@ process_frame(void)
 			local_persist String options[] =
 			{
 				static_string_literal("Mark All as Read"),
+				static_string_literal("Reload"),
 				static_string_literal("Tag"),
 				static_string_literal("Delete"),
 			};
@@ -331,9 +332,13 @@ process_frame(void)
 				} break;
 				case 1:
 				{
-					puts("TAG");
+					add_work_entry(feed_link);
 				} break;
 				case 2:
+				{
+					puts("TAG");
+				} break;
+				case 3:
 				{
 					db_del_feed(db, feed_link);
 				} break;
