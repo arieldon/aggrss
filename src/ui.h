@@ -101,7 +101,6 @@ struct UI_Popup_Menu
 {
 	Quad target;
 	UI_Option_List options;
-	i32 block_index;
 	UI_ID id;
 };
 

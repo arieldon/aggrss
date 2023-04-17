@@ -3,6 +3,12 @@
 #include "str.h"
 #include "ui.h"
 
+enum
+{
+	POPUP_MENU_LIGHT_PADDING =  5,
+	POPUP_MENU_HEAVY_PADDING = 10,
+};
+
 global Color blank_color = {75, 75, 75, 255};
 global Color hot_color = {95, 95, 95, 255};
 global Color active_color = {115, 115, 115, 255};
@@ -55,6 +61,38 @@ ui_mouse_overlaps(Quad target)
 	return overlaps;
 }
 
+internal void
+ui_popup_menu_options(void)
+{
+	Color menu_color = {50, 50, 50, 255};
+	r_draw_rect(ui.popup_menu.target, menu_color);
+
+	i32 x = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.x;
+	i32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
+	for (i32 i = 0; i < ui.popup_menu.options.count; ++i)
+	{
+		Vector2 text_position =
+		{
+			.x = x,
+			.y = y + ui.layout.row_height * i,
+		};
+		Quad option_target =
+		{
+			.x = ui.popup_menu.target.x,
+			.y = text_position.y,
+			.w = ui.popup_menu.target.w,
+			.h = ui.layout.row_height,
+		};
+
+		if (ui_mouse_overlaps(option_target))
+		{
+			Color background_color = ui.mouse_down & UI_MOUSE_BUTTON_LEFT ? active_color : hot_color;
+			r_draw_rect(option_target, background_color);
+		}
+		r_draw_text(ui.popup_menu.options.names[i], text_position, text_color);
+	}
+}
+
 void
 ui_end(void)
 {
@@ -66,18 +104,7 @@ ui_end(void)
 	{
 		// NOTE(ariel) Draw the popup menu lazily here so it sits on top of all
 		// other blocks.
-		Color menu_color = {50, 50, 50, 255};
-		r_draw_rect(ui.popup_menu.target, menu_color);
-
-		for (i32 i = 0; i < ui.popup_menu.options.count; ++i)
-		{
-			Vector2 text_position =
-			{
-				.x = ui.popup_menu.target.x,
-				.y = ui.popup_menu.target.y + ui.layout.row_height * i,
-			};
-			r_draw_text(ui.popup_menu.options.names[i], text_position, text_color);
-		}
+		ui_popup_menu_options();
 	}
 
 	// NOTE(ariel) Reset active block if left untouched by user.
@@ -342,7 +369,6 @@ ui_header(String label)
 	if (right_clicked)
 	{
 		ui.popup_menu.id = id;
-		ui.popup_menu.block_index = block_index;
 		ui.popup_menu.target.x = ui.mouse_x;
 		ui.popup_menu.target.y = ui.mouse_y;
 	}
@@ -391,6 +417,8 @@ ui_label(String text)
 i32
 ui_popup_menu(UI_Option_List options)
 {
+	// NOTE(ariel) Layout the popup menu without issuing any draw calls. Draw the
+	// popup menu at the end to ensure it sits atop all other blocks.
 	if (is_popup_menu_blank() && ui.popup_menu.id == ui.hot_block)
 	{
 		for (i32 i = 0; i < options.count; ++i)
@@ -399,6 +427,8 @@ ui_popup_menu(UI_Option_List options)
 			ui.popup_menu.target.w = MAX(ui.popup_menu.target.w, text_dimensions.w);
 			ui.popup_menu.target.h += ui.layout.row_height;
 		}
+		ui.popup_menu.target.w += POPUP_MENU_HEAVY_PADDING;
+		ui.popup_menu.target.h += POPUP_MENU_HEAVY_PADDING;
 
 		// NOTE(ariel) The given options must exist to draw later.
 		ui.popup_menu.options = options;
