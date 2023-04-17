@@ -327,7 +327,7 @@ process_frame(void)
 			{
 				case 0:
 				{
-					puts("MARK ALL AS READ");
+					db_mark_all_read(db, feed_link);
 				} break;
 				case 1:
 				{

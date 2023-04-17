@@ -25,6 +25,7 @@ void db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node);
 void db_del_feed(sqlite3 *db, String feed_link);
 
 void db_mark_item_read(sqlite3 *db, String item_link);
+void db_mark_all_read(sqlite3 *db, String feed_link);
 
 // NOTE(ariel) The following functions assume one and only one thread calls
 // them until exhaustion.
