@@ -154,7 +154,7 @@ void
 db_mark_all_read(sqlite3 *db, String feed_link)
 {
 	sqlite3_stmt *statement = 0;
-	String update_items = string_literal("UPDATE items set unread = 0 WHERE feed = ?");
+	String update_items = string_literal("UPDATE items SET unread = 0 WHERE feed = ?");
 	sqlite3_prepare_v2(db, update_items.str, update_items.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, feed_link.str, feed_link.len, SQLITE_STATIC);
 	sqlite3_step(statement);
