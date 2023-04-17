@@ -86,9 +86,9 @@ db_free(sqlite3 *db)
 void
 db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 {
-	// NOTE(ariel) Use "REPLACE" to update the title of an existing feed.
 	sqlite3_stmt *statement = 0;
-	String insert_feed = string_literal("INSERT OR REPLACE INTO feeds VALUES(?, ?);");
+	String insert_feed = string_literal(
+		"INSERT INTO feeds VALUES(?, ?) ON CONFLICT(link) DO UPDATE SET title=excluded.title;");
 	sqlite3_prepare_v2(db, insert_feed.str, insert_feed.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, feed_link.str, feed_link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, feed_title.str, feed_title.len, SQLITE_STATIC);
@@ -118,7 +118,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	// NOTE(ariel) 1 in the VALUES(...) expression below indicates the item
 	// remains unread.
 	sqlite3_stmt *statement = 0;
-	String insert_items = string_literal("INSERT INTO items VALUES(?, ?, ?, 1, ?);");
+	String insert_items = string_literal("INSERT OR IGNORE INTO items VALUES(?, ?, ?, 1, ?);");
 	sqlite3_prepare_v2(db, insert_items.str, insert_items.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, link.str, link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, title.str, title.len, SQLITE_STATIC);
