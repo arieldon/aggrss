@@ -335,7 +335,7 @@ process_frame(void)
 				} break;
 				case 2:
 				{
-					puts("DELETE");
+					db_del_feed(db, feed_link);
 				} break;
 			}
 		}
