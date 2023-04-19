@@ -266,6 +266,7 @@ r_init(Arena *arena)
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glViewport(0, 0, WIDTH, HEIGHT);
+	glEnable(GL_SCISSOR_TEST);
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_SCISSOR_TEST);
@@ -651,6 +652,13 @@ r_draw_icon(UI_Icon icon, Quad rect, Color color)
 		.h = source.h,
 	};
 	push_quad(destination, source, color);
+}
+
+void
+r_set_clip_quad(Quad dimensions)
+{
+  flush();
+  glScissor(dimensions.x, dimensions.y, dimensions.w, dimensions.h);
 }
 
 i32

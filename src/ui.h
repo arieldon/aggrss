@@ -169,6 +169,8 @@ extern void r_draw_rect(Quad dimensions, Color color);
 extern void r_draw_text(String text, Vector2 position, Color color);
 extern void r_draw_icon(UI_Icon icon_index, Quad dimensions, Color color);
 
+extern void r_set_clip_quad(Quad dimensions);
+
 extern i32 r_get_text_width(String text);
 extern i32 r_get_text_height(String text);
 
