@@ -436,6 +436,11 @@ ui_popup_menu(UI_Option_List options)
 		ui.popup_menu.target.w += POPUP_MENU_HEAVY_PADDING;
 		ui.popup_menu.target.h += POPUP_MENU_HEAVY_PADDING;
 
+		i32 menu_overflows_x = ui.popup_menu.target.x + ui.popup_menu.target.w > ui.layout.width;
+		i32 menu_overflows_y = ui.popup_menu.target.y + ui.popup_menu.target.h > ui.layout.height;
+		ui.popup_menu.target.x -= ui.popup_menu.target.w * menu_overflows_x;
+		ui.popup_menu.target.y -= ui.popup_menu.target.h * menu_overflows_y;
+
 		// NOTE(ariel) The given options must exist to draw later.
 		ui.popup_menu.options = options;
 	}
