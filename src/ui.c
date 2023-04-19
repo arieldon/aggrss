@@ -28,14 +28,15 @@ ui_init(void)
 	ui.input_text.cap = 128;
 }
 
-void
-ui_begin(void)
+internal inline b32
+ui_mouse_overlaps(Quad target)
 {
-	ui.hot_block = 0;
-	ui.layout.width = 780;
-	ui.layout.height = 600;
-	ui.layout.x = 0;
-	ui.layout.y = -ui.layout.row_height + ui.scroll_y;
+	b32 overlaps =
+		ui.mouse_x >= target.x &&
+		ui.mouse_x <= target.x + target.w &&
+		ui.mouse_y >= target.y &&
+		ui.mouse_y <= target.y + target.h;
+	return overlaps;
 }
 
 internal b32
@@ -48,17 +49,26 @@ is_popup_menu_blank(void)
 	return x | y | w | h;
 }
 
-internal inline b32
-ui_mouse_overlaps(Quad target)
+void
+ui_begin(void)
 {
-	b32 overlaps =
-	(
-		ui.mouse_x >= target.x &&
-		ui.mouse_x <= target.x + target.w &&
-		ui.mouse_y >= target.y &&
-		ui.mouse_y <= target.y + target.h
-	);
-	return overlaps;
+	ui.hot_block = 0;
+	ui.layout.width = 780;
+	ui.layout.height = 600;
+	ui.layout.x = 0;
+	ui.layout.y = -ui.layout.row_height + ui.scroll_y;
+
+	if (!is_popup_menu_blank())
+	{
+		// NOTE(ariel) If popup menu is open, close it before accepting any other
+		// clicks.
+		b32 click_outside_menu = ui.mouse_down && !ui_mouse_overlaps(ui.popup_menu.target);
+		if (click_outside_menu)
+		{
+			MEM_ZERO_STRUCT(&ui.popup_menu);
+			ui.mouse_down = 0;
+		}
+	}
 }
 
 internal void
@@ -96,11 +106,7 @@ ui_popup_menu_options(void)
 void
 ui_end(void)
 {
-	if (ui.mouse_down & UI_MOUSE_BUTTON_LEFT && !ui_mouse_overlaps(ui.popup_menu.target))
-	{
-		MEM_ZERO_STRUCT(&ui.popup_menu);
-	}
-	else if (!is_popup_menu_blank())
+	if (!is_popup_menu_blank())
 	{
 		// NOTE(ariel) Draw the popup menu lazily here so it sits on top of all
 		// other blocks.
