@@ -106,6 +106,14 @@ struct UI_Popup_Menu
 	UI_ID id;
 };
 
+typedef struct UI_Prompt_Screen UI_Prompt_Screen;
+struct UI_Prompt_Screen
+{
+	Quad target;
+	String prompt;
+	Buffer *input_buffer;
+};
+
 
 /* ---
  * UI Context
@@ -147,6 +155,7 @@ struct UI_Context
 
 	UI_Layout layout;
 	UI_Popup_Menu popup_menu;
+	UI_Prompt_Screen prompt_screen;
 
 	// NOTE(ariel) The user hovers the cursor over hot items (about to interact)
 	// and clicks active item (currently interacting).
@@ -196,6 +205,7 @@ b32 ui_header_prompted(i32 header_state);
 i32 ui_popup_menu(UI_Option_List options);
 b32 ui_textbox(Buffer *buffer, String placeholder);
 b32 ui_link(String text, b32 unread);
+b32 ui_prompt(String prompt, Buffer *input_buffer);
 void ui_text(String text);
 void ui_label(String text);
 

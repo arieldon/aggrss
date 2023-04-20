@@ -103,14 +103,86 @@ ui_popup_menu_options(void)
 	}
 }
 
+internal Vector2
+get_text_dimensions(String text)
+{
+	Vector2 text_dimensions =
+	{
+		.w = r_get_text_width(text),
+		.h = r_get_text_height(text),
+	};
+	return text_dimensions;
+}
+
+internal void
+ui_prompt_screen(void)
+{
+	Vector2 text_dimensions = get_text_dimensions(ui.prompt_screen.prompt);
+	Vector2 text_position =
+	{
+		.x = ui.prompt_screen.target.x + (ui.prompt_screen.target.w - text_dimensions.w) / 2,
+		.y = ui.prompt_screen.target.y + (ui.prompt_screen.target.h - text_dimensions.h) / 4,
+	};
+	Color background_color = {50, 50, 50, 255};
+	r_draw_rect(ui.prompt_screen.target, background_color);
+	r_draw_text(ui.prompt_screen.prompt, text_position, text_color);
+
+	{
+		Buffer *buffer = ui.prompt_screen.input_buffer;
+		Quad target =
+		{
+			.x = 200,
+			.y = 300,
+			.w = 400,
+			.h = 20,
+		};
+
+		if (ui.input_text.data.len)
+		{
+			i32 n = MIN(buffer->cap - buffer->data.len, ui.input_text.data.len);
+			if (n > 0)
+			{
+				memcpy(buffer->data.str + buffer->data.len, ui.input_text.data.str, n);
+				buffer->data.len += n;
+			}
+		}
+		else if (ui.key_press & UI_KEY_BACKSPACE && buffer->data.len > 0)
+		{
+			--buffer->data.len;
+		}
+
+		String text = buffer->data;
+		Color color = text_color;
+		Vector2 text_dimensions = get_text_dimensions(text);
+		text_position.x = target.x;
+		text_position.y = target.y;
+		{
+			Quad cursor =
+			{
+				.x = target.x + text_dimensions.w,
+				.y = target.y + 1,
+				.w = text_dimensions.h / 2,
+				.h = text_dimensions.h + 1,
+			};
+			r_draw_rect(target, active_color);
+			r_draw_rect(cursor, text_color);
+		}
+		r_draw_text(text, text_position, color);
+	}
+}
+
 void
 ui_end(void)
 {
+	// NOTE(ariel) Draw popup menu or prompt entry lazily here so it sits on top
+	// of all other blocks.
 	if (!is_popup_menu_blank())
 	{
-		// NOTE(ariel) Draw the popup menu lazily here so it sits on top of all
-		// other blocks.
 		ui_popup_menu_options();
+	}
+	else if (ui.prompt_screen.prompt.str)
+	{
+		ui_prompt_screen();
 	}
 
 	// NOTE(ariel) Reset active block if left untouched by user.
@@ -203,13 +275,16 @@ ui_register_right_click(UI_ID id)
 internal inline void
 ui_update_control(UI_ID id, Quad dimensions)
 {
-	if (ui_mouse_overlaps(dimensions) && !ui_mouse_overlaps(ui.popup_menu.target))
+	if (!ui_mouse_overlaps(ui.prompt_screen.target))
 	{
-		ui.hot_block = id;
-		if (ui.active_block == 0 && ui.mouse_down & UI_MOUSE_BUTTON_LEFT)
+		if (ui_mouse_overlaps(dimensions) && !ui_mouse_overlaps(ui.popup_menu.target))
 		{
-			ui.active_block = id;
-			ui.active_keyboard_block = 0;
+			ui.hot_block = id;
+			if (ui.active_block == 0 && ui.mouse_down & UI_MOUSE_BUTTON_LEFT)
+			{
+				ui.active_block = id;
+				ui.active_keyboard_block = 0;
+			}
 		}
 	}
 }
@@ -286,17 +361,6 @@ color_block(UI_ID id)
 	}
 
 	return color;
-}
-
-internal Vector2
-get_text_dimensions(String text)
-{
-	Vector2 text_dimensions =
-	{
-		.w = r_get_text_width(text),
-		.h = r_get_text_height(text),
-	};
-	return text_dimensions;
 }
 
 b32
@@ -664,6 +728,54 @@ ui_link(String text, b32 unread)
 
 	b32 clicked = ui_register_left_click(id);
 	return clicked;
+}
+
+internal inline b32
+is_prompt_screen_blank(void)
+{
+	b32 x = !ui.prompt_screen.target.x;
+	b32 y = !ui.prompt_screen.target.y;
+	b32 w = !ui.prompt_screen.target.w;
+	b32 h = !ui.prompt_screen.target.h;
+	return x | y | w | h;
+}
+
+b32
+ui_prompt(String prompt, Buffer *input_buffer)
+{
+	b32 submit_text = false;
+
+	// NOTE(ariel) `prompt` must exist to draw later. Likewise, `buffer` must
+	// exist for writes later.
+	if (is_prompt_screen_blank())
+	{
+		ui.prompt_screen.prompt = prompt;
+		ui.prompt_screen.input_buffer = input_buffer;
+		ui.prompt_screen.input_buffer->data.len = 0;
+
+		ui.prompt_screen.target.x = 100;
+		ui.prompt_screen.target.y = 200;
+		ui.prompt_screen.target.w = 600;
+		ui.prompt_screen.target.h = 200;
+		r_set_clip_quad(ui.prompt_screen.target);
+	}
+	else
+	{
+		// TODO(ariel) Allow user to press ESC key to cancel the operation.
+		submit_text = ui.key_press & UI_KEY_RETURN;
+		if (submit_text)
+		{
+			MEM_ZERO_STRUCT(&ui.prompt_screen);
+			Quad window_dimensions =
+			{
+				.w = 800,
+				.h = 600,
+			};
+			r_set_clip_quad(window_dimensions);
+		}
+	}
+
+	return submit_text;
 }
 
 void
