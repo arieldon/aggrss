@@ -55,8 +55,33 @@ db_init(sqlite3 **db)
 	{
 		err_exit("[DB ERROR] %s", errmsg);
 	}
-}
 
+	errmsg = 0;
+	char *create_tags_table =
+		"CREATE TABLE IF NOT EXISTS "
+			"tags("
+				"name TEXT PRIMARY KEY);";
+	error = sqlite3_exec(*db, create_tags_table, 0, 0, &errmsg);
+	if (error)
+	{
+		err_exit("[DB ERROR] %s", errmsg);
+	}
+
+	errmsg = 0;
+	char *create_mapping_table =
+		"CREATE TABLE IF NOT EXISTS "
+			"tags_to_feeds("
+				"tag TEXT,"
+				"feed TEXT,"
+				"FOREIGN KEY(tag) REFERENCES tags(name) ON DELETE CASCADE,"
+				"FOREIGN KEY(feed) REFERENCES feeds(link) ON DELETE CASCADE,"
+				"PRIMARY KEY(tag, feed));";
+	error = sqlite3_exec(*db, create_mapping_table, 0, 0, &errmsg);
+	if (error)
+	{
+		err_exit("[DB ERROR] %s", errmsg);
+	}
+}
 
 i32
 db_count_rows(sqlite3 *db)
@@ -125,6 +150,24 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	sqlite3_bind_text(statement, 2, title.str, title.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 3, description.str, description.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 4, feed_link.str, feed_link.len, SQLITE_STATIC);
+	sqlite3_step(statement);
+	sqlite3_finalize(statement);
+}
+
+void
+db_tag_feed(sqlite3 *db, String tag, String feed_link)
+{
+	sqlite3_stmt *statement = 0;
+	String insert_tag = string_literal("INSERT OR IGNORE INTO tags VALUES(?);");
+	sqlite3_prepare_v2(db, insert_tag.str, insert_tag.len, &statement, 0);
+	sqlite3_bind_text(statement, 1, tag.str, tag.len, SQLITE_STATIC);
+	sqlite3_step(statement);
+	sqlite3_finalize(statement);
+
+	String tag_feed = string_literal("INSERT INTO tags_to_feeds VALUES(?, ?);");
+	sqlite3_prepare_v2(db, tag_feed.str, tag_feed.len, &statement, 0);
+	sqlite3_bind_text(statement, 1, tag.str, tag.len, SQLITE_STATIC);
+	sqlite3_bind_text(statement, 2, feed_link.str, feed_link.len, SQLITE_STATIC);
 	sqlite3_step(statement);
 	sqlite3_finalize(statement);
 }

@@ -198,10 +198,43 @@ add_work_entry(String url)
 	sem_post(&work_queue.semaphore);
 }
 
+global b32 tagging = false;
+
+internal void
+tag_feed(String feed_link)
+{
+	local_persist char tag_name_input[1024];
+	local_persist Buffer tag_name =
+	{
+		.data.str = tag_name_input,
+		.cap = sizeof(tag_name_input),
+	};
+	local_persist String link;
+
+	if (!link.str)
+	{
+		link.len = feed_link.len;
+		link.str = calloc(link.len, sizeof(char));
+		memcpy(link.str, feed_link.str, link.len);
+	}
+
+	if (ui_prompt(string_literal("Tag Name"), &tag_name))
+	{
+		db_tag_feed(db, tag_name.data, link);
+		free(link.str);
+		MEM_ZERO_STRUCT(&link);
+		tagging = false;
+	}
+}
+
 internal void
 process_frame(void)
 {
 	ui_begin();
+	if (tagging)
+	{
+		goto tag;
+	}
 
 	local_persist char new_feed_input[1024];
 	local_persist Buffer new_feed =
@@ -289,7 +322,9 @@ process_frame(void)
 				} break;
 				case 2:
 				{
-					puts("TAG");
+tag:
+					tagging = true;
+					tag_feed(feed_link);
 				} break;
 				case 3:
 				{
