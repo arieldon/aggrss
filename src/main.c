@@ -1,4 +1,3 @@
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,8 +78,6 @@ struct Work_Queue
 
 	Work_Entry *head;
 	Work_Entry *tail;
-	_Atomic i32 ncompletions;
-	_Atomic i32 nfails;
 
 	Work_Entry *entries;
 };
@@ -96,7 +93,6 @@ parse_feed(Worker *worker, String url)
 	{
 		// TODO(ariel) Push error on global RSS tree instead of or in addition to
 		// logging a message here.
-		++work_queue.nfails;
 		fprintf(stderr, "failed to download %.*s: %.*s\n",
 			url.len, url.str, resource.error.len, resource.error.str);
 		return;
@@ -114,7 +110,6 @@ parse_feed(Worker *worker, String url)
 			fprintf(stderr, "\t%.*s\n", error->text.len, error->text.str);
 			error = error->next;
 		}
-		++work_queue.nfails;
 		return;
 	}
 
@@ -124,7 +119,6 @@ parse_feed(Worker *worker, String url)
 		if (!feed->feed_title)
 		{
 			// NOTE(ariel) Invalidate feeds without a title tag.
-			++work_queue.nfails;
 			fprintf(stderr, "failed to parse title of %.*s\n", url.len, url.str);
 			return;
 		}
@@ -140,7 +134,7 @@ parse_feed(Worker *worker, String url)
 		db_add_item(db, url, item);
 	}
 
-	++work_queue.ncompletions;
+	fprintf(stderr, "successfully parsed %.*s\n", url.len, url.str);
 }
 
 internal void *
@@ -207,44 +201,10 @@ add_work_entry(String url)
 	sem_post(&work_queue.semaphore);
 }
 
-internal String
-format_complete_message(i32 nrows)
-{
-	local_persist char success_message[32] = {0};
-
-	String message = {0};
-	message.len = snprintf(success_message, sizeof(success_message),
-		"%d of %d success", work_queue.ncompletions, nrows);
-	message.str = success_message;
-
-	return message;
-}
-
-internal String
-format_fail_message(i32 nrows)
-{
-	local_persist char fail_message[32] = {0};
-
-	String message = {0};
-	message.len = snprintf(fail_message, sizeof(fail_message),
-		"%d of %d fail", work_queue.nfails, nrows);
-	message.str = fail_message;
-
-	return message;
-}
-
 internal void
 process_frame(void)
 {
 	ui_begin();
-
-	i32 nrows = db_count_rows(db);
-	String complete_message = format_complete_message(nrows);
-	String fail_message = format_fail_message(nrows);
-	ui_layout_row(1);
-	ui_text(complete_message);
-	ui_layout_row(1);
-	ui_text(fail_message);
 
 	local_persist char new_feed_input[1024];
 	local_persist Buffer new_feed =
@@ -264,9 +224,6 @@ process_frame(void)
 
 	if (ui_button(string_literal("Reload All Feeds")))
 	{
-		work_queue.ncompletions = 0;
-		work_queue.nfails = 0;
-
 		// TODO(ariel) Prevent the user from reloading all feeds over and over. The
 		// previous set of reloads must finish before the user may reload again.
 		String feed_link = {0};
