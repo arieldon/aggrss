@@ -39,7 +39,7 @@ ui_mouse_overlaps(Quad target)
 	return overlaps;
 }
 
-internal b32
+internal inline b32
 is_popup_menu_blank(void)
 {
 	b32 x = !ui.popup_menu.target.x;
@@ -469,7 +469,6 @@ ui_popup_menu(UI_Option_List options)
 			}
 		}
 	}
-
 	return -1;
 }
 

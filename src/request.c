@@ -96,13 +96,8 @@ parse_header(Arena *arena, String str)
 internal String
 format_get_request(Arena *arena, URL url)
 {
-	// NOTE(ariel) It seems necessary to spoof the user agent field to receive a
-	// response from most servers today. Update: I don't think this is true
-	// anymore. There was a different issue with the client, and I guess I fixed
-	// it in tandem with these changes.
 	local_persist String accept = static_string_literal(
-		"Accept: text/html,application/rss+xml,application/xhtml+xml,application/xml\r\n"
-	);
+		"Accept: text/html,application/rss+xml,application/xhtml+xml,application/xml\r\n");
 	local_persist String accept_encoding = static_string_literal("Accept-Encoding: identity\r\n");
 	local_persist String connection = static_string_literal("Connection: close\r\n");
 
@@ -336,6 +331,8 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 			goto exit;
 		}
 
+		// TODO(ariel) Use logging to reveal the issues with some resources,
+		// particularly those from Substack.
 		String decoded =
 		{
 			.str = arena_alloc(persistent_arena, 0),

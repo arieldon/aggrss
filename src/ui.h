@@ -101,6 +101,8 @@ struct UI_Popup_Menu
 {
 	Quad target;
 	UI_Option_List options;
+
+	// NOTE(ariel) The ID on which the selected action in popup menu acts.
 	UI_ID id;
 };
 
@@ -110,7 +112,7 @@ struct UI_Popup_Menu
  * ---
  */
 
-enum { N_MAX_BLOCKS  = 64 };
+enum { N_MAX_BLOCKS = 64 };
 
 typedef struct UI_Block UI_Block;
 struct UI_Block
@@ -191,11 +193,11 @@ i32 ui_header(String label);
 b32 ui_header_expanded(i32 header_state);
 b32 ui_header_deleted(i32 header_state);
 b32 ui_header_prompted(i32 header_state);
+i32 ui_popup_menu(UI_Option_List options);
 b32 ui_textbox(Buffer *buffer, String placeholder);
 b32 ui_link(String text, b32 unread);
 void ui_text(String text);
 void ui_label(String text);
-i32 ui_popup_menu(UI_Option_List options);
 
 void ui_input_mouse_move(i32 x, i32 y);
 void ui_input_mouse_down(i32 x, i32 y, i32 mouse_button);

@@ -39,7 +39,8 @@ db_init(sqlite3 **db)
 		err_exit("[DB ERROR] %s", errmsg);
 	}
 
-	// TODO(ariel) Include date last updated in the table as well?
+	// TODO(ariel) Include date last updated in the table as well? Then sort by
+	// date last updated.
 	errmsg = 0;
 	char *create_items_table =
 		"CREATE TABLE IF NOT EXISTS "

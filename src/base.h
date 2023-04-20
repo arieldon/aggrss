@@ -22,10 +22,12 @@ typedef      i32   b32;
 typedef    float   f32;
 typedef   double   f64;
 
-typedef struct {
+typedef struct String String;
+struct String
+{
 	char *str;
 	i32 len;
-} String;
+};
 #define static_string_literal(s)  { .str = (char *)(s), .len = sizeof(s) - 1 }
 #define string_literal(s) (String){ .str = (char *)(s), .len = sizeof(s) - 1 }
 

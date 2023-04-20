@@ -75,11 +75,8 @@ struct Work_Queue
 {
 	sem_t semaphore;
 	pthread_spinlock_t big_lock;
-
 	Work_Entry *head;
 	Work_Entry *tail;
-
-	Work_Entry *entries;
 };
 
 global Worker workers[N_WORKERS];
@@ -217,7 +214,6 @@ process_frame(void)
 	submit_new_feed |= ui_button(string_literal("Add Feed"));
 	if (submit_new_feed)
 	{
-		// TODO(ariel) Confirm user input represents URL. Get feed at URL.
 		db_add_feed(db, new_feed.data, string_literal(""));
 		new_feed.data.len = 0;
 	}
