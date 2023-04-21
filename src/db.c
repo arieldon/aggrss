@@ -290,3 +290,32 @@ db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 
 	return item_exists;
 }
+
+b32
+db_iterate_tags(sqlite3 *db, String *tag)
+{
+	b32 tag_exists = false;
+
+	local_persist sqlite3_stmt *select_statement = 0;
+	if (!select_statement)
+	{
+		String select_tags = string_literal("SELECT name FROM tags;");
+		sqlite3_prepare_v2(db, select_tags.str, select_tags.len, &select_statement, 0);
+	}
+
+	i32 status = sqlite3_step(select_statement);
+	if (status == SQLITE_ROW)
+	{
+		tag_exists = true;
+		tag->str = (char *)sqlite3_column_text(select_statement, 0);
+		tag->len = sqlite3_column_bytes(select_statement, 0);
+	}
+
+	if (!tag_exists)
+	{
+		sqlite3_finalize(select_statement);
+		select_statement = 0;
+	}
+
+	return tag_exists;
+}
