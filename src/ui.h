@@ -208,6 +208,7 @@ b32 ui_link(String text, b32 unread);
 b32 ui_prompt(String prompt, Buffer *input_buffer);
 void ui_text(String text);
 void ui_label(String text);
+void ui_separator(void);
 
 void ui_input_mouse_move(i32 x, i32 y);
 void ui_input_mouse_down(i32 x, i32 y, i32 mouse_button);

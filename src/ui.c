@@ -484,6 +484,16 @@ ui_label(String text)
 	r_draw_text(text, text_position, text_color);
 }
 
+void
+ui_separator(void)
+{
+	Quad target = ui_layout_next_block();
+	target.h = 1;
+	target.y += ui.layout.row_height / 2;
+	Color gray = {255, 255, 255, 125};
+	r_draw_rect(target, gray);
+}
+
 i32
 ui_popup_menu(UI_Option_List options)
 {
