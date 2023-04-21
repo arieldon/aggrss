@@ -9,6 +9,17 @@
 
 // TODO(ariel) Check for errors after SQLite calls.
 
+internal u32
+hash(String s)
+{
+	u32 hash = 2166136261;
+	for (i32 i = 0; i < s.len; ++i)
+	{
+		hash = (hash ^ s.str[i]) * 16777619;
+	}
+	return hash;
+}
+
 void
 db_init(sqlite3 **db)
 {
@@ -31,7 +42,8 @@ db_init(sqlite3 **db)
 	char *create_feeds_table =
 		"CREATE TABLE IF NOT EXISTS "
 			"feeds("
-				"link TEXT PRIMARY KEY,"
+				"id INTEGER PRIMARY KEY,"
+				"link TEXT UNIQUE,"
 				"title TEXT);";
 	error = sqlite3_exec(*db, create_feeds_table, 0, 0, &errmsg);
 	if (error)
@@ -49,7 +61,7 @@ db_init(sqlite3 **db)
 				"title TEXT,"
 				"description TEXT,"
 				"unread BOOLEAN,"
-				"feed REFERENCES feeds(link) ON DELETE CASCADE);";
+				"feed REFERENCES feeds(id) ON DELETE CASCADE);";
 	error = sqlite3_exec(*db, create_items_table, 0, 0, &errmsg);
 	if (error)
 	{
@@ -60,7 +72,8 @@ db_init(sqlite3 **db)
 	char *create_tags_table =
 		"CREATE TABLE IF NOT EXISTS "
 			"tags("
-				"name TEXT PRIMARY KEY);";
+				"id INTEGER PRIMARY KEY,"
+				"name TEXT UNIQUE);";
 	error = sqlite3_exec(*db, create_tags_table, 0, 0, &errmsg);
 	if (error)
 	{
@@ -71,10 +84,10 @@ db_init(sqlite3 **db)
 	char *create_mapping_table =
 		"CREATE TABLE IF NOT EXISTS "
 			"tags_to_feeds("
-				"tag TEXT,"
-				"feed TEXT,"
-				"FOREIGN KEY(tag) REFERENCES tags(name) ON DELETE CASCADE,"
-				"FOREIGN KEY(feed) REFERENCES feeds(link) ON DELETE CASCADE,"
+				"tag INTEGER,"
+				"feed INTEGER,"
+				"FOREIGN KEY(tag) REFERENCES tags(id) ON DELETE CASCADE,"
+				"FOREIGN KEY(feed) REFERENCES feeds(id) ON DELETE CASCADE,"
 				"PRIMARY KEY(tag, feed));";
 	error = sqlite3_exec(*db, create_mapping_table, 0, 0, &errmsg);
 	if (error)
@@ -114,10 +127,12 @@ db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 {
 	sqlite3_stmt *statement = 0;
 	String insert_feed = string_literal(
-		"INSERT INTO feeds VALUES(?, ?) ON CONFLICT(link) DO UPDATE SET title=excluded.title;");
+		"INSERT INTO feeds VALUES(?, ?, ?) ON CONFLICT(link) DO UPDATE SET title=excluded.title;");
 	sqlite3_prepare_v2(db, insert_feed.str, insert_feed.len, &statement, 0);
-	sqlite3_bind_text(statement, 1, feed_link.str, feed_link.len, SQLITE_STATIC);
-	sqlite3_bind_text(statement, 2, feed_title.str, feed_title.len, SQLITE_STATIC);
+	u32 feed_id = hash(feed_link);
+	sqlite3_bind_int(statement, 1, feed_id);
+	sqlite3_bind_text(statement, 2, feed_link.str, feed_link.len, SQLITE_STATIC);
+	sqlite3_bind_text(statement, 3, feed_title.str, feed_title.len, SQLITE_STATIC);
 	sqlite3_step(statement);
 	sqlite3_finalize(statement);
 }
@@ -149,7 +164,8 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	sqlite3_bind_text(statement, 1, link.str, link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, title.str, title.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 3, description.str, description.len, SQLITE_STATIC);
-	sqlite3_bind_text(statement, 4, feed_link.str, feed_link.len, SQLITE_STATIC);
+	u32 feed_id = hash(feed_link);
+	sqlite3_bind_int(statement, 4, feed_id);
 	sqlite3_step(statement);
 	sqlite3_finalize(statement);
 }
@@ -157,17 +173,21 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 void
 db_tag_feed(sqlite3 *db, String tag, String feed_link)
 {
+	u32 tag_id = hash(tag);
+	u32 feed_id = hash(feed_link);
+
 	sqlite3_stmt *statement = 0;
-	String insert_tag = string_literal("INSERT OR IGNORE INTO tags VALUES(?);");
+	String insert_tag = string_literal("INSERT OR IGNORE INTO tags VALUES(?, ?);");
 	sqlite3_prepare_v2(db, insert_tag.str, insert_tag.len, &statement, 0);
-	sqlite3_bind_text(statement, 1, tag.str, tag.len, SQLITE_STATIC);
+	sqlite3_bind_int(statement, 1, tag_id);
+	sqlite3_bind_text(statement, 2, tag.str, tag.len, SQLITE_STATIC);
 	sqlite3_step(statement);
 	sqlite3_finalize(statement);
 
 	String tag_feed = string_literal("INSERT INTO tags_to_feeds VALUES(?, ?);");
 	sqlite3_prepare_v2(db, tag_feed.str, tag_feed.len, &statement, 0);
-	sqlite3_bind_text(statement, 1, tag.str, tag.len, SQLITE_STATIC);
-	sqlite3_bind_text(statement, 2, feed_link.str, feed_link.len, SQLITE_STATIC);
+	sqlite3_bind_int(statement, 1, tag_id);
+	sqlite3_bind_int(statement, 2, feed_id);
 	sqlite3_step(statement);
 	sqlite3_finalize(statement);
 }
@@ -175,10 +195,11 @@ db_tag_feed(sqlite3 *db, String tag, String feed_link)
 void
 db_del_feed(sqlite3 *db, String feed_link)
 {
+	u32 feed_id = hash(feed_link);
 	sqlite3_stmt *statement = 0;
-	String delete_feed = string_literal("DELETE FROM feeds WHERE link = ?");
+	String delete_feed = string_literal("DELETE FROM feeds WHERE id = ?");
 	sqlite3_prepare_v2(db, delete_feed.str, delete_feed.len, &statement, 0);
-	sqlite3_bind_text(statement, 1, feed_link.str, feed_link.len, SQLITE_STATIC);
+	sqlite3_bind_int(statement, 1, feed_id);
 	sqlite3_step(statement);
 	sqlite3_finalize(statement);
 }
@@ -205,13 +226,6 @@ db_mark_all_read(sqlite3 *db, String feed_link)
 	sqlite3_finalize(statement);
 }
 
-enum
-{
-	LINK_COLUMN   = 0,
-	TITLE_COLUMN  = 1,
-	UNREAD_COLUMN = 3,
-};
-
 b32
 db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 {
@@ -228,10 +242,10 @@ db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 	if (status == SQLITE_ROW)
 	{
 		feed_exists = true;
-		feed_link->str = (char *)sqlite3_column_text(select_statement, LINK_COLUMN);
-		feed_link->len = sqlite3_column_bytes(select_statement, LINK_COLUMN);
-		feed_title->str = (char *)sqlite3_column_text(select_statement, TITLE_COLUMN);
-		feed_title->len = sqlite3_column_bytes(select_statement, TITLE_COLUMN);
+		feed_link->str = (char *)sqlite3_column_text(select_statement, 1);
+		feed_link->len = sqlite3_column_bytes(select_statement, 1);
+		feed_title->str = (char *)sqlite3_column_text(select_statement, 2);
+		feed_title->len = sqlite3_column_bytes(select_statement, 2);
 	}
 
 	if (!feed_exists)
@@ -253,18 +267,19 @@ db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 	{
 		String select_items = string_literal("SELECT * FROM items WHERE feed = ?;");
 		sqlite3_prepare_v2(db, select_items.str, select_items.len, &select_statement, 0);
-		sqlite3_bind_text(select_statement, 1, feed_link.str, feed_link.len, SQLITE_STATIC);
+		u32 feed_id = hash(feed_link);
+		sqlite3_bind_int(select_statement, 1, feed_id);
 	}
 
 	i32 status = sqlite3_step(select_statement);
 	if (status == SQLITE_ROW)
 	{
 		item_exists = true;
-		item->link.str = (char *)sqlite3_column_text(select_statement, LINK_COLUMN);
-		item->link.len = sqlite3_column_bytes(select_statement, LINK_COLUMN);
-		item->title.str = (char *)sqlite3_column_text(select_statement, TITLE_COLUMN);
-		item->title.len = sqlite3_column_bytes(select_statement, TITLE_COLUMN);
-		item->unread = sqlite3_column_int(select_statement, UNREAD_COLUMN);
+		item->link.str = (char *)sqlite3_column_text(select_statement, 0);
+		item->link.len = sqlite3_column_bytes(select_statement, 0);
+		item->title.str = (char *)sqlite3_column_text(select_statement, 1);
+		item->title.len = sqlite3_column_bytes(select_statement, 1);
+		item->unread = sqlite3_column_int(select_statement, 3);
 	}
 
 	if (!item_exists)
