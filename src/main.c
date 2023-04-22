@@ -224,11 +224,19 @@ tag_feed(void)
 	};
 
 	assert(feed_to_tag.str);
-	if (ui_prompt(string_literal("Tag Name"), &tag_name))
+	switch (ui_prompt(string_literal("Tag Name"), &tag_name))
 	{
-		db_tag_feed(db, tag_name.data, feed_to_tag);
-		free(feed_to_tag.str);
-		MEM_ZERO_STRUCT(&feed_to_tag);
+		case UI_PROMPT_SUBMIT:
+		{
+			db_tag_feed(db, tag_name.data, feed_to_tag);
+			free(feed_to_tag.str);
+			MEM_ZERO_STRUCT(&feed_to_tag);
+		} break;
+		case UI_PROMPT_CANCEL:
+		{
+			free(feed_to_tag.str);
+			MEM_ZERO_STRUCT(&feed_to_tag);
+		} break;
 	}
 }
 

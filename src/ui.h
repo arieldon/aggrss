@@ -74,6 +74,12 @@ enum
 	UI_HEADER_PROMPTED = 1 << 2,
 };
 
+enum
+{
+	UI_PROMPT_SUBMIT = 1 << 0,
+	UI_PROMPT_CANCEL = 1 << 1,
+};
+
 typedef struct UI_Layout UI_Layout;
 struct UI_Layout
 {
@@ -211,7 +217,7 @@ b32 ui_header_prompted(i32 header_state);
 i32 ui_popup_menu(UI_Option_List options);
 b32 ui_textbox(Buffer *buffer, String placeholder);
 b32 ui_link(String text, b32 unread);
-b32 ui_prompt(String prompt, Buffer *input_buffer);
+i32 ui_prompt(String prompt, Buffer *input_buffer);
 void ui_text(String text);
 void ui_label(String text);
 void ui_separator(void);

@@ -790,10 +790,10 @@ is_prompt_screen_blank(void)
 	return x & y & w & h;
 }
 
-b32
+i32
 ui_prompt(String prompt, Buffer *input_buffer)
 {
-	b32 submit_text = false;
+	u32 prompt_state = 0;
 
 	// NOTE(ariel) `prompt` must exist to draw later. Likewise, `buffer` must
 	// exist for writes later.
@@ -810,15 +810,18 @@ ui_prompt(String prompt, Buffer *input_buffer)
 	}
 	else
 	{
-		// TODO(ariel) Allow user to press ESC key to cancel the operation.
-		submit_text = ui.key_press & UI_KEY_RETURN;
-		if (submit_text)
-		{
-			MEM_ZERO_STRUCT(&ui.prompt_screen);
-		}
+		b32 submit_input = UI_PROMPT_SUBMIT * (ui.key_press == UI_KEY_RETURN);
+		b32 cancel_prompt = UI_PROMPT_CANCEL * (ui.key_press == UI_KEY_ESCAPE);
+		assert((submit_input == 0) || (cancel_prompt == 0));
+		prompt_state = submit_input | cancel_prompt;
 	}
 
-	return submit_text;
+	if (prompt_state)
+	{
+		MEM_ZERO_STRUCT(&ui.prompt_screen);
+	}
+
+	return prompt_state;
 }
 
 void
