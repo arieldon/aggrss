@@ -227,6 +227,43 @@ db_mark_all_read(sqlite3 *db, String feed_link)
 }
 
 b32
+db_iterate_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, String tag)
+{
+	b32 feed_exists = false;
+
+	local_persist sqlite3_stmt *statement = 0;
+	if (!statement)
+	{
+		String select_feeds = string_literal(
+			"SELECT feeds.link, feeds.title "
+			"FROM tags_to_feeds "
+			"JOIN tags ON (tags.id == tags_to_feeds.tag) "
+			"JOIN feeds ON (feeds.id == tags_to_feeds.feed) "
+			"WHERE tags.name == ?;");
+		sqlite3_prepare_v2(db, select_feeds.str, select_feeds.len, &statement, 0);
+		sqlite3_bind_text(statement, 1, tag.str, tag.len, SQLITE_STATIC);
+	}
+
+	i32 status = sqlite3_step(statement);
+	if (status == SQLITE_ROW)
+	{
+		feed_exists = true;
+		feed_link->str = (char *)sqlite3_column_text(statement, 1);
+		feed_link->len = sqlite3_column_bytes(statement, 1);
+		feed_title->str = (char *)sqlite3_column_text(statement, 2);
+		feed_title->len = sqlite3_column_bytes(statement, 2);
+	}
+
+	if (!feed_exists)
+	{
+		sqlite3_finalize(statement);
+		statement = 0;
+	}
+
+	return feed_exists;
+}
+
+b32
 db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 {
 	b32 feed_exists = false;

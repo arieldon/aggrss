@@ -30,6 +30,7 @@ void db_mark_all_read(sqlite3 *db, String feed_link);
 
 // NOTE(ariel) The following functions assume one and only one thread calls
 // them until exhaustion.
+b32 db_iterate_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, String tag);
 b32 db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title);
 b32 db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item);
 b32 db_iterate_tags(sqlite3 *db, String *tag);
