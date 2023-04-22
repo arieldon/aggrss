@@ -198,10 +198,22 @@ add_work_entry(String url)
 	sem_post(&work_queue.semaphore);
 }
 
-global b32 tagging = false;
+global String feed_to_tag;
 
 internal void
-tag_feed(String feed_link)
+set_feed_to_tag(String feed_link)
+{
+	if (feed_to_tag.str)
+	{
+		free(feed_to_tag.str);
+	}
+	feed_to_tag.len = feed_link.len;
+	feed_to_tag.str = calloc(feed_to_tag.len, sizeof(char));
+	memcpy(feed_to_tag.str, feed_link.str, feed_link.len);
+}
+
+internal void
+tag_feed(void)
 {
 	local_persist char tag_name_input[1024];
 	local_persist Buffer tag_name =
@@ -209,21 +221,13 @@ tag_feed(String feed_link)
 		.data.str = tag_name_input,
 		.cap = sizeof(tag_name_input),
 	};
-	local_persist String link;
 
-	if (!link.str)
-	{
-		link.len = feed_link.len;
-		link.str = calloc(link.len, sizeof(char));
-		memcpy(link.str, feed_link.str, link.len);
-	}
-
+	assert(feed_to_tag.str);
 	if (ui_prompt(string_literal("Tag Name"), &tag_name))
 	{
-		db_tag_feed(db, tag_name.data, link);
-		free(link.str);
-		MEM_ZERO_STRUCT(&link);
-		tagging = false;
+		db_tag_feed(db, tag_name.data, feed_to_tag);
+		free(feed_to_tag.str);
+		MEM_ZERO_STRUCT(&feed_to_tag);
 	}
 }
 
@@ -231,10 +235,6 @@ internal void
 process_frame(void)
 {
 	ui_begin();
-	if (tagging)
-	{
-		goto tag;
-	}
 
 	local_persist char new_feed_input[1024];
 	local_persist Buffer new_feed =
@@ -338,9 +338,7 @@ process_frame(void)
 				} break;
 				case 2:
 				{
-tag:
-					tagging = true;
-					tag_feed(feed_link);
+					set_feed_to_tag(feed_link);
 				} break;
 				case 3:
 				{
@@ -348,6 +346,11 @@ tag:
 				} break;
 			}
 		}
+	}
+
+	if (feed_to_tag.str)
+	{
+		tag_feed();
 	}
 
 	ui_end();
