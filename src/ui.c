@@ -117,21 +117,21 @@ get_text_dimensions(String text)
 // NOTE(ariel) This is a close replica of ui_textbox(). If I improve the layout
 // engine, I can compress a decent number of lines of code.
 internal void
-ui_prompt_screen(void)
+ui_prompt_block(void)
 {
 	// NOTE(ariel) Draw background.
-	Vector2 text_dimensions = get_text_dimensions(ui.prompt_screen.prompt);
+	Vector2 text_dimensions = get_text_dimensions(ui.prompt_block.prompt);
 	Vector2 text_position =
 	{
-		.x = ui.prompt_screen.target.x + 5,
-		.y = ui.prompt_screen.target.y + text_dimensions.h / 2,
+		.x = ui.prompt_block.target.x + 5,
+		.y = ui.prompt_block.target.y + text_dimensions.h / 2,
 	};
 	Color background_color = {30, 30, 30, 255};
-	r_draw_rect(ui.prompt_screen.target, background_color);
-	r_draw_text(ui.prompt_screen.prompt, text_position, text_color);
+	r_draw_rect(ui.prompt_block.target, background_color);
+	r_draw_text(ui.prompt_block.prompt, text_position, text_color);
 
 	// NOTE(ariel) Draw textbox.
-	Buffer *input_buffer = ui.prompt_screen.input_buffer;
+	Buffer *input_buffer = ui.prompt_block.input_buffer;
 	Quad textbox_target =
 	{
 		.x = text_position.x + text_dimensions.w + 5,
@@ -148,14 +148,14 @@ ui_prompt_screen(void)
 
 	if (ui_mouse_overlaps(textbox_target))
 	{
-		ui.hot_block = ui.prompt_screen.textbox_id;
+		ui.hot_block = ui.prompt_block.textbox_id;
 		if (ui.active_block == 0 && ui.mouse_down & UI_MOUSE_BUTTON_LEFT)
 		{
-			ui.active_block = ui.active_keyboard_block = ui.prompt_screen.textbox_id;
+			ui.active_block = ui.active_keyboard_block = ui.prompt_block.textbox_id;
 		}
 	}
 
-	if (ui.prompt_screen.textbox_id == ui.active_keyboard_block)
+	if (ui.prompt_block.textbox_id == ui.active_keyboard_block)
 	{
 		if (ui.input_text.data.len)
 		{
@@ -197,9 +197,9 @@ ui_end(void)
 	{
 		ui_popup_menu_options();
 	}
-	if (ui.prompt_screen.prompt.str)
+	if (ui.prompt_block.prompt.str)
 	{
-		ui_prompt_screen();
+		ui_prompt_block();
 	}
 
 	// NOTE(ariel) Reset active block if left untouched by user.
@@ -292,7 +292,7 @@ ui_register_right_click(UI_ID id)
 internal inline void
 ui_update_control(UI_ID id, Quad dimensions)
 {
-	if (!ui_mouse_overlaps(ui.prompt_screen.target))
+	if (!ui_mouse_overlaps(ui.prompt_block.target))
 	{
 		if (ui_mouse_overlaps(dimensions) && !ui_mouse_overlaps(ui.popup_menu.target))
 		{
@@ -797,12 +797,12 @@ ui_link(String text, b32 unread)
 }
 
 internal inline b32
-is_prompt_screen_blank(void)
+is_prompt_block_blank(void)
 {
-	b32 x = !ui.prompt_screen.target.x;
-	b32 y = !ui.prompt_screen.target.y;
-	b32 w = !ui.prompt_screen.target.w;
-	b32 h = !ui.prompt_screen.target.h;
+	b32 x = !ui.prompt_block.target.x;
+	b32 y = !ui.prompt_block.target.y;
+	b32 w = !ui.prompt_block.target.w;
+	b32 h = !ui.prompt_block.target.h;
 	return x & y & w & h;
 }
 
@@ -813,19 +813,19 @@ ui_prompt(String prompt, Buffer *input_buffer)
 
 	// NOTE(ariel) `prompt` must exist to draw later. Likewise, `buffer` must
 	// exist for writes later.
-	if (is_prompt_screen_blank())
+	if (is_prompt_block_blank())
 	{
-		ui.prompt_screen.prompt = prompt;
-		ui.prompt_screen.input_buffer = input_buffer;
-		ui.prompt_screen.input_buffer->data.len = 0;
+		ui.prompt_block.prompt = prompt;
+		ui.prompt_block.input_buffer = input_buffer;
+		ui.prompt_block.input_buffer->data.len = 0;
 
-		ui.prompt_screen.textbox_id = (uintptr_t)input_buffer;
-		ui.active_block = ui.active_keyboard_block = ui.prompt_screen.textbox_id;
+		ui.prompt_block.textbox_id = (uintptr_t)input_buffer;
+		ui.active_block = ui.active_keyboard_block = ui.prompt_block.textbox_id;
 
-		ui.prompt_screen.target.w = 800;
-		ui.prompt_screen.target.h = ui.layout.row_height * 2;
-		ui.prompt_screen.target.x = 0;
-		ui.prompt_screen.target.y = ui.layout.height - ui.prompt_screen.target.h;
+		ui.prompt_block.target.w = 800;
+		ui.prompt_block.target.h = ui.layout.row_height * 2;
+		ui.prompt_block.target.x = 0;
+		ui.prompt_block.target.y = ui.layout.height - ui.prompt_block.target.h;
 	}
 	else
 	{
@@ -837,7 +837,7 @@ ui_prompt(String prompt, Buffer *input_buffer)
 
 	if (prompt_state)
 	{
-		MEM_ZERO_STRUCT(&ui.prompt_screen);
+		MEM_ZERO_STRUCT(&ui.prompt_block);
 	}
 
 	return prompt_state;

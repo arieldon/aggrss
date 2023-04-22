@@ -113,8 +113,8 @@ struct UI_Popup_Menu
 	UI_ID id;
 };
 
-typedef struct UI_Prompt_Screen UI_Prompt_Screen;
-struct UI_Prompt_Screen
+typedef struct UI_Prompt_Block UI_Prompt_Block;
+struct UI_Prompt_Block
 {
 	Quad target;
 	String prompt;
@@ -167,7 +167,7 @@ struct UI_Context
 
 	UI_Layout layout;
 	UI_Popup_Menu popup_menu;
-	UI_Prompt_Screen prompt_screen;
+	UI_Prompt_Block prompt_block;
 
 	// NOTE(ariel) The user hovers the cursor over hot items (about to interact)
 	// and clicks active item (currently interacting).
