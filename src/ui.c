@@ -385,6 +385,45 @@ ui_button(String label)
 	return clicked;
 }
 
+b32
+ui_toggle(String label)
+{
+	UI_ID id = get_id(label);
+	Quad target = ui_layout_next_block();
+
+	i32 block_index = find_block(id);
+	if (block_index == -1)
+	{
+		block_index = alloc_block(id);
+	}
+	UI_Block *persistent_block = &ui.block_pool.blocks[block_index];
+
+	ui_update_control(id, target);
+
+	b32 clicked = ui_register_left_click(id);
+	persistent_block->enabled ^= clicked;
+
+	Color toggle_color = color_block(id);
+	b32 hot = id == ui.hot_block;
+	toggle_color.r += 15 * hot;
+	toggle_color.g += 15 * hot;
+	toggle_color.b += 15 * hot;
+	toggle_color.r += 30 * persistent_block->enabled;
+	toggle_color.g += 30 * persistent_block->enabled;
+	toggle_color.b += 30 * persistent_block->enabled;
+
+	Vector2 text_dimensions = get_text_dimensions(label);
+	Vector2 text_position =
+	{
+		.x = target.x + (target.w - text_dimensions.w) / 2,
+		.y = target.y + (target.h - text_dimensions.h) / 2 + 2,
+	};
+	r_draw_rect(target, toggle_color);
+	r_draw_text(label, text_position, text_color);
+
+	return persistent_block->enabled;
+}
+
 i32
 ui_header(String label)
 {

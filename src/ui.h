@@ -126,7 +126,11 @@ typedef struct UI_Block UI_Block;
 struct UI_Block
 {
 	UI_ID id;
-	b32 expanded;
+	union
+	{
+		b32 expanded;
+		b32 enabled;
+	};
 	i32 last_frame_updated;
 };
 
@@ -198,6 +202,7 @@ void ui_end(void);
 void ui_layout_row(i32 total_blocks);
 
 b32 ui_button(String label);
+b32 ui_toggle(String label);
 i32 ui_header(String label);
 b32 ui_header_expanded(i32 header_state);
 b32 ui_header_deleted(i32 header_state);
