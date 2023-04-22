@@ -114,6 +114,8 @@ get_text_dimensions(String text)
 	return text_dimensions;
 }
 
+// NOTE(ariel) This is a close replica of ui_textbox(). If I improve the layout
+// engine, I can compress a decent number of lines of code.
 internal void
 ui_prompt_screen(void)
 {
@@ -129,7 +131,7 @@ ui_prompt_screen(void)
 	r_draw_text(ui.prompt_screen.prompt, text_position, text_color);
 
 	// NOTE(ariel) Draw textbox.
-	Buffer *buffer = ui.prompt_screen.input_buffer;
+	Buffer *input_buffer = ui.prompt_screen.input_buffer;
 	Quad textbox_target =
 	{
 		.x = text_position.x + text_dimensions.w + 5,
@@ -137,28 +139,39 @@ ui_prompt_screen(void)
 		.w = ui.layout.width - textbox_target.x,
 		.h = text_dimensions.h,
 	};
-
-	if (ui.input_text.data.len)
-	{
-		i32 n = MIN(buffer->cap - buffer->data.len, ui.input_text.data.len);
-		if (n > 0)
-		{
-			memcpy(buffer->data.str + buffer->data.len, ui.input_text.data.str, n);
-			buffer->data.len += n;
-		}
-	}
-	else if (ui.key_press & UI_KEY_BACKSPACE && buffer->data.len > 0)
-	{
-		--buffer->data.len;
-	}
-
-	Vector2 input_text_dimensions = get_text_dimensions(buffer->data);
+	Vector2 input_text_dimensions = get_text_dimensions(input_buffer->data);
 	Vector2 input_text_position =
 	{
 		.x = textbox_target.x + 3,
 		.y = textbox_target.y,
 	};
+
+	ui.prompt_screen.textbox_id = (uintptr_t)input_buffer;
+	if (ui_mouse_overlaps(textbox_target))
 	{
+		ui.hot_block = ui.prompt_screen.textbox_id;
+		if (ui.active_block == 0 && ui.mouse_down & UI_MOUSE_BUTTON_LEFT)
+		{
+			ui.active_block = ui.active_keyboard_block = ui.prompt_screen.textbox_id;
+		}
+	}
+
+	if (ui.prompt_screen.textbox_id == ui.active_keyboard_block)
+	{
+		if (ui.input_text.data.len)
+		{
+			i32 n = MIN(input_buffer->cap - input_buffer->data.len, ui.input_text.data.len);
+			if (n > 0)
+			{
+				memcpy(input_buffer->data.str + input_buffer->data.len, ui.input_text.data.str, n);
+				input_buffer->data.len += n;
+			}
+		}
+		else if (ui.key_press & UI_KEY_BACKSPACE && input_buffer->data.len > 0)
+		{
+			--input_buffer->data.len;
+		}
+
 		Quad cursor =
 		{
 			.x = input_text_position.x + input_text_dimensions.w,
@@ -169,7 +182,11 @@ ui_prompt_screen(void)
 		r_draw_rect(textbox_target, active_color);
 		r_draw_rect(cursor, text_color);
 	}
-	r_draw_text(buffer->data, input_text_position, text_color);
+	else
+	{
+		r_draw_rect(textbox_target, blank_color);
+	}
+	r_draw_text(input_buffer->data, input_text_position, text_color);
 }
 
 void

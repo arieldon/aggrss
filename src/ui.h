@@ -119,6 +119,7 @@ struct UI_Prompt_Screen
 	Quad target;
 	String prompt;
 	Buffer *input_buffer;
+	UI_ID textbox_id;
 };
 
 
