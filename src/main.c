@@ -37,6 +37,7 @@ global char modifier_key_map[256] =
 	[SDLK_BACKSPACE & 0xff] = UI_KEY_BACKSPACE,
 	[SDLK_LCTRL     & 0xff] = UI_KEY_CONTROL,
 	[SDLK_RCTRL     & 0xff] = UI_KEY_CONTROL,
+	[SDLK_ESCAPE    & 0xff] = UI_KEY_ESCAPE,
 };
 
 // NOTE(ariel) The Intel Core i5-6500 processor in this machine has four total
