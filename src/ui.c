@@ -616,7 +616,7 @@ ui_textbox(Buffer *buffer, String placeholder)
 	Quad target = ui_layout_next_block();
 
 	ui_update_control(id, target);
-	if (!ui.active_keyboard_block)
+	if (id == ui.active_block)
 	{
 		ui.active_keyboard_block = ui.active_block;
 	}
