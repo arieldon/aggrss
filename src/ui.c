@@ -786,7 +786,7 @@ is_prompt_screen_blank(void)
 	b32 y = !ui.prompt_screen.target.y;
 	b32 w = !ui.prompt_screen.target.w;
 	b32 h = !ui.prompt_screen.target.h;
-	return x | y | w | h;
+	return x & y & w & h;
 }
 
 b32
