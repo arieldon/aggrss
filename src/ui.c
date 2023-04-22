@@ -175,13 +175,13 @@ ui_prompt_screen(void)
 void
 ui_end(void)
 {
-	// NOTE(ariel) Draw popup menu or prompt entry lazily here so it sits on top
+	// NOTE(ariel) Draw popup menu and/or prompt entry lazily here so it sits on top
 	// of all other blocks.
 	if (!is_popup_menu_blank())
 	{
 		ui_popup_menu_options();
 	}
-	else if (ui.prompt_screen.prompt.str)
+	if (ui.prompt_screen.prompt.str)
 	{
 		ui_prompt_screen();
 	}
