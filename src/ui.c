@@ -146,7 +146,6 @@ ui_prompt_screen(void)
 		.y = textbox_target.y,
 	};
 
-	ui.prompt_screen.textbox_id = (uintptr_t)input_buffer;
 	if (ui_mouse_overlaps(textbox_target))
 	{
 		ui.hot_block = ui.prompt_screen.textbox_id;
@@ -819,6 +818,9 @@ ui_prompt(String prompt, Buffer *input_buffer)
 		ui.prompt_screen.prompt = prompt;
 		ui.prompt_screen.input_buffer = input_buffer;
 		ui.prompt_screen.input_buffer->data.len = 0;
+
+		ui.prompt_screen.textbox_id = (uintptr_t)input_buffer;
+		ui.active_block = ui.active_keyboard_block = ui.prompt_screen.textbox_id;
 
 		ui.prompt_screen.target.w = 800;
 		ui.prompt_screen.target.h = ui.layout.row_height * 2;
