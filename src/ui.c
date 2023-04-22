@@ -117,58 +117,59 @@ get_text_dimensions(String text)
 internal void
 ui_prompt_screen(void)
 {
+	// NOTE(ariel) Draw background.
 	Vector2 text_dimensions = get_text_dimensions(ui.prompt_screen.prompt);
 	Vector2 text_position =
 	{
-		.x = ui.prompt_screen.target.x + (ui.prompt_screen.target.w - text_dimensions.w) / 2,
-		.y = ui.prompt_screen.target.y + (ui.prompt_screen.target.h - text_dimensions.h) / 4,
+		.x = ui.prompt_screen.target.x + 5,
+		.y = ui.prompt_screen.target.y + text_dimensions.h / 2,
 	};
-	Color background_color = {50, 50, 50, 255};
+	Color background_color = {30, 30, 30, 255};
 	r_draw_rect(ui.prompt_screen.target, background_color);
 	r_draw_text(ui.prompt_screen.prompt, text_position, text_color);
 
+	// NOTE(ariel) Draw textbox.
+	Buffer *buffer = ui.prompt_screen.input_buffer;
+	Quad textbox_target =
 	{
-		Buffer *buffer = ui.prompt_screen.input_buffer;
-		Quad target =
-		{
-			.x = 200,
-			.y = 300,
-			.w = 400,
-			.h = 20,
-		};
+		.x = text_position.x + text_dimensions.w + 5,
+		.y = text_position.y,
+		.w = ui.layout.width - textbox_target.x,
+		.h = text_dimensions.h,
+	};
 
-		if (ui.input_text.data.len)
+	if (ui.input_text.data.len)
+	{
+		i32 n = MIN(buffer->cap - buffer->data.len, ui.input_text.data.len);
+		if (n > 0)
 		{
-			i32 n = MIN(buffer->cap - buffer->data.len, ui.input_text.data.len);
-			if (n > 0)
-			{
-				memcpy(buffer->data.str + buffer->data.len, ui.input_text.data.str, n);
-				buffer->data.len += n;
-			}
+			memcpy(buffer->data.str + buffer->data.len, ui.input_text.data.str, n);
+			buffer->data.len += n;
 		}
-		else if (ui.key_press & UI_KEY_BACKSPACE && buffer->data.len > 0)
-		{
-			--buffer->data.len;
-		}
-
-		String text = buffer->data;
-		Color color = text_color;
-		Vector2 text_dimensions = get_text_dimensions(text);
-		text_position.x = target.x;
-		text_position.y = target.y;
-		{
-			Quad cursor =
-			{
-				.x = target.x + text_dimensions.w,
-				.y = target.y + 1,
-				.w = text_dimensions.h / 2,
-				.h = text_dimensions.h + 1,
-			};
-			r_draw_rect(target, active_color);
-			r_draw_rect(cursor, text_color);
-		}
-		r_draw_text(text, text_position, color);
 	}
+	else if (ui.key_press & UI_KEY_BACKSPACE && buffer->data.len > 0)
+	{
+		--buffer->data.len;
+	}
+
+	Vector2 input_text_dimensions = get_text_dimensions(buffer->data);
+	Vector2 input_text_position =
+	{
+		.x = textbox_target.x + 3,
+		.y = textbox_target.y,
+	};
+	{
+		Quad cursor =
+		{
+			.x = input_text_position.x + input_text_dimensions.w,
+			.y = textbox_target.y,
+			.w = input_text_dimensions.h / 2,
+			.h = input_text_dimensions.h,
+		};
+		r_draw_rect(textbox_target, active_color);
+		r_draw_rect(cursor, text_color);
+	}
+	r_draw_text(buffer->data, input_text_position, text_color);
 }
 
 void
@@ -802,11 +803,10 @@ ui_prompt(String prompt, Buffer *input_buffer)
 		ui.prompt_screen.input_buffer = input_buffer;
 		ui.prompt_screen.input_buffer->data.len = 0;
 
-		ui.prompt_screen.target.x = 100;
-		ui.prompt_screen.target.y = 200;
-		ui.prompt_screen.target.w = 600;
-		ui.prompt_screen.target.h = 200;
-		r_set_clip_quad(ui.prompt_screen.target);
+		ui.prompt_screen.target.w = 800;
+		ui.prompt_screen.target.h = ui.layout.row_height * 2;
+		ui.prompt_screen.target.x = 0;
+		ui.prompt_screen.target.y = ui.layout.height - ui.prompt_screen.target.h;
 	}
 	else
 	{
@@ -815,12 +815,6 @@ ui_prompt(String prompt, Buffer *input_buffer)
 		if (submit_text)
 		{
 			MEM_ZERO_STRUCT(&ui.prompt_screen);
-			Quad window_dimensions =
-			{
-				.w = 800,
-				.h = 600,
-			};
-			r_set_clip_quad(window_dimensions);
 		}
 	}
 
