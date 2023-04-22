@@ -76,7 +76,7 @@ db_init(sqlite3 **db)
 		"CREATE TABLE IF NOT EXISTS "
 			"tags("
 				"id INTEGER PRIMARY KEY,"
-				"name TEXT UNIQUE);";
+				"name TEXT UNIQUE NOT NULL);";
 	error = sqlite3_exec(*db, create_tags_table, 0, 0, &errmsg);
 	if (error)
 	{
