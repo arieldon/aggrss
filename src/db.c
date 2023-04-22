@@ -9,6 +9,8 @@
 
 // TODO(ariel) Check for errors after SQLite calls.
 
+global Arena db_arena;
+
 internal u32
 hash(String s)
 {
@@ -24,6 +26,7 @@ void
 db_init(sqlite3 **db)
 {
 	assert(sqlite3_threadsafe());
+	arena_init(&db_arena);
 
 	i32 error = sqlite3_open("./feeds.db", db);
 	if (error)
@@ -226,22 +229,65 @@ db_mark_all_read(sqlite3 *db, String feed_link)
 	sqlite3_finalize(statement);
 }
 
+internal inline String
+create_query(String_List tags)
+{
+	String select_feeds = string_literal(
+		"SELECT DISTINCT feeds.* "
+		"FROM tags_to_feeds "
+		"JOIN tags ON tags.id == tags_to_feeds.tag "
+		"JOIN feeds ON feeds.id == tags_to_feeds.feed "
+		"WHERE tags.name IN ");
+
+	String_List question_mark_list = {0};
+	String question_mark = string_literal("?");
+	for (i32 i = 0; i < tags.list_size; ++i)
+	{
+		string_list_push_string(&db_arena, &question_mark_list, question_mark);
+	}
+	String question_marks = string_list_join(&db_arena, question_mark_list, ',');
+
+	String_List parameter_list = {0};
+	string_list_push_string(&db_arena, &parameter_list, string_literal("("));
+	string_list_push_string(&db_arena, &parameter_list, question_marks);
+	string_list_push_string(&db_arena, &parameter_list, string_literal(");"));
+	String parameters = string_list_concat(&db_arena, parameter_list);
+
+	String_List query_list = {0};
+	string_list_push_string(&db_arena, &query_list, select_feeds);
+	string_list_push_string(&db_arena, &query_list, parameters);
+	String query = string_list_concat(&db_arena, query_list);
+
+	return query;
+}
+
 b32
-db_iterate_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, String tag)
+db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, String_List tags)
 {
 	b32 feed_exists = false;
 
-	local_persist sqlite3_stmt *statement = 0;
+	local_persist sqlite3_stmt *statement;
+	local_persist Arena_Checkpoint checkpoint;
 	if (!statement)
 	{
-		String select_feeds = string_literal(
-			"SELECT feeds.link, feeds.title "
-			"FROM tags_to_feeds "
-			"JOIN tags ON (tags.id == tags_to_feeds.tag) "
-			"JOIN feeds ON (feeds.id == tags_to_feeds.feed) "
-			"WHERE tags.name == ?;");
-		sqlite3_prepare_v2(db, select_feeds.str, select_feeds.len, &statement, 0);
-		sqlite3_bind_text(statement, 1, tag.str, tag.len, SQLITE_STATIC);
+		checkpoint = arena_checkpoint_set(&db_arena);
+
+		if (!tags.list_size)
+		{
+			String select_feeds = string_literal("SELECT * FROM feeds;");
+			sqlite3_prepare_v2(db, select_feeds.str, select_feeds.len, &statement, 0);
+		}
+		else
+		{
+			String select_feeds = create_query(tags);
+			sqlite3_prepare_v2(db, select_feeds.str, select_feeds.len, &statement, 0);
+
+			String_Node *tag_node = tags.head;
+			for (i32 i = 1; tag_node; ++i, tag_node = tag_node->next)
+			{
+				sqlite3_bind_text(statement, i, tag_node->string.str, tag_node->string.len, SQLITE_STATIC);
+			}
+		}
 	}
 
 	i32 status = sqlite3_step(statement);
@@ -258,6 +304,9 @@ db_iterate_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, Stri
 	{
 		sqlite3_finalize(statement);
 		statement = 0;
+
+		arena_checkpoint_restore(checkpoint);
+		MEM_ZERO_STRUCT(&checkpoint);
 	}
 
 	return feed_exists;
