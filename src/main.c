@@ -263,9 +263,25 @@ process_frame(void)
 		}
 	}
 
+	String_List tags = {0};
+	if (ui_header(string_literal("Tags")))
+	{
+		String tag = {0};
+		while (db_iterate_tags(db, &tag))
+		{
+			if (ui_toggle(tag))
+			{
+				String tagdup = string_duplicate(&g_arena, tag);
+				string_list_push_string(&g_arena, &tags, tagdup);
+			}
+		}
+	}
+
+	ui_separator();
+
 	String feed_link = {0};
 	String feed_title = {0};
-	while (db_iterate_feeds(db, &feed_link, &feed_title))
+	while (db_filter_feeds_by_tag(db, &feed_link, &feed_title, tags))
 	{
 		String display_name = feed_title.len ? feed_title : feed_link;
 		i32 header_state = ui_header(display_name);
