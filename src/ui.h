@@ -69,9 +69,9 @@ enum
 
 enum
 {
-	UI_HEADER_EXPANDED = 1 << 0,
-	UI_HEADER_DELETED  = 1 << 1,
-	UI_HEADER_PROMPTED = 1 << 2,
+	UI_HEADER_EXPANDED   = 1 << 0,
+	UI_HEADER_DELETED    = 1 << 1,
+	UI_HEADER_OPTIONIZED = 1 << 2,
 };
 
 enum
@@ -214,7 +214,7 @@ b32 ui_toggle(String label);
 i32 ui_header(String label);
 b32 ui_header_expanded(i32 header_state);
 b32 ui_header_deleted(i32 header_state);
-b32 ui_header_prompted(i32 header_state);
+b32 ui_header_optionized(i32 header_state);
 i32 ui_popup_menu(UI_Option_List options);
 b32 ui_textbox(Buffer *buffer, String placeholder);
 b32 ui_link(String text, b32 unread);

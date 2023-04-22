@@ -320,7 +320,7 @@ process_frame(void)
 				}
 			}
 		}
-		if (ui_header_prompted(header_state))
+		if (ui_header_optionized(header_state))
 		{
 			local_persist String options[] =
 			{

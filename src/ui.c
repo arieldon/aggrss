@@ -501,7 +501,7 @@ ui_header(String label)
 
 	i32 header_state = 0;
 	i32 expanded = UI_HEADER_EXPANDED * persistent_block->expanded;
-	i32 prompted = UI_HEADER_PROMPTED * (id == ui.popup_menu.id);
+	i32 prompted = UI_HEADER_OPTIONIZED * (id == ui.popup_menu.id);
 	i32 deleted = UI_HEADER_DELETED * (left_clicked && ui_mouse_overlaps(delete_icon_dimensions));
 	header_state = expanded | deleted | prompted;
 
@@ -523,9 +523,9 @@ ui_header_deleted(i32 header_state)
 }
 
 inline b32
-ui_header_prompted(i32 header_state)
+ui_header_optionized(i32 header_state)
 {
-	b32 prompted = header_state & UI_HEADER_PROMPTED;
+	b32 prompted = header_state & UI_HEADER_OPTIONIZED;
 	return prompted;
 }
 
