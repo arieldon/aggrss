@@ -40,14 +40,6 @@ global char modifier_key_map[256] =
 	[SDLK_ESCAPE    & 0xff] = UI_KEY_ESCAPE,
 };
 
-// NOTE(ariel) The Intel Core i5-6500 processor in this machine has four total
-// (physical and logical) cores. The main thread requires one core, which
-// leaves three for other work.
-// TODO(ariel) Is it feasible to run more than three workers? I _assume_ (no
-// tests) that I/O rather than processing bounds this workload, so more workers
-// than three may improve throughput.
-enum { N_WORKERS = 3 };
-
 typedef struct Worker Worker;
 struct Worker
 {
@@ -80,7 +72,7 @@ struct Work_Queue
 	Work_Entry *tail;
 };
 
-global Worker workers[N_WORKERS];
+global Worker *workers;
 global Work_Queue work_queue;
 
 internal void
@@ -372,6 +364,10 @@ main(void)
 
 	// NOTE(ariel) Initialize work queue.
 	{
+		i32 n_logical_cpu_cores = SDL_GetCPUCount();
+		i32 n_workers = n_logical_cpu_cores - 1;
+		workers = arena_alloc(&g_arena, n_workers * sizeof(Worker));
+
 		if (sem_init(&work_queue.semaphore, 0, 0) == -1)
 		{
 			err_exit("failed to initialize semaphore for workers");
@@ -380,7 +376,7 @@ main(void)
 		{
 			err_exit("failed to initialize spin lock for workers");
 		}
-		for (i8 i = 0; i < N_WORKERS; ++i)
+		for (i8 i = 0; i < n_workers; ++i)
 		{
 			Worker *worker = &workers[i];
 			if (pthread_create(&worker->thread_id, 0, get_work_entry, worker))
