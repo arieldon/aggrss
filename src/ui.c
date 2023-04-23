@@ -83,7 +83,7 @@ ui_popup_menu_options(void)
 		Vector2 text_position =
 		{
 			.x = x,
-			.y = y + ui.layout.row_height * i,
+			.y = y + ui.layout.row_height * 1.2 * i,
 		};
 		Quad option_target =
 		{
@@ -564,7 +564,7 @@ ui_popup_menu(UI_Option_List options)
 		{
 			Vector2 text_dimensions = get_text_dimensions(options.names[i]);
 			ui.popup_menu.target.w = MAX(ui.popup_menu.target.w, text_dimensions.w);
-			ui.popup_menu.target.h += ui.layout.row_height;
+			ui.popup_menu.target.h += ui.layout.row_height * 1.2;
 		}
 		ui.popup_menu.target.w += POPUP_MENU_HEAVY_PADDING;
 		ui.popup_menu.target.h += POPUP_MENU_HEAVY_PADDING;
@@ -583,12 +583,13 @@ ui_popup_menu(UI_Option_List options)
 		b32 released = !(ui.mouse_down & UI_MOUSE_BUTTON_LEFT);
 		if (pressed && released)
 		{
+			i32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
 			for (i32 i = 0; i < options.count; ++i)
 			{
 				Quad target =
 				{
 					.x = ui.popup_menu.target.x,
-					.y = ui.popup_menu.target.y + ui.layout.row_height * i,
+					.y = y + ui.layout.row_height * 1.2 * i,
 					.w = ui.popup_menu.target.w,
 					.h = ui.layout.row_height,
 				};
