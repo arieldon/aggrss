@@ -1,7 +1,6 @@
 #ifndef UI_H
 #define UI_H
 
-#include "arena.h"
 #include "base.h"
 
 /* ---

@@ -1,4 +1,3 @@
-#include "arena.h"
 #include "base.h"
 #include "str.h"
 #include "ui.h"
