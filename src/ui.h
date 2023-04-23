@@ -72,6 +72,8 @@ enum
 	UI_HEADER_EXPANDED   = 1 << 0,
 	UI_HEADER_DELETED    = 1 << 1,
 	UI_HEADER_OPTIONIZED = 1 << 2,
+
+	UI_HEADER_SHOW_X_BUTTON = 1 << 3,
 };
 
 enum
@@ -211,7 +213,7 @@ void ui_layout_row(i32 total_blocks);
 
 b32 ui_button(String label);
 b32 ui_toggle(String label);
-i32 ui_header(String label);
+i32 ui_header(String label, i32 options);
 b32 ui_header_expanded(i32 header_state);
 b32 ui_header_deleted(i32 header_state);
 b32 ui_header_optionized(i32 header_state);

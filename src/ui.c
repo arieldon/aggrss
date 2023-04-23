@@ -442,7 +442,7 @@ ui_toggle(String label)
 }
 
 i32
-ui_header(String label)
+ui_header(String label, i32 options)
 {
 	UI_ID id = get_id(label);
 
@@ -470,16 +470,6 @@ ui_header(String label)
 	};
 	r_draw_icon(chevron_icon_index, chevron_icon_dimensions, text_color);
 
-	i32 delete_icon_index = UI_ICON_CLOSE;
-	Quad delete_icon_dimensions =
-	{
-		.x = ui.layout.width - 18,
-		.y = target.y,
-		.w = 18,
-		.h = 18,
-	};
-	r_draw_icon(delete_icon_index, delete_icon_dimensions, text_color);
-
 	Vector2 text_position =
 	{
 		.x = target.x + 18 * 1.2,
@@ -499,10 +489,24 @@ ui_header(String label)
 		ui.popup_menu.target.y = ui.mouse_y;
 	}
 
+	i32 deleted = 0;
+	if (options & UI_HEADER_SHOW_X_BUTTON)
+	{
+		i32 delete_icon_index = UI_ICON_CLOSE;
+		Quad delete_icon_dimensions =
+		{
+			.x = ui.layout.width - 18,
+			.y = target.y,
+			.w = 18,
+			.h = 18,
+		};
+		r_draw_icon(delete_icon_index, delete_icon_dimensions, text_color);
+		deleted = UI_HEADER_DELETED * (left_clicked && ui_mouse_overlaps(delete_icon_dimensions));
+	}
+
 	i32 header_state = 0;
 	i32 expanded = UI_HEADER_EXPANDED * persistent_block->expanded;
 	i32 prompted = UI_HEADER_OPTIONIZED * (id == ui.popup_menu.id);
-	i32 deleted = UI_HEADER_DELETED * (left_clicked && ui_mouse_overlaps(delete_icon_dimensions));
 	header_state = expanded | deleted | prompted;
 
 	return header_state;
