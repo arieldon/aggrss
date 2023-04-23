@@ -3,7 +3,6 @@
 
 #include <sqlite3.h>
 
-#include "arena.h"
 #include "base.h"
 #include "rss.h"
 #include "str.h"

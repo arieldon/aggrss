@@ -1,6 +1,5 @@
 #include <sqlite3.h>
 
-#include "arena.h"
 #include "base.h"
 #include "db.h"
 #include "err.h"
@@ -8,8 +7,6 @@
 #include "str.h"
 
 // TODO(ariel) Check for errors after SQLite calls.
-
-global Arena db_arena;
 
 internal u32
 hash(String s)
@@ -26,7 +23,6 @@ void
 db_init(sqlite3 **db)
 {
 	assert(sqlite3_threadsafe());
-	arena_init(&db_arena);
 
 	i32 error = sqlite3_open("./feeds.db", db);
 	if (error)
@@ -232,33 +228,34 @@ db_mark_all_read(sqlite3 *db, String feed_link)
 internal inline String
 create_query(String_List tags)
 {
-	String select_feeds = string_literal(
+#define QUERY_STARTING_LENGTH 166
+	String query = {0};
+
+	if (tags.list_size < 1 || tags.list_size > 32)
+	{
+		return query;
+	}
+
+	local_persist char select_feeds[256] =
 		"SELECT DISTINCT feeds.link, feeds.title "
 		"FROM tags_to_feeds "
 		"JOIN tags ON tags.id == tags_to_feeds.tag "
 		"JOIN feeds ON feeds.id == tags_to_feeds.feed "
-		"WHERE tags.name IN ");
-
-	String_List question_mark_list = {0};
-	String question_mark = string_literal("?");
-	for (i32 i = 0; i < tags.list_size; ++i)
+		"WHERE tags.name IN (";
+	i32 cursor = QUERY_STARTING_LENGTH;
+	for (i32 i = 1; i < tags.list_size; ++i)
 	{
-		string_list_push_string(&db_arena, &question_mark_list, question_mark);
+		select_feeds[cursor++] = '?';
+		select_feeds[cursor++] = ',';
 	}
-	String question_marks = string_list_join(&db_arena, question_mark_list, ',');
+	select_feeds[cursor++] = '?';
+	select_feeds[cursor++] = ')';
+	select_feeds[cursor++] = ';';
 
-	String_List parameter_list = {0};
-	string_list_push_string(&db_arena, &parameter_list, string_literal("("));
-	string_list_push_string(&db_arena, &parameter_list, question_marks);
-	string_list_push_string(&db_arena, &parameter_list, string_literal(");"));
-	String parameters = string_list_concat(&db_arena, parameter_list);
-
-	String_List query_list = {0};
-	string_list_push_string(&db_arena, &query_list, select_feeds);
-	string_list_push_string(&db_arena, &query_list, parameters);
-	String query = string_list_concat(&db_arena, query_list);
-
+	query.str = select_feeds;
+	query.len = cursor;
 	return query;
+#undef QUERY_STARTING_LENGTH
 }
 
 enum
@@ -275,11 +272,8 @@ db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, Strin
 	b32 feed_exists = false;
 
 	local_persist sqlite3_stmt *statement;
-	local_persist Arena_Checkpoint checkpoint;
 	if (!statement)
 	{
-		checkpoint = arena_checkpoint_set(&db_arena);
-
 		if (!tags.list_size)
 		{
 			String select_feeds = string_literal("SELECT link, title FROM feeds;");
@@ -312,9 +306,6 @@ db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, Strin
 	{
 		sqlite3_finalize(statement);
 		statement = 0;
-
-		arena_checkpoint_restore(checkpoint);
-		MEM_ZERO_STRUCT(&checkpoint);
 	}
 
 	return feed_exists;
