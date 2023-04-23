@@ -265,7 +265,7 @@ process_frame(void)
 	}
 
 	String_List tags = {0};
-	if (ui_header(string_literal("Tags")))
+	if (ui_header(string_literal("Tags"), 0))
 	{
 		String tag = {0};
 		while (db_iterate_tags(db, &tag))
@@ -285,7 +285,7 @@ process_frame(void)
 	while (db_filter_feeds_by_tag(db, &feed_link, &feed_title, tags))
 	{
 		String display_name = feed_title.len ? feed_title : feed_link;
-		i32 header_state = ui_header(display_name);
+		i32 header_state = ui_header(display_name, UI_HEADER_SHOW_X_BUTTON);
 		if (ui_header_deleted(header_state))
 		{
 			db_del_feed(db, feed_link);
