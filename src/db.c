@@ -233,7 +233,7 @@ internal inline String
 create_query(String_List tags)
 {
 	String select_feeds = string_literal(
-		"SELECT DISTINCT feeds.* "
+		"SELECT DISTINCT feeds.link, feeds.title "
 		"FROM tags_to_feeds "
 		"JOIN tags ON tags.id == tags_to_feeds.tag "
 		"JOIN feeds ON feeds.id == tags_to_feeds.feed "
@@ -261,6 +261,14 @@ create_query(String_List tags)
 	return query;
 }
 
+enum
+{
+	NAME_COLUMN   = 0,
+	LINK_COLUMN   = 0,
+	TITLE_COLUMN  = 1,
+	UNREAD_COLUMN = 2
+};
+
 b32
 db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, String_List tags)
 {
@@ -274,7 +282,7 @@ db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, Strin
 
 		if (!tags.list_size)
 		{
-			String select_feeds = string_literal("SELECT * FROM feeds;");
+			String select_feeds = string_literal("SELECT link, title FROM feeds;");
 			sqlite3_prepare_v2(db, select_feeds.str, select_feeds.len, &statement, 0);
 		}
 		else
@@ -294,10 +302,10 @@ db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, Strin
 	if (status == SQLITE_ROW)
 	{
 		feed_exists = true;
-		feed_link->str = (char *)sqlite3_column_text(statement, 1);
-		feed_link->len = sqlite3_column_bytes(statement, 1);
-		feed_title->str = (char *)sqlite3_column_text(statement, 2);
-		feed_title->len = sqlite3_column_bytes(statement, 2);
+		feed_link->str = (char *)sqlite3_column_text(statement, LINK_COLUMN);
+		feed_link->len = sqlite3_column_bytes(statement, LINK_COLUMN);
+		feed_title->str = (char *)sqlite3_column_text(statement, TITLE_COLUMN);
+		feed_title->len = sqlite3_column_bytes(statement, TITLE_COLUMN);
 	}
 
 	if (!feed_exists)
@@ -320,7 +328,7 @@ db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 	local_persist sqlite3_stmt *select_statement = 0;
 	if (!select_statement)
 	{
-		String select_feeds = string_literal("SELECT * FROM feeds;");
+		String select_feeds = string_literal("SELECT link, title FROM feeds;");
 		sqlite3_prepare_v2(db, select_feeds.str, select_feeds.len, &select_statement, 0);
 	}
 
@@ -328,10 +336,10 @@ db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 	if (status == SQLITE_ROW)
 	{
 		feed_exists = true;
-		feed_link->str = (char *)sqlite3_column_text(select_statement, 1);
-		feed_link->len = sqlite3_column_bytes(select_statement, 1);
-		feed_title->str = (char *)sqlite3_column_text(select_statement, 2);
-		feed_title->len = sqlite3_column_bytes(select_statement, 2);
+		feed_link->str = (char *)sqlite3_column_text(select_statement, LINK_COLUMN);
+		feed_link->len = sqlite3_column_bytes(select_statement, LINK_COLUMN);
+		feed_title->str = (char *)sqlite3_column_text(select_statement, TITLE_COLUMN);
+		feed_title->len = sqlite3_column_bytes(select_statement, TITLE_COLUMN);
 	}
 
 	if (!feed_exists)
@@ -351,7 +359,7 @@ db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 	local_persist sqlite3_stmt *select_statement = 0;
 	if (!select_statement)
 	{
-		String select_items = string_literal("SELECT * FROM items WHERE feed = ?;");
+		String select_items = string_literal("SELECT link, title, unread FROM items WHERE feed = ?;");
 		sqlite3_prepare_v2(db, select_items.str, select_items.len, &select_statement, 0);
 		u32 feed_id = hash(feed_link);
 		sqlite3_bind_int(select_statement, 1, feed_id);
@@ -361,11 +369,11 @@ db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 	if (status == SQLITE_ROW)
 	{
 		item_exists = true;
-		item->link.str = (char *)sqlite3_column_text(select_statement, 0);
-		item->link.len = sqlite3_column_bytes(select_statement, 0);
-		item->title.str = (char *)sqlite3_column_text(select_statement, 1);
-		item->title.len = sqlite3_column_bytes(select_statement, 1);
-		item->unread = sqlite3_column_int(select_statement, 3);
+		item->link.str = (char *)sqlite3_column_text(select_statement, LINK_COLUMN);
+		item->link.len = sqlite3_column_bytes(select_statement, LINK_COLUMN);
+		item->title.str = (char *)sqlite3_column_text(select_statement, TITLE_COLUMN);
+		item->title.len = sqlite3_column_bytes(select_statement, TITLE_COLUMN);
+		item->unread = sqlite3_column_int(select_statement, UNREAD_COLUMN);
 	}
 
 	if (!item_exists)
@@ -393,8 +401,8 @@ db_iterate_tags(sqlite3 *db, String *tag)
 	if (status == SQLITE_ROW)
 	{
 		tag_exists = true;
-		tag->str = (char *)sqlite3_column_text(select_statement, 0);
-		tag->len = sqlite3_column_bytes(select_statement, 0);
+		tag->str = (char *)sqlite3_column_text(select_statement, NAME_COLUMN);
+		tag->len = sqlite3_column_bytes(select_statement, NAME_COLUMN);
 	}
 
 	if (!tag_exists)
