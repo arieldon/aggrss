@@ -1,12 +1,11 @@
+#include <stdio.h>
+
 #include <sqlite3.h>
 
 #include "base.h"
 #include "db.h"
-#include "err.h"
 #include "rss.h"
 #include "str.h"
-
-// TODO(ariel) Check for errors after SQLite calls.
 
 internal u32
 hash(String s)
@@ -19,6 +18,20 @@ hash(String s)
 	return hash;
 }
 
+internal inline void
+confirm_success(sqlite3 *db, i32 status_code, char *error_message)
+{
+	b32 ok = status_code == SQLITE_OK;
+	b32 row = status_code == SQLITE_ROW;
+	b32 done = status_code == SQLITE_DONE;
+	b32 success = ok | row | done;
+	if (!success)
+	{
+		const char *sqlite_error_message = sqlite3_errmsg(db);
+		fprintf(stderr, "[DB ERROR] %s: %s\n", error_message, sqlite_error_message);
+	}
+}
+
 void
 db_init(sqlite3 **db)
 {
@@ -27,7 +40,8 @@ db_init(sqlite3 **db)
 	i32 error = sqlite3_open("./feeds.db", db);
 	if (error)
 	{
-		err_exit("failed to open feeds file");
+		fprintf(stderr, "[DB ERROR] failed to open database file\n");
+		exit(EXIT_FAILURE);
 	}
 
 	char *errmsg = 0;
@@ -35,7 +49,8 @@ db_init(sqlite3 **db)
 	error = sqlite3_exec(*db, enable_foreign_keys, 0, 0, &errmsg);
 	if (error)
 	{
-		err_exit("[DB ERROR] %s", errmsg);
+		fprintf(stderr, "[DB ERROR] failed to enable foreign keys: %s\n", errmsg);
+		exit(EXIT_FAILURE);
 	}
 
 	char *create_feeds_table =
@@ -47,7 +62,8 @@ db_init(sqlite3 **db)
 	error = sqlite3_exec(*db, create_feeds_table, 0, 0, &errmsg);
 	if (error)
 	{
-		err_exit("[DB ERROR] %s", errmsg);
+		fprintf(stderr, "[DB ERROR] failed to create feeds table: %s\n", errmsg);
+		exit(EXIT_FAILURE);
 	}
 
 	// TODO(ariel) Include date last updated in the table as well? Then sort by
@@ -64,7 +80,8 @@ db_init(sqlite3 **db)
 	error = sqlite3_exec(*db, create_items_table, 0, 0, &errmsg);
 	if (error)
 	{
-		err_exit("[DB ERROR] %s", errmsg);
+		fprintf(stderr, "[DB ERROR] failed to create items table: %s\n", errmsg);
+		exit(EXIT_FAILURE);
 	}
 
 	errmsg = 0;
@@ -76,7 +93,8 @@ db_init(sqlite3 **db)
 	error = sqlite3_exec(*db, create_tags_table, 0, 0, &errmsg);
 	if (error)
 	{
-		err_exit("[DB ERROR] %s", errmsg);
+		fprintf(stderr, "[DB ERROR] failed to create tags table: %s\n", errmsg);
+		exit(EXIT_FAILURE);
 	}
 
 	errmsg = 0;
@@ -91,7 +109,8 @@ db_init(sqlite3 **db)
 	error = sqlite3_exec(*db, create_mapping_table, 0, 0, &errmsg);
 	if (error)
 	{
-		err_exit("[DB ERROR] %s", errmsg);
+		fprintf(stderr, "[DB ERROR] failed to create tags to feeds mapping table: %s\n", errmsg);
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -118,22 +137,25 @@ void
 db_free(sqlite3 *db)
 {
 	i32 status = sqlite3_close(db);
-	assert(status == SQLITE_OK);
+	confirm_success(db, status, "failed to close database");
 }
 
 void
 db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 {
+	u32 feed_id = hash(feed_link);
+
 	sqlite3_stmt *statement = 0;
 	String insert_feed = string_literal(
 		"INSERT INTO feeds VALUES(?, ?, ?) ON CONFLICT(link) DO UPDATE SET title=excluded.title;");
 	sqlite3_prepare_v2(db, insert_feed.str, insert_feed.len, &statement, 0);
-	u32 feed_id = hash(feed_link);
 	sqlite3_bind_int(statement, 1, feed_id);
 	sqlite3_bind_text(statement, 2, feed_link.str, feed_link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 3, feed_title.str, feed_title.len, SQLITE_STATIC);
-	sqlite3_step(statement);
+	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
+
+	confirm_success(db, status, "failed to add feed to database");
 }
 
 void
@@ -165,8 +187,10 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	sqlite3_bind_text(statement, 3, description.str, description.len, SQLITE_STATIC);
 	u32 feed_id = hash(feed_link);
 	sqlite3_bind_int(statement, 4, feed_id);
-	sqlite3_step(statement);
+	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
+
+	confirm_success(db, status, "failed to add item to database");
 }
 
 void
@@ -180,15 +204,17 @@ db_tag_feed(sqlite3 *db, String tag, String feed_link)
 	sqlite3_prepare_v2(db, insert_tag.str, insert_tag.len, &statement, 0);
 	sqlite3_bind_int(statement, 1, tag_id);
 	sqlite3_bind_text(statement, 2, tag.str, tag.len, SQLITE_STATIC);
-	sqlite3_step(statement);
+	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
+	confirm_success(db, status, "failed to add tag to database");
 
 	String tag_feed = string_literal("INSERT INTO tags_to_feeds VALUES(?, ?);");
 	sqlite3_prepare_v2(db, tag_feed.str, tag_feed.len, &statement, 0);
 	sqlite3_bind_int(statement, 1, tag_id);
 	sqlite3_bind_int(statement, 2, feed_id);
-	sqlite3_step(statement);
+	status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
+	confirm_success(db, status, "failed to map tag to feed in database");
 }
 
 void
@@ -199,8 +225,9 @@ db_del_feed(sqlite3 *db, String feed_link)
 	String delete_feed = string_literal("DELETE FROM feeds WHERE id = ?");
 	sqlite3_prepare_v2(db, delete_feed.str, delete_feed.len, &statement, 0);
 	sqlite3_bind_int(statement, 1, feed_id);
-	sqlite3_step(statement);
+	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
+	confirm_success(db, status, "failed to delete feed from database");
 }
 
 void
@@ -210,8 +237,9 @@ db_mark_item_read(sqlite3 *db, String item_link)
 	String update_item = string_literal("UPDATE items SET unread = 0 WHERE link = ?");
 	sqlite3_prepare_v2(db, update_item.str, update_item.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, item_link.str, item_link.len, SQLITE_STATIC);
-	sqlite3_step(statement);
+	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
+	confirm_success(db, status, "failed to mark item as read in database");
 }
 
 void
@@ -221,8 +249,9 @@ db_mark_all_read(sqlite3 *db, String feed_link)
 	String update_items = string_literal("UPDATE items SET unread = 0 WHERE feed = ?");
 	sqlite3_prepare_v2(db, update_items.str, update_items.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, feed_link.str, feed_link.len, SQLITE_STATIC);
-	sqlite3_step(statement);
+	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
+	confirm_success(db, status, "failed to mark all items of feed as read in database");
 }
 
 internal inline String
