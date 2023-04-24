@@ -191,17 +191,40 @@ add_work_entry(String url)
 	sem_post(&work_queue.semaphore);
 }
 
+// NOTE(ariel) Most if not all URLs in the database are less than 64 characters
+// in length. Default to the short statically allocated buffer to avoid dynamic
+// allocations if possible, prioritizing the common case as a result.
 global String feed_to_tag;
+global char short_feed_to_tag_buffer[64];
+
+internal inline void
+free_feed_to_tag(void)
+{
+	if (feed_to_tag.str != short_feed_to_tag_buffer)
+	{
+		free(feed_to_tag.str);
+	}
+	feed_to_tag.str = 0;
+	feed_to_tag.len = 0;
+}
 
 internal void
 set_feed_to_tag(String feed_link)
 {
 	if (feed_to_tag.str)
 	{
-		free(feed_to_tag.str);
+		free_feed_to_tag();
 	}
+
 	feed_to_tag.len = feed_link.len;
-	feed_to_tag.str = calloc(feed_to_tag.len, sizeof(char));
+	if (feed_to_tag.len <= (i32)sizeof(short_feed_to_tag_buffer))
+	{
+		feed_to_tag.str = short_feed_to_tag_buffer;
+	}
+	else
+	{
+		feed_to_tag.str = calloc(feed_to_tag.len, sizeof(char));
+	}
 	memcpy(feed_to_tag.str, feed_link.str, feed_link.len);
 }
 
@@ -221,13 +244,11 @@ tag_feed(void)
 		case UI_PROMPT_SUBMIT:
 		{
 			db_tag_feed(db, tag_name.data, feed_to_tag);
-			free(feed_to_tag.str);
-			MEM_ZERO_STRUCT(&feed_to_tag);
+			free_feed_to_tag();
 		} break;
 		case UI_PROMPT_CANCEL:
 		{
-			free(feed_to_tag.str);
-			MEM_ZERO_STRUCT(&feed_to_tag);
+			free_feed_to_tag();
 		} break;
 	}
 }
