@@ -196,25 +196,28 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 void
 db_tag_feed(sqlite3 *db, String tag, String feed_link)
 {
-	u32 tag_id = hash(tag);
-	u32 feed_id = hash(feed_link);
+	if (tag.len > 0)
+	{
+		u32 tag_id = hash(tag);
+		u32 feed_id = hash(feed_link);
 
-	sqlite3_stmt *statement = 0;
-	String insert_tag = string_literal("INSERT OR IGNORE INTO tags VALUES(?, ?);");
-	sqlite3_prepare_v2(db, insert_tag.str, insert_tag.len, &statement, 0);
-	sqlite3_bind_int(statement, 1, tag_id);
-	sqlite3_bind_text(statement, 2, tag.str, tag.len, SQLITE_STATIC);
-	i32 status = sqlite3_step(statement);
-	sqlite3_finalize(statement);
-	confirm_success(db, status, "failed to add tag to database");
+		sqlite3_stmt *statement = 0;
+		String insert_tag = string_literal("INSERT OR IGNORE INTO tags VALUES(?, ?);");
+		sqlite3_prepare_v2(db, insert_tag.str, insert_tag.len, &statement, 0);
+		sqlite3_bind_int(statement, 1, tag_id);
+		sqlite3_bind_text(statement, 2, tag.str, tag.len, SQLITE_STATIC);
+		i32 status = sqlite3_step(statement);
+		sqlite3_finalize(statement);
+		confirm_success(db, status, "failed to add tag to database");
 
-	String tag_feed = string_literal("INSERT INTO tags_to_feeds VALUES(?, ?);");
-	sqlite3_prepare_v2(db, tag_feed.str, tag_feed.len, &statement, 0);
-	sqlite3_bind_int(statement, 1, tag_id);
-	sqlite3_bind_int(statement, 2, feed_id);
-	status = sqlite3_step(statement);
-	sqlite3_finalize(statement);
-	confirm_success(db, status, "failed to map tag to feed in database");
+		String tag_feed = string_literal("INSERT INTO tags_to_feeds VALUES(?, ?);");
+		sqlite3_prepare_v2(db, tag_feed.str, tag_feed.len, &statement, 0);
+		sqlite3_bind_int(statement, 1, tag_id);
+		sqlite3_bind_int(statement, 2, feed_id);
+		status = sqlite3_step(statement);
+		sqlite3_finalize(statement);
+		confirm_success(db, status, "failed to map tag to feed in database");
+	}
 }
 
 void
