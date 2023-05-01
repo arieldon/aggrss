@@ -116,15 +116,18 @@ parse_feed(Worker *worker, String url)
 		// NOTE(ariel) Feeds don't necessarily need to be filled; that is, empty
 		// feeds are valid.
 		feed->first_item = find_item_node(&worker->scratch_arena, feed->root);
-	}
+		db_add_feed(db, url, feed->feed_title->content);
+		for (RSS_Tree_Node *item = feed->first_item; item; item = item->next_sibling)
+		{
+			db_add_item(db, url, item);
+		}
 
-	db_add_feed(db, url, feed->feed_title->content);
-	for (RSS_Tree_Node *item = feed->first_item; item; item = item->next_sibling)
+		fprintf(stderr, "successfully parsed %.*s\n", url.len, url.str);
+	}
+	else
 	{
-		db_add_item(db, url, item);
+		fprintf(stderr, "failed to parse %.*s\n", url.len, url.str);
 	}
-
-	fprintf(stderr, "successfully parsed %.*s\n", url.len, url.str);
 }
 
 internal void *
