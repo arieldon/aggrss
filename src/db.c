@@ -215,6 +215,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 
 	String description = {0};
 	get_content_from_node(item_node, string_literal("description"), description, &description);
+	get_content_from_node(item_node, string_literal("summary"), description, &description);
 
 	String date = {0};
 	get_content_from_node(item_node, string_literal("pubDate"), date, &date);
