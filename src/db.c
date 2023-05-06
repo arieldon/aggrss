@@ -72,10 +72,10 @@ db_init(sqlite3 **db)
 		"CREATE TABLE IF NOT EXISTS "
 			"items("
 				"link TEXT PRIMARY KEY,"
-				"title TEXT,"
+				"title TEXT NOT NULL,"
 				"description TEXT,"
 				"date_last_modified INTEGER NOT NULL DEFAULT 0,"
-				"unread BOOLEAN,"
+				"unread BOOLEAN NOT NULL DEFAULT 0,"
 				"feed REFERENCES feeds(id) ON DELETE CASCADE);";
 	error = sqlite3_exec(*db, create_items_table, 0, 0, &errmsg);
 	if (error)
