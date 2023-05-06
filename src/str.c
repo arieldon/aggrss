@@ -132,7 +132,7 @@ string_find_substr(String haystack, String needle)
 i32
 string_find_ch(String s, char c)
 {
-	for (i32 i = 0; i < s.len; ++i)\
+	for (i32 i = 0; i < s.len; ++i)
 	{
 		if (s.str[i] == c)
 		{
