@@ -172,37 +172,51 @@ get_content_from_node(RSS_Tree_Node *item_node, String term, String default_valu
 	}
 }
 
+typedef struct Timestamp Timestamp;
+struct Timestamp
+{
+	struct tm tm_format;
+	u32 unix_format;
+};
+
+internal inline void
+parse_date(char *date, char *format, Timestamp *timestamp)
+{
+	if (!timestamp->unix_format && strptime(date, format, &timestamp->tm_format))
+	{
+		timestamp->unix_format = mktime(&timestamp->tm_format);
+	}
+}
+
 internal u32
 get_unix_timestamp(String date)
 {
-	struct tm tm_date = {0};
-	u32 unix_timestamp = 0;
+	Timestamp timestamp = {0};
 
 	char terminated_date[32] = {0};
-	i32 max_date_len = sizeof(terminated_date) - 1;
-	if (date.len < max_date_len)
+	i32 max_date_len = sizeof(terminated_date);
+	if (date.len > 0 && date.len < max_date_len)
 	{
 		memcpy(terminated_date, date.str, date.len);
 
-		// NOTE(ariel) Parse date from an RSS feed.
-		if (!strptime(terminated_date, "%a, %d %b %Y %H:%M:%S %Z", &tm_date))
+		// NOTE(ariel) Handle dates that specify fractional seconds.
+		i32 dot_index = string_find_ch(date, '.');
+		if (dot_index > 0 && dot_index < 32)
 		{
-			// NOTE(ariel) Parse date from an Atom feed.
-			if (!strptime(terminated_date, "%Y-%m-%dT%H:%M:%S%z", &tm_date))
-			{
-				fprintf(stderr, "[DB ERROR] failed to parse date format %.*s\n", date.len, date.str);
-				MEM_ZERO_STRUCT(&tm_date);
-			}
+			terminated_date[dot_index] = 0;
+		}
+
+		parse_date(terminated_date, "%a, %d %b %Y %H:%M:%S %Z", &timestamp);
+		parse_date(terminated_date, "%Y-%m-%dT%H:%M:%S%z", &timestamp);
+		parse_date(terminated_date, "%Y-%m-%dT%H:%M:%S", &timestamp);
+
+		if (!timestamp.unix_format)
+		{
+			fprintf(stderr, "[DB ERROR] failed to parse date %s\n", terminated_date);
 		}
 	}
-	else
-	{
-		fprintf(stderr, "[DB ERROR] date %.*s longer than anticipated 31 characters\n",
-			date.len, date.str);
-	}
 
-	unix_timestamp = mktime(&tm_date);
-	return unix_timestamp;
+	return timestamp.unix_format;
 }
 
 void
