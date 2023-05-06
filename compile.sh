@@ -4,7 +4,7 @@ set -eux
 
 BIN="rss"
 
-CFLAGS="-std=c11 -D_DEFAULT_SOURCE"
+CFLAGS="-std=c11 -D_XOPEN_SOURCE -D_DEFAULT_SOURCE"
 WARNINGS="-Wall -Wextra -Wpedantic"
 LIBRARIES="-pthread -lssl -lcrypto"
 LIBRARIES="$LIBRARIES `pkg-config --cflags --libs sqlite3`"

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 
 #include <sqlite3.h>
 
@@ -66,8 +67,6 @@ db_init(sqlite3 **db)
 		exit(EXIT_FAILURE);
 	}
 
-	// TODO(ariel) Include date last updated in the table as well? Then sort by
-	// date last updated.
 	errmsg = 0;
 	char *create_items_table =
 		"CREATE TABLE IF NOT EXISTS "
@@ -75,6 +74,7 @@ db_init(sqlite3 **db)
 				"link TEXT PRIMARY KEY,"
 				"title TEXT,"
 				"description TEXT,"
+				"date_last_modified INTEGER NOT NULL DEFAULT 0,"
 				"unread BOOLEAN,"
 				"feed REFERENCES feeds(id) ON DELETE CASCADE);";
 	error = sqlite3_exec(*db, create_items_table, 0, 0, &errmsg);
@@ -158,35 +158,74 @@ db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 	confirm_success(db, status, "failed to add feed to database");
 }
 
+internal inline void
+get_content_from_node(RSS_Tree_Node *item_node, String term, String default_value, String *value)
+{
+	RSS_Tree_Node *node = find_item_child_node(item_node, term);
+	if (node)
+	{
+		*value = node->content;
+	}
+	else
+	{
+		*value = default_value;
+	}
+}
+
+internal u32
+get_unix_timestamp(String date)
+{
+	struct tm tm_date = {0};
+	u32 unix_timestamp = 0;
+
+	char terminated_date[32] = {0};
+	i32 max_date_len = sizeof(terminated_date) - 1;
+	if (date.len < max_date_len)
+	{
+		memcpy(terminated_date, date.str, date.len);
+		if (!strptime(terminated_date, "%a, %d %b %Y %H:%M:%S %Z", &tm_date))
+		{
+			fprintf(stderr, "[DB ERROR] failed to parse date format %.*s\n", date.len, date.str);
+			MEM_ZERO_STRUCT(&tm_date);
+		}
+	}
+	else
+	{
+		fprintf(stderr, "[DB ERROR] date %.*s longer than anticipated 31 characters\n",
+			date.len, date.str);
+	}
+
+	unix_timestamp = mktime(&tm_date);
+	return unix_timestamp;
+}
+
 void
 db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 {
 	String link = find_link(item_node);
 
 	String title = {0};
-	RSS_Tree_Node *title_node = find_item_title(item_node);
-	if (title_node)
-	{
-		title = title_node->content;
-	}
+	get_content_from_node(item_node, string_literal("title"), title, &title);
 
 	String description = {0};
-	RSS_Tree_Node *description_node = find_item_child_node(item_node, string_literal("description"));
-	if (description_node)
-	{
-		description = description_node->content;
-	}
+	get_content_from_node(item_node, string_literal("description"), description, &description);
+
+	String date = {0};
+	get_content_from_node(item_node, string_literal("pubDate"), date, &date);
+	get_content_from_node(item_node, string_literal("updated"), date, &date);
+	u32 unix_timestamp = get_unix_timestamp(date);
 
 	// NOTE(ariel) 1 in the VALUES(...) expression below indicates the item
 	// remains unread.
 	sqlite3_stmt *statement = 0;
-	String insert_items = string_literal("INSERT OR IGNORE INTO items VALUES(?, ?, ?, 1, ?);");
+	String insert_items = string_literal("INSERT OR IGNORE INTO items VALUES(?, ?, ?, ?, 1, ?);");
 	sqlite3_prepare_v2(db, insert_items.str, insert_items.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, link.str, link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, title.str, title.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 3, description.str, description.len, SQLITE_STATIC);
+	sqlite3_bind_int(statement, 4, unix_timestamp);
 	u32 feed_id = hash(feed_link);
-	sqlite3_bind_int(statement, 4, feed_id);
+	sqlite3_bind_int(statement, 5, feed_id);
 	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 
@@ -383,7 +422,11 @@ db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 	local_persist sqlite3_stmt *select_statement = 0;
 	if (!select_statement)
 	{
-		String select_items = string_literal("SELECT link, title, unread FROM items WHERE feed = ?;");
+		String select_items = string_literal(
+			"SELECT link, title, unread "
+			"FROM items "
+			"WHERE feed = ? "
+			"ORDER BY datetime(date_last_modified, 'unixepoch') DESC;");
 		sqlite3_prepare_v2(db, select_items.str, select_items.len, &select_statement, 0);
 		u32 feed_id = hash(feed_link);
 		sqlite3_bind_int(select_statement, 1, feed_id);
