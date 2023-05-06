@@ -16,7 +16,7 @@ DEBUG="-DDEBUG -ggdb -O0"
 RELEASE="-O2 -march=native"
 if [ $# -ge 1 ] && [ "$1" = "--debug" ]; then
 	FLAGS="$FLAGS $DEBUG"
-	shift 1;
+	shift 1
 else
 	FLAGS="$FLAGS $RELEASE"
 fi
