@@ -183,10 +183,16 @@ get_unix_timestamp(String date)
 	if (date.len < max_date_len)
 	{
 		memcpy(terminated_date, date.str, date.len);
+
+		// NOTE(ariel) Parse date from an RSS feed.
 		if (!strptime(terminated_date, "%a, %d %b %Y %H:%M:%S %Z", &tm_date))
 		{
-			fprintf(stderr, "[DB ERROR] failed to parse date format %.*s\n", date.len, date.str);
-			MEM_ZERO_STRUCT(&tm_date);
+			// NOTE(ariel) Parse date from an Atom feed.
+			if (!strptime(terminated_date, "%Y-%m-%dT%H:%M:%S%z", &tm_date))
+			{
+				fprintf(stderr, "[DB ERROR] failed to parse date format %.*s\n", date.len, date.str);
+				MEM_ZERO_STRUCT(&tm_date);
+			}
 		}
 	}
 	else
