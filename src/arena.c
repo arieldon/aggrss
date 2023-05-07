@@ -4,7 +4,6 @@
 
 #include "arena.h"
 #include "base.h"
-#include "err.h"
 
 enum
 {
