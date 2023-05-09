@@ -73,7 +73,6 @@ db_init(sqlite3 **db)
 			"items("
 				"link TEXT PRIMARY KEY,"
 				"title TEXT NOT NULL,"
-				"description TEXT,"
 				"date_last_modified INTEGER NOT NULL DEFAULT 0,"
 				"unread BOOLEAN NOT NULL DEFAULT 0,"
 				"feed REFERENCES feeds(id) ON DELETE CASCADE);";
@@ -227,10 +226,6 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	String title = {0};
 	get_content_from_node(item_node, string_literal("title"), title, &title);
 
-	String description = {0};
-	get_content_from_node(item_node, string_literal("description"), description, &description);
-	get_content_from_node(item_node, string_literal("summary"), description, &description);
-
 	String date = {0};
 	get_content_from_node(item_node, string_literal("pubDate"), date, &date);
 	get_content_from_node(item_node, string_literal("updated"), date, &date);
@@ -239,14 +234,13 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	// NOTE(ariel) 1 in the VALUES(...) expression below indicates the item
 	// remains unread.
 	sqlite3_stmt *statement = 0;
-	String insert_items = string_literal("INSERT OR IGNORE INTO items VALUES(?, ?, ?, ?, 1, ?);");
+	String insert_items = string_literal("INSERT OR IGNORE INTO items VALUES(?, ?, ?, 1, ?);");
 	sqlite3_prepare_v2(db, insert_items.str, insert_items.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, link.str, link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, title.str, title.len, SQLITE_STATIC);
-	sqlite3_bind_text(statement, 3, description.str, description.len, SQLITE_STATIC);
-	sqlite3_bind_int(statement, 4, unix_timestamp);
+	sqlite3_bind_int(statement, 3, unix_timestamp);
 	u32 feed_id = hash(feed_link);
-	sqlite3_bind_int(statement, 5, feed_id);
+	sqlite3_bind_int(statement, 4, feed_id);
 	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 
