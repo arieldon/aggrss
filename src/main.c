@@ -116,7 +116,7 @@ parse_feed(Worker *worker, String url)
 		// NOTE(ariel) Feeds don't necessarily need to be filled; that is, empty
 		// feeds are valid.
 		feed->first_item = find_item_node(&worker->scratch_arena, feed->root);
-		db_add_feed(db, url, feed->feed_title->content);
+		db_add_or_update_feed(db, url, feed->feed_title->content);
 		for (RSS_Tree_Node *item = feed->first_item; item; item = item->next_sibling)
 		{
 			db_add_item(db, url, item);
