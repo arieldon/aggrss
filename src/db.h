@@ -21,6 +21,7 @@ void db_free(sqlite3 *db);
 i32 db_count_rows(sqlite3 *db);
 
 void db_add_feed(sqlite3 *db, String feed_link, String feed_title);
+void db_add_or_update_feed(sqlite3 *db, String feed_link, String feed_title);
 void db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node);
 void db_tag_feed(sqlite3 *db, String tag, String feed_title);
 

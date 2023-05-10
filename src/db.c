@@ -145,6 +145,23 @@ db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 	u32 feed_id = hash(feed_link);
 
 	sqlite3_stmt *statement = 0;
+	String insert_feed = string_literal("INSERT INTO feeds VALUES(?, ?, ?);");
+	sqlite3_prepare_v2(db, insert_feed.str, insert_feed.len, &statement, 0);
+	sqlite3_bind_int(statement, 1, feed_id);
+	sqlite3_bind_text(statement, 2, feed_link.str, feed_link.len, SQLITE_STATIC);
+	sqlite3_bind_text(statement, 3, feed_title.str, feed_title.len, SQLITE_STATIC);
+	i32 status = sqlite3_step(statement);
+	sqlite3_finalize(statement);
+
+	confirm_success(db, status, "failed to add feed to database");
+}
+
+void
+db_add_or_update_feed(sqlite3 *db, String feed_link, String feed_title)
+{
+	u32 feed_id = hash(feed_link);
+
+	sqlite3_stmt *statement = 0;
 	String insert_feed = string_literal(
 		"INSERT INTO feeds VALUES(?, ?, ?) ON CONFLICT(link) DO UPDATE SET title=excluded.title;");
 	sqlite3_prepare_v2(db, insert_feed.str, insert_feed.len, &statement, 0);
@@ -154,7 +171,7 @@ db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 
-	confirm_success(db, status, "failed to add feed to database");
+	confirm_success(db, status, "failed to add or update feed in database");
 }
 
 internal inline void
