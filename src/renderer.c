@@ -378,27 +378,21 @@ push_quad(Quad dst, Quad src, Color color)
 		f32 w = src.w / (f32)atlas.width;
 		f32 h = src.h / (f32)atlas.height;
 
-		// TODO(ariel) Reformat these.
-		vertices[vertices_index + 0] = (Vertex){
-			.position = { dst.x, dst.y },
-			.color = color,
-			.uv = { x, y },
-		};
-		vertices[vertices_index + 1] = (Vertex){
-			.position = { dst.x + dst.w, dst.y },
-			.color = color,
-			.uv = { x + w, y },
-		};
-		vertices[vertices_index + 2] = (Vertex){
-			.position = { dst.x, dst.y + dst.h },
-			.color = color,
-			.uv = { x, y + h },
-		};
-		vertices[vertices_index + 3] = (Vertex){
-			.position = { dst.x + dst.w, dst.y + dst.h },
-			.color = color,
-			.uv = { x + w, y + h },
-		};
+		vertices[vertices_index + 0].position = (Vector2f){ dst.x, dst.y };
+		vertices[vertices_index + 0].color = color;
+		vertices[vertices_index + 0].uv = (Vector2f){ x, y };
+
+		vertices[vertices_index + 1].position = (Vector2f){ dst.x + dst.w, dst.y };
+		vertices[vertices_index + 1].color = color;
+		vertices[vertices_index + 1].uv = (Vector2f){ x + w, y };
+
+		vertices[vertices_index + 2].position = (Vector2f){ dst.x, dst.y + dst.h };
+		vertices[vertices_index + 2].color = color;
+		vertices[vertices_index + 2].uv = (Vector2f){ x, y + h };
+
+		vertices[vertices_index + 3].position = (Vector2f){ dst.x + dst.w, dst.y + dst.h };
+		vertices[vertices_index + 3].color = color;
+		vertices[vertices_index + 3].uv = (Vector2f){ x + w, y + h };
 	}
 
 	{
@@ -521,17 +515,17 @@ r_draw_icon(UI_Icon icon, Quad rect, Color color)
 	assert(icon < UI_ICON_MAX);
 	Quad source =
 	{
-					.x = +(f32)atlas.icon_glyphs[icon].texture_offset,
-					.y = +(f32)atlas.icon_glyphs[icon].height,
-					.w = +(f32)atlas.icon_glyphs[icon].width,
-					.h = -(f32)atlas.icon_glyphs[icon].height,
+		.x = +(f32)atlas.icon_glyphs[icon].texture_offset,
+		.y = +(f32)atlas.icon_glyphs[icon].height,
+		.w = +(f32)atlas.icon_glyphs[icon].width,
+		.h = -(f32)atlas.icon_glyphs[icon].height,
 	};
 	Quad destination =
 	{
-					.x = rect.x + (rect.w - source.w) / 2,
-					.y = rect.y + (rect.h - source.h) / 2,
-					.w = source.w,
-					.h = source.h,
+		.x = rect.x + (rect.w - source.w) / 2,
+		.y = rect.y + (rect.h - source.h) / 2,
+		.w = source.w,
+		.h = source.h,
 	};
 	push_quad(destination, source, color);
 }
