@@ -430,7 +430,6 @@ struct UTF8_Result
 internal inline UTF8_Result
 decode_utf8_code_point(String s, i32 offset)
 {
-	// FIXME(ariel) Check bounds.
 	UTF8_Result result =
 	{
 		.code_point = -1,
@@ -439,32 +438,44 @@ decode_utf8_code_point(String s, i32 offset)
 
 	if ((unsigned char)s.str[offset] < 0x80)
 	{
-		result.code_point = s.str[offset];
-		result.offset_increment = 1;
+		if (s.len - offset >= 1)
+		{
+			result.code_point = s.str[offset];
+			result.offset_increment = 1;
+		}
 	}
 	else if ((s.str[offset] & 0xe0) == 0xc0)
 	{
-		result.code_point =
-			((i32)(s.str[offset + 0] & 0x1f) << 6) |
-			((i32)(s.str[offset + 1] & 0x3f) << 0);
-		result.offset_increment = 2;
+		if (s.len - offset >= 2)
+		{
+			result.code_point =
+				((i32)(s.str[offset + 0] & 0x1f) << 6) |
+				((i32)(s.str[offset + 1] & 0x3f) << 0);
+			result.offset_increment = 2;
+		}
 	}
 	else if ((s.str[offset] & 0xf0) == 0xe0)
 	{
-		result.code_point =
-			((i32)(s.str[offset + 0] & 0x0f) << 12) |
-			((i32)(s.str[offset + 1] & 0x3f) <<  6) |
-			((i32)(s.str[offset + 2] & 0x3f) <<  0);
-		result.offset_increment = 3;
+		if (s.len - offset >= 3)
+		{
+			result.code_point =
+				((i32)(s.str[offset + 0] & 0x0f) << 12) |
+				((i32)(s.str[offset + 1] & 0x3f) <<  6) |
+				((i32)(s.str[offset + 2] & 0x3f) <<  0);
+			result.offset_increment = 3;
+		}
 	}
 	else if ((s.str[offset] & 0xf8) == 0xf0 && (unsigned char)s.str[offset] <= 0xf4)
 	{
-		result.code_point =
-			((i32)(s.str[offset + 0] & 0x07) << 18) |
-			((i32)(s.str[offset + 1] & 0x3f) << 12) |
-			((i32)(s.str[offset + 2] & 0x3f) <<  6) |
-			((i32)(s.str[offset + 3] & 0x3f) <<  0);
-		result.offset_increment = 4;
+		if (s.len - offset >= 4)
+		{
+			result.code_point =
+				((i32)(s.str[offset + 0] & 0x07) << 18) |
+				((i32)(s.str[offset + 1] & 0x3f) << 12) |
+				((i32)(s.str[offset + 2] & 0x3f) <<  6) |
+				((i32)(s.str[offset + 3] & 0x3f) <<  0);
+			result.offset_increment = 4;
+		}
 	}
 
 	if (result.code_point >= 0xd800 && result.code_point <= 0xdfff)
