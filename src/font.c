@@ -303,15 +303,12 @@ bake_font(Arena *arena)
 	}
 
 	{
-		atlas.min_glyph_index = characters.min_glyph_index;
-		atlas.max_glyph_index = characters.max_glyph_index;
-		atlas.n_character_glyphs = atlas.max_glyph_index - atlas.min_glyph_index + 1;
+		atlas.n_character_glyphs = characters.max_glyph_index - characters.min_glyph_index + 1;
 		atlas.character_glyphs = arena_alloc(arena, sizeof(Glyph) * atlas.n_character_glyphs);
 		for (First_Stage_Glyph *glyph = characters.glyphs.first; glyph; glyph = glyph->next)
 		{
 			u32 adjusted_glyph_index = glyph->index - characters.min_glyph_index;
 
-			// TODO(ariel) Match fields by name in the different struct types?
 			atlas.character_glyphs[adjusted_glyph_index].top = glyph->y_offset;
 			atlas.character_glyphs[adjusted_glyph_index].width = glyph->width;
 			atlas.character_glyphs[adjusted_glyph_index].height = glyph->height;

@@ -45,8 +45,6 @@ struct Font_Atlas
 
 	u8 blank[BLANK_BITMAP_WIDTH * BLANK_BITMAP_HEIGHT];
 
-	u32 min_glyph_index;
-	u32 max_glyph_index;
 	u32 n_character_glyphs;
 	Glyph *character_glyphs;
 	Code_Point_Glyph_Index_List *code_points;
