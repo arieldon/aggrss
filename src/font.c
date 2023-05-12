@@ -8,10 +8,34 @@
 #include "base.h"
 #include "font.h"
 
-// TODO(ariel) I want a table that maps a code point to the position and
-// dimension of its corresponding in the texture. I think I can reduce/delete a
-// lot of this code as a result.
-enum { N_CODE_POINT_SLOTS = 128 };
+typedef struct First_Stage_Glyph First_Stage_Glyph;
+struct First_Stage_Glyph
+{
+	First_Stage_Glyph *next;
+	u8 *bitmap;
+	u32 index;
+	u32 width;
+	u32 height;
+	u32 x_advance;
+	i32 x_offset;
+	i32 y_offset;
+};
+
+typedef struct First_Stage_Glyph_List First_Stage_Glyph_List;
+struct First_Stage_Glyph_List
+{
+	First_Stage_Glyph *first;
+	First_Stage_Glyph *last;
+};
+
+typedef struct Font_Data Font_Data;
+struct Font_Data
+{
+	u32 min_glyph_index;
+	u32 max_glyph_index;
+	Code_Point_Glyph_Index_List code_points;
+	First_Stage_Glyph_List glyphs;
+};
 
 internal String
 load_file(Arena *arena, FILE *file)
@@ -34,9 +58,9 @@ load_file(Arena *arena, FILE *file)
 }
 
 // TODO(ariel) Use a list of errors as strings instead of printing directly to
-// stderr and (intentionally) crashing.
-Font_Data
-parse_font_file(Arena *arena)
+// stderr and (intentionally) crashing?
+internal Font_Data
+parse_font_file(Arena *arena, char *font_file_path)
 {
 	Font_Data result = {0};
 
@@ -57,91 +81,58 @@ parse_font_file(Arena *arena)
 	}
 #endif
 
-	// NOTE(ariel) Load font face.
-	FT_Face font_face = {0};
-	// FT_Face icons_face = {0};
+	FILE *font_file = fopen(font_file_path, "rb");
+	String font_data = load_file(arena, font_file);
+
+	FT_Face face = {0};
+	FT_Open_Args face_args =
 	{
-		const char *font_file_path = "./assets/RobotoMono-Medium.ttf";
-		// const char *icons_file_path = "./assets/icons.ttf";
-
-		FILE *font_file = fopen(font_file_path, "rb");
-		// FILE *icons_file = fopen(icons_file_path, "rb");
-
-		String font_data = load_file(arena, font_file);
-		// String icons_data = load_file(arena, icons_file);
-
-		FT_Open_Args face_args =
-		{
-			.flags = FT_OPEN_MEMORY,
-			.memory_base = (const FT_Byte *)font_data.str,
-			.memory_size = font_data.len,
-		};
-		// FT_Open_Args icons_args =
-		// {
-		// 	.flags = FT_OPEN_MEMORY,
-		// 	.memory_base = (const FT_Byte *)icons_data.str,
-		// 	.memory_size = icons_data.len,
-		// };
-
-		// TODO(ariel) Output error messages from FreeType if error occurs.
-		if (FT_Open_Face(library, &face_args, 0, &font_face))
-		{
-			fprintf(stderr, "error: failed to initialize icons face %s\n", font_file_path);
-			exit(EXIT_FAILURE);
-		}
-		// if (FT_Open_Face(library, &icons_args, 0, &icons_face))
-		// {
-		// 	fprintf(stderr, "ERROR: failed to initialize icons face %s\n", icons_file_path);
-		// 	exit(EXIT_FAILURE);
-		// }
+		.flags = FT_OPEN_MEMORY,
+		.memory_base = (const FT_Byte *)font_data.str,
+		.memory_size = font_data.len,
+	};
+	if (FT_Open_Face(library, &face_args, 0, &face))
+	{
+		fprintf(stderr, "error: failed to initialize icons face %s\n", font_file_path);
+		exit(EXIT_FAILURE);
+	}
+	if (FT_Set_Pixel_Sizes(face, 0, FONT_SIZE))
+	{
+		fprintf(stderr, "error: failed to set font size for %s\n\n", font_file_path);
+		exit(EXIT_FAILURE);
 	}
 
-	// NOTE(ariel) Set size of font.
-	{
-		if (FT_Set_Pixel_Sizes(font_face, 0, FONT_SIZE))
-		{
-			fprintf(stderr, "error: failed to set font size\n");
-			exit(EXIT_FAILURE);
-		}
-		// if (FT_Set_Pixel_Sizes(icons_face, 0, FONT_SIZE))
-		// {
-		// 	fprintf(stderr, "ERROR: failed to set size of %s\n", icons_file_path);
-		// 	exit(EXIT_FAILURE);
-		// }
-	}
-
-	// TODO(ariel) Comprehend the icons too.
 	// NOTE(ariel) Create a list that maps the code point of each character and
 	// the index of its corresponding glyph in the font.
-	Code_Point_Glyph_Index_List pairs = {0};
+	Code_Point_Glyph_Index_List code_points = {0};
 	u32 min_glyph_index = UINT32_MAX;
 	u32 max_glyph_index = 0;
 	{
 		FT_UInt glyph_index = 0;
-		FT_ULong char_code = FT_Get_First_Char(font_face, &glyph_index);
+		FT_ULong char_code = FT_Get_First_Char(face, &glyph_index);
 		do
 		{
 			Code_Point_Glyph_Index_Pair *pair = arena_alloc(arena, sizeof(Code_Point_Glyph_Index_Pair));
 			pair->code_point = char_code;
 			pair->glyph_index = glyph_index;
 
-			if (!pairs.first)
+			if (!code_points.first)
 			{
-				pairs.first = pair;
+				code_points.first = pair;
 			}
-			else if (!pairs.last)
+			else if (!code_points.last)
 			{
-				pairs.first->next = pairs.last = pair;
+				code_points.first->next = code_points.last = pair;
 			}
 			else
 			{
-				pairs.last = pairs.last->next = pair;
+				code_points.last = code_points.last->next = pair;
 			}
 
 			min_glyph_index = MIN(min_glyph_index, glyph_index);
 			max_glyph_index = MAX(max_glyph_index, glyph_index);
 
-			char_code = FT_Get_Next_Char(font_face, char_code, &glyph_index);
+			char_code = FT_Get_Next_Char(face, char_code, &glyph_index);
 		} while (glyph_index);
 	}
 
@@ -151,14 +142,14 @@ parse_font_file(Arena *arena)
 		FT_Error error = 0;
 		for (u32 glyph_index = min_glyph_index; glyph_index <= max_glyph_index; ++glyph_index)
 		{
-			error = FT_Load_Glyph(font_face, glyph_index, FT_LOAD_DEFAULT);
+			error = FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT);
 			if (error)
 			{
 				fprintf(stderr, "error: failed to load glyph %u\n", glyph_index);
 				continue;
 			}
 
-			error = FT_Render_Glyph(font_face->glyph, FT_RENDER_MODE_NORMAL);
+			error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
 			if (error)
 			{
 				fprintf(stderr, "error: failed to render glyph %u\n", glyph_index);
@@ -166,7 +157,7 @@ parse_font_file(Arena *arena)
 			}
 
 			u8 *bitmap_clone = 0;
-			FT_Bitmap *bitmap = &font_face->glyph->bitmap;
+			FT_Bitmap *bitmap = &face->glyph->bitmap;
 			if (bitmap->width && bitmap->rows)
 			{
 				if (bitmap->pixel_mode != FT_PIXEL_MODE_GRAY)
@@ -214,9 +205,9 @@ parse_font_file(Arena *arena)
 				glyph->index = glyph_index;
 				glyph->width = bitmap->width;
 				glyph->height = bitmap->rows;
-				glyph->x_advance = font_face->glyph->advance.x >> 6;
-				glyph->x_offset = font_face->glyph->bitmap_left;
-				glyph->y_offset = font_face->glyph->bitmap_top;
+				glyph->x_advance = face->glyph->advance.x >> 6;
+				glyph->x_offset = face->glyph->bitmap_left;
+				glyph->y_offset = face->glyph->bitmap_top;
 
 				if (!glyphs.first)
 				{
@@ -234,36 +225,39 @@ parse_font_file(Arena *arena)
 		}
 	}
 
-	// FT_Done_Face(icons_face);
-	FT_Done_Face(font_face);
+	FT_Done_Face(face);
 	FT_Done_FreeType(library);
+
+	assert(max_glyph_index > 0);
 
 	result.min_glyph_index = min_glyph_index;
 	result.max_glyph_index = max_glyph_index;
-	result.code_points_to_glyph_indices = pairs;
+	result.code_points = code_points;
 	result.glyphs = glyphs;
 
 	return result;
 }
 
+enum { N_CODE_POINT_SLOTS = 128 };
+
 Font_Atlas
-bake_font(Arena *arena, Font_Data font_data)
+bake_font(Arena *arena)
 {
 	Font_Atlas atlas = {0};
 
-	// NOTE(ariel) Initialize a data structure to quickly map a code point to a
-	// corresponding glyph index.
-	assert(font_data.max_glyph_index > 0);
-	atlas.code_points = arena_alloc(arena, sizeof(Code_Point_Glyph_Index_List) * N_CODE_POINT_SLOTS);
+	// TODO(ariel) Pass a scratch arena to these functions.
+	Font_Data characters = parse_font_file(arena, "./assets/RobotoMono-Medium.ttf");
+	Font_Data icons = parse_font_file(arena, "./assets/icons.ttf");
 
-	// TODO(ariel) Do this from the get-go in parse_font_file()?
-	for (Code_Point_Glyph_Index_Pair *pair = font_data.code_points_to_glyph_indices.first;
-		pair;
-		pair = pair->next)
+	// NOTE(ariel) Initialize a data structure to quickly map a code point to a
+	// corresponding glyph index based on the results of the initial pass from
+	// parse_font_file().
+	atlas.code_points = arena_alloc(arena, sizeof(Code_Point_Glyph_Index_List) * N_CODE_POINT_SLOTS);
+	for (Code_Point_Glyph_Index_Pair *pair = characters.code_points.first; pair; pair = pair->next)
 	{
 		Code_Point_Glyph_Index_Pair *pair_clone = arena_alloc(arena, sizeof(Code_Point_Glyph_Index_Pair));
 		pair_clone->code_point = pair->code_point;
-		pair_clone->glyph_index = pair->glyph_index;
+		pair_clone->glyph_index = pair->glyph_index - characters.min_glyph_index;
 
 		u32 index = pair->code_point % N_CODE_POINT_SLOTS;
 		Code_Point_Glyph_Index_List *list = &atlas.code_points[index];
@@ -281,31 +275,51 @@ bake_font(Arena *arena, Font_Data font_data)
 		}
 	}
 
-	// TODO(ariel) Pack rectangle.
-	// NOTE(ariel) Layout glyphs.
-	atlas.width = 0;
-	atlas.height = 0;
-	i32 x_offset = 0;
-	atlas.min_glyph_index = font_data.min_glyph_index;
-	atlas.max_glyph_index = font_data.max_glyph_index;
-	atlas.n_glyphs = font_data.max_glyph_index - font_data.min_glyph_index + 1;
-	atlas.glyphs = arena_alloc(arena, sizeof(Glyph) * atlas.n_glyphs);
-	for (First_Stage_Glyph *glyph = font_data.glyphs.first; glyph; glyph = glyph->next)
+	// TODO(ariel) Pack rectangle for real.
+	atlas.width = BLANK_BITMAP_WIDTH;
+	atlas.height = BLANK_BITMAP_HEIGHT;
+
+	memset(atlas.blank, 0xff, sizeof(atlas.blank));
+
 	{
-		u32 adjusted_glyph_index = glyph->index - font_data.min_glyph_index;
+		atlas.n_icon_glyphs = icons.max_glyph_index - icons.min_glyph_index + 1;
+		atlas.icon_glyphs = arena_alloc(arena, sizeof(Glyph) * atlas.n_icon_glyphs);
+		for (First_Stage_Glyph *glyph = icons.glyphs.first; glyph; glyph = glyph->next)
+		{
+			u32 adjusted_glyph_index = glyph->index - icons.min_glyph_index;
 
-		// TODO(ariel) Match fields by name in the different struct types?
-		atlas.glyphs[adjusted_glyph_index].top = glyph->y_offset;
-		atlas.glyphs[adjusted_glyph_index].width = glyph->width;
-		atlas.glyphs[adjusted_glyph_index].height = glyph->height;
-		atlas.glyphs[adjusted_glyph_index].x_advance = glyph->x_advance;
-		atlas.glyphs[adjusted_glyph_index].texture_offset = x_offset;
-		atlas.glyphs[adjusted_glyph_index].bitmap = glyph->bitmap;
+			atlas.icon_glyphs[adjusted_glyph_index].top = glyph->y_offset;
+			atlas.icon_glyphs[adjusted_glyph_index].width = glyph->width;
+			atlas.icon_glyphs[adjusted_glyph_index].height = glyph->height;
+			atlas.icon_glyphs[adjusted_glyph_index].x_advance = glyph->x_advance;
+			atlas.icon_glyphs[adjusted_glyph_index].texture_offset = atlas.width;
+			atlas.icon_glyphs[adjusted_glyph_index].bitmap = glyph->bitmap;
 
-		atlas.width += glyph->width;
-		atlas.height = MAX(atlas.height, glyph->height);
+			atlas.width += glyph->width;
+			atlas.height = MAX(atlas.height, glyph->height);
+		}
+	}
 
-		x_offset += glyph->width;
+	{
+		atlas.min_glyph_index = characters.min_glyph_index;
+		atlas.max_glyph_index = characters.max_glyph_index;
+		atlas.n_character_glyphs = atlas.max_glyph_index - atlas.min_glyph_index + 1;
+		atlas.character_glyphs = arena_alloc(arena, sizeof(Glyph) * atlas.n_character_glyphs);
+		for (First_Stage_Glyph *glyph = characters.glyphs.first; glyph; glyph = glyph->next)
+		{
+			u32 adjusted_glyph_index = glyph->index - characters.min_glyph_index;
+
+			// TODO(ariel) Match fields by name in the different struct types?
+			atlas.character_glyphs[adjusted_glyph_index].top = glyph->y_offset;
+			atlas.character_glyphs[adjusted_glyph_index].width = glyph->width;
+			atlas.character_glyphs[adjusted_glyph_index].height = glyph->height;
+			atlas.character_glyphs[adjusted_glyph_index].x_advance = glyph->x_advance;
+			atlas.character_glyphs[adjusted_glyph_index].texture_offset = atlas.width;
+			atlas.character_glyphs[adjusted_glyph_index].bitmap = glyph->bitmap;
+
+			atlas.width += glyph->width;
+			atlas.height = MAX(atlas.height, glyph->height);
+		}
 	}
 
 	return atlas;
@@ -327,6 +341,5 @@ map_code_point_to_glyph_index(Font_Atlas *atlas, u32 code_point)
 		}
 	}
 
-	u32 adjusted_glyph_index = glyph_index - atlas->min_glyph_index;
-	return adjusted_glyph_index;
+	return glyph_index;
 }
