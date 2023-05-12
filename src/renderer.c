@@ -1,10 +1,8 @@
 #include "SDL.h"
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
 #include "arena.h"
 #include "base.h"
+#include "font.h"
 #include "linalg.h"
 #include "load_opengl.h"
 #include "renderer.h"
@@ -40,14 +38,9 @@ enum
 
 	WIDTH  = 800,
 	HEIGHT = 600,
-
-	FONT_SIZE = 18,
-
-	BLANK_BITMAP_WIDTH  = 3,
-	BLANK_BITMAP_HEIGHT = 3,
-
-	UI_BLANK = UI_ICON_MAX,
 };
+
+global Font_Atlas atlas;
 
 global GLuint vao;
 global GLuint ebo;
@@ -183,51 +176,9 @@ link_shader_program(Arena *arena, GLuint *shaders, i32 n_shaders)
 	return result;
 }
 
-internal String
-load_file(Arena *arena, FILE *file)
-{
-	String contents = {0};
-
-	fseek(file, 0, SEEK_END);
-	contents.len = ftell(file);
-	rewind(file);
-	contents.str = arena_alloc(arena, contents.len);
-	isize len = fread(contents.str, contents.len, sizeof(char), file);
-	if (!len)
-	{
-		contents.str = 0;
-		contents.len = 0;
-	}
-	fclose(file);
-
-	return contents;
-}
-
-typedef struct Glyph Glyph;
-struct Glyph
-{
-	u32 top;
-	u32 width;
-	u32 height;
-	u32 advance_x;
-	u32 texture_offset;
-};
-
-typedef struct Font_Atlas Font_Atlas;
-struct Font_Atlas
-{
-	u32 width;
-	u32 height;
-	Glyph glyphs[128];
-};
-
-global Font_Atlas atlas;
-
 void
 r_init(Arena *arena)
 {
-	Arena_Checkpoint checkpoint = arena_checkpoint_set(arena);
-
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -349,182 +300,45 @@ r_init(Arena *arena)
 		glGenTextures(1, &texture);
 		glBindTexture(GL_TEXTURE_2D, texture);
 
+		// NOTE(ariel) Set GL_NEAREST as filtering type to use the glyph's bitmap
+		// values without mixing with neighboring pixel values.
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-		FT_Library library = {0};
-		if (FT_Init_FreeType(&library))
-		{
-			fprintf(stderr, "ERROR: failed to initialize FreeType library\n");
-			exit(EXIT_FAILURE);
-		}
-
-#ifdef DEBUG
-		{
-			i32 major = 0;
-			i32 minor = 0;
-			i32 patch = 0;
-			FT_Library_Version(library, &major, &minor, &patch);
-			fprintf(stderr, "FreeType INFO: Version %d.%d.%d\n", major, minor, patch);
-		}
-#endif
-
-		const char *font_file_path = "./assets/RobotoMono-Medium.ttf";
-		const char *icons_file_path = "./assets/icons.ttf";
-		FILE *font_file = fopen(font_file_path, "rb");
-		FILE *icons_file = fopen(icons_file_path, "rb");
-		String font_data = load_file(arena, font_file);
-		String icons_data = load_file(arena, icons_file);
-		FT_Open_Args face_args = {
-			.flags = FT_OPEN_MEMORY,
-			.memory_base = (const FT_Byte *)font_data.str,
-			.memory_size = font_data.len,
-		};
-		FT_Open_Args icons_args = {
-			.flags = FT_OPEN_MEMORY,
-			.memory_base = (const FT_Byte *)icons_data.str,
-			.memory_size = icons_data.len,
-		};
-		FT_Face face = {0};
-		FT_Face icons = {0};
-
-		if (FT_Open_Face(library, &face_args, 0, &face))
-		{
-			fprintf(stderr, "ERROR: failed to initialize font face %s\n", font_file_path);
-			exit(EXIT_FAILURE);
-		}
-		if (FT_Open_Face(library, &icons_args, 0, &icons))
-		{
-			fprintf(stderr, "ERROR: failed to initialize icons face %s\n", icons_file_path);
-			exit(EXIT_FAILURE);
-		}
-		if (FT_Set_Pixel_Sizes(face, 0, FONT_SIZE))
-		{
-			fprintf(stderr, "ERROR: failed to set size of %s\n", font_file_path);
-			exit(EXIT_FAILURE);
-		}
-		if (FT_Set_Pixel_Sizes(icons, 0, FONT_SIZE))
-		{
-			fprintf(stderr, "ERROR: failed to set size of %s\n", icons_file_path);
-			exit(EXIT_FAILURE);
-		}
-
-		// NOTE(ariel) For simplicity, the font atlas will consist of a single row
-		// of glyphs. Compute the dimensions of this atlas.
-		{
-			// NOTE(ariel) Include standard ASCII characters in dimensions of
-			// texture.
-			for (i32 i = 32; i < 128; ++i)
-			{
-				if (FT_Load_Char(face, i, FT_LOAD_BITMAP_METRICS_ONLY))
-				{
-					fprintf(stderr, "ERROR: failed to load glyph %d from font\n", i);
-					continue;
-				}
-				atlas.width += face->glyph->bitmap.width;
-				if (atlas.height < face->glyph->bitmap.rows)
-				{
-					atlas.height = face->glyph->bitmap.rows;
-				}
-			}
-
-			// NOTE(ariel) Inlcude icons in dimensions of texture.
-			FT_UInt glyph_index = 0;
-			FT_ULong char_code = FT_Get_First_Char(icons, &glyph_index);
-			while (glyph_index)
-			{
-				if (FT_Load_Glyph(icons, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY))
-				{
-					fprintf(stderr, "ERROR: failed to load glyph %d from icons\n", glyph_index);
-					goto next;
-				}
-				atlas.width += icons->glyph->bitmap.width;
-				if (atlas.height < icons->glyph->bitmap.rows)
-				{
-					atlas.height = icons->glyph->bitmap.rows;
-				}
-next:
-				char_code = FT_Get_Next_Char(icons, char_code, &glyph_index);
-			}
-
-			// NOTE(ariel) Include 3x3 blank entry in dimensions texture.
-			atlas.width += BLANK_BITMAP_WIDTH;
-		}
-
-		// NOTE(ariel) Allocate memory for font atlas on GPU.
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlas.width, atlas.height, 0,
-			GL_RED, GL_UNSIGNED_BYTE, 0);
+		// NOTE(ariel) Layout font atlas.
+		atlas = bake_font(arena);
 
 		// NOTE(ariel) Render and copy glyphs into font atlas texture.
 		{
-			i32 index = 0;
-			i32 x_offset = 0;
+			// NOTE(ariel) Allocate memory for font atlas on GPU.
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlas.width, atlas.height, 0,
+				GL_RED, GL_UNSIGNED_BYTE, 0);
 
-			// NOTE(ariel) Copy ASCII bitmaps from FreeType into OpenGL texture.
-			for (index = 32; index < 128; ++index)
+			Glyph *glyph = 0;
+			for (u32 i = 0; i < atlas.n_character_glyphs; ++i)
 			{
-				FT_Load_Char(face, index, FT_LOAD_RENDER);
-
-				atlas.glyphs[index].width  = face->glyph->bitmap.width;
-				atlas.glyphs[index].height = face->glyph->bitmap.rows;
-				atlas.glyphs[index].top  = face->glyph->bitmap_top;
-				atlas.glyphs[index].advance_x = face->glyph->advance.x >> 6;
-				atlas.glyphs[index].texture_offset = x_offset;
-
-				glTexSubImage2D(GL_TEXTURE_2D, 0, x_offset, 0,
-					face->glyph->bitmap.width, face->glyph->bitmap.rows,
-					GL_RED, GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
-
-				x_offset += face->glyph->bitmap.width;
+				glyph = &atlas.character_glyphs[i];
+				glTexSubImage2D(GL_TEXTURE_2D, 0, glyph->texture_offset, 0, glyph->width, glyph->height,
+					GL_RED, GL_UNSIGNED_BYTE, glyph->bitmap);
 			}
 
-			// NOTE(ariel) Copy icon bitmaps from FreeType into OpenGL texture.
-			index = 0;
-			FT_UInt glyph_index = 0;
-			FT_ULong char_code = FT_Get_First_Char(icons, &glyph_index);
-			while (glyph_index)
+			glyph = 0;
+			for (u32 i = 0; i < atlas.n_icon_glyphs; ++i)
 			{
-				FT_Load_Char(icons, char_code, FT_LOAD_RENDER);
-
-				atlas.glyphs[index].width  = icons->glyph->bitmap.width;
-				atlas.glyphs[index].height = icons->glyph->bitmap.rows;
-				atlas.glyphs[index].top  = icons->glyph->bitmap_top;
-				atlas.glyphs[index].advance_x = icons->glyph->advance.x >> 6;
-				atlas.glyphs[index].texture_offset = x_offset;
-
-				glTexSubImage2D(GL_TEXTURE_2D, 0, x_offset, 0,
-					icons->glyph->bitmap.width, icons->glyph->bitmap.rows,
-					GL_RED, GL_UNSIGNED_BYTE, icons->glyph->bitmap.buffer);
-
-				++index;
-				x_offset += icons->glyph->bitmap.width;
-				char_code = FT_Get_Next_Char(icons, char_code, &glyph_index);
+				glyph = &atlas.icon_glyphs[i];
+				glTexSubImage2D(GL_TEXTURE_2D, 0, glyph->texture_offset, 0, glyph->width, glyph->height,
+					GL_RED, GL_UNSIGNED_BYTE, glyph->bitmap);
 			}
 
-			// NOTE(ariel) Confirm icons do not overwrite characters in ASCII range.
-			assert(index < 32);
-
-			// NOTE(ariel) Copy blank entry to OpenGL texture.
-			u8 blank[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, };
-			atlas.glyphs[index].width = BLANK_BITMAP_WIDTH;
-			atlas.glyphs[index].height = BLANK_BITMAP_HEIGHT;
-			atlas.glyphs[index].texture_offset = x_offset;
-			glTexSubImage2D(GL_TEXTURE_2D, 0, x_offset, 0,
-				BLANK_BITMAP_WIDTH, BLANK_BITMAP_HEIGHT,
-				GL_RED, GL_UNSIGNED_BYTE, blank);
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, BLANK_BITMAP_WIDTH, BLANK_BITMAP_HEIGHT,
+				GL_RED, GL_UNSIGNED_BYTE, atlas.blank);
 		}
-
-		FT_Done_Face(icons);
-		FT_Done_Face(face);
-		FT_Done_FreeType(library);
 	}
 
 	glUseProgram(0);
 	assert(glGetError() == GL_NO_ERROR);
-
-	arena_checkpoint_restore(checkpoint);
 }
 
 internal void
@@ -564,6 +378,7 @@ push_quad(Quad dst, Quad src, Color color)
 		f32 w = src.w / (f32)atlas.width;
 		f32 h = src.h / (f32)atlas.height;
 
+		// TODO(ariel) Reformat these.
 		vertices[vertices_index + 0] = (Vertex){
 			.position = { dst.x, dst.y },
 			.color = color,
@@ -603,38 +418,100 @@ r_draw_rect(Quad rect, Color color)
 {
 	Quad source =
 	{
-		.x = +(f32)atlas.glyphs[UI_BLANK].texture_offset,
-		.y = +(f32)atlas.glyphs[UI_BLANK].height,
-		.w = +(f32)atlas.glyphs[UI_BLANK].width,
-		.h = -(f32)atlas.glyphs[UI_BLANK].height,
+		.x = 0.0f,
+		.y = +(f32)BLANK_BITMAP_HEIGHT,
+		.w = +(f32)BLANK_BITMAP_WIDTH,
+		.h = -(f32)BLANK_BITMAP_HEIGHT,
 	};
 	push_quad(rect, source, color);
+}
+
+typedef struct UTF8_Result UTF8_Result;
+struct UTF8_Result
+{
+	i32 code_point;
+	i32 offset_increment;
+};
+
+internal inline UTF8_Result
+decode_utf8_code_point(String s, i32 offset)
+{
+	// FIXME(ariel) Check bounds.
+	UTF8_Result result =
+	{
+		.code_point = -1,
+		.offset_increment = 1,
+	};
+
+	if ((unsigned char)s.str[offset] < 0x80)
+	{
+		result.code_point = s.str[offset];
+		result.offset_increment = 1;
+	}
+	else if ((s.str[offset] & 0xe0) == 0xc0)
+	{
+		result.code_point =
+			((i32)(s.str[offset + 0] & 0x1f) << 6) |
+			((i32)(s.str[offset + 1] & 0x3f) << 0);
+		result.offset_increment = 2;
+	}
+	else if ((s.str[offset] & 0xf0) == 0xe0)
+	{
+		result.code_point =
+			((i32)(s.str[offset + 0] & 0x0f) << 12) |
+			((i32)(s.str[offset + 1] & 0x3f) <<  6) |
+			((i32)(s.str[offset + 2] & 0x3f) <<  0);
+		result.offset_increment = 3;
+	}
+	else if ((s.str[offset] & 0xf8) == 0xf0 && (unsigned char)s.str[offset] <= 0xf4)
+	{
+		result.code_point =
+			((i32)(s.str[offset + 0] & 0x07) << 18) |
+			((i32)(s.str[offset + 1] & 0x3f) << 12) |
+			((i32)(s.str[offset + 2] & 0x3f) <<  6) |
+			((i32)(s.str[offset + 3] & 0x3f) <<  0);
+		result.offset_increment = 4;
+	}
+
+	if (result.code_point >= 0xd800 && result.code_point <= 0xdfff)
+	{
+		result.code_point = -1;
+	}
+
+	return result;
 }
 
 void
 r_draw_text(String text, Vector2 pos, Color color)
 {
-	for (i32 i = 0; i < text.len; ++i)
+	UTF8_Result result = {0};
+	for (i32 offset = 0; offset < text.len; offset += result.offset_increment)
 	{
-		// TODO(ariel) Support Unicode at some point.
-		i32 glyph_index = CLAMP(text.str[i], 0, 127);
-		Quad destination =
+		result = decode_utf8_code_point(text, offset);
+		if (result.code_point != -1)
 		{
-			.x = pos.x,
-			.y = pos.y + (atlas.glyphs[glyph_index].height - atlas.glyphs[glyph_index].top),
-		};
-		Quad source =
-		{
-			.x = +(f32)atlas.glyphs[glyph_index].texture_offset,
-			.y = +(f32)atlas.glyphs[glyph_index].height,
-			.w = +(f32)atlas.glyphs[glyph_index].width,
-			.h = -(f32)atlas.glyphs[glyph_index].height,
-		};
-		destination.y += FONT_SIZE - FONT_SIZE / 4;
-		destination.w = source.w;
-		destination.h = source.h;
-		push_quad(destination, source, color);
-		pos.x += atlas.glyphs[glyph_index].advance_x;
+			u32 glyph_index = map_code_point_to_glyph_index(&atlas, result.code_point);
+			Glyph *glyph = &atlas.character_glyphs[glyph_index];
+
+			Quad destination =
+			{
+				.x = pos.x,
+				.y = pos.y + (glyph->height - glyph->top),
+			};
+			Quad source =
+			{
+				.x = +(f32)glyph->texture_offset,
+				.y = +(f32)glyph->height,
+				.w = +(f32)glyph->width,
+				.h = -(f32)glyph->height,
+			};
+			destination.y += FONT_SIZE - FONT_SIZE / 4;
+			destination.w = source.w;
+			destination.h = source.h;
+			push_quad(destination, source, color);
+
+			pos.x += glyph->x_advance;
+		}
 	}
 }
 
@@ -644,17 +521,17 @@ r_draw_icon(UI_Icon icon, Quad rect, Color color)
 	assert(icon < UI_ICON_MAX);
 	Quad source =
 	{
-		.x = +(f32)atlas.glyphs[icon].texture_offset,
-		.y = +(f32)atlas.glyphs[icon].height,
-		.w = +(f32)atlas.glyphs[icon].width,
-		.h = -(f32)atlas.glyphs[icon].height,
+					.x = +(f32)atlas.icon_glyphs[icon].texture_offset,
+					.y = +(f32)atlas.icon_glyphs[icon].height,
+					.w = +(f32)atlas.icon_glyphs[icon].width,
+					.h = -(f32)atlas.icon_glyphs[icon].height,
 	};
 	Quad destination =
 	{
-		.x = rect.x + (rect.w - source.w) / 2,
-		.y = rect.y + (rect.h - source.h) / 2,
-		.w = source.w,
-		.h = source.h,
+					.x = rect.x + (rect.w - source.w) / 2,
+					.y = rect.y + (rect.h - source.h) / 2,
+					.w = source.w,
+					.h = source.h,
 	};
 	push_quad(destination, source, color);
 }
@@ -670,12 +547,20 @@ i32
 r_get_text_width(String text)
 {
 	i32 width = 0;
-	for (i32 i = 0; i < text.len; ++i)
+
+	UTF8_Result result = {0};
+	for (i32 offset = 0; offset < text.len; offset += result.offset_increment)
 	{
-		i32 glyph_index = CLAMP(text.str[i], 0, 127);
-		i32 glyph_width = MAX(atlas.glyphs[glyph_index].width, atlas.glyphs[glyph_index].advance_x);
-		width += glyph_width;
+		result = decode_utf8_code_point(text, offset);
+		if (result.code_point != -1)
+		{
+			u32 glyph_index = map_code_point_to_glyph_index(&atlas, result.code_point);
+			Glyph *glyph = &atlas.character_glyphs[glyph_index];
+			i32 glyph_width = MAX(glyph->width, glyph->x_advance);
+			width += glyph_width;
+		}
 	}
+
 	return width;
 }
 
