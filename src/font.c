@@ -313,13 +313,17 @@ bake_font(Arena *arena)
 			atlas.character_glyphs[adjusted_glyph_index].top = glyph->y_offset;
 			atlas.character_glyphs[adjusted_glyph_index].width = glyph->width;
 			atlas.character_glyphs[adjusted_glyph_index].height = glyph->height;
-			atlas.character_glyphs[adjusted_glyph_index].x_advance = glyph->x_advance;
+			atlas.character_glyphs[adjusted_glyph_index].x_advance = glyph->width;
 			atlas.character_glyphs[adjusted_glyph_index].texture_offset = atlas.width;
 			atlas.character_glyphs[adjusted_glyph_index].bitmap = glyph->bitmap;
 
 			atlas.width += glyph->width;
 			atlas.height = MAX(atlas.height, glyph->height);
 		}
+
+		// NOTE(ariel) Correct `x_advance` for space.
+		u32 space_glyph_index = map_code_point_to_glyph_index(&atlas, ' ');
+		atlas.character_glyphs[space_glyph_index].x_advance = 10;
 	}
 
 	return atlas;
