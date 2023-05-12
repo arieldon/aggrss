@@ -300,10 +300,8 @@ r_init(Arena *arena)
 		glGenTextures(1, &texture);
 		glBindTexture(GL_TEXTURE_2D, texture);
 
-		// NOTE(ariel) Set GL_NEAREST as filtering type to use the glyph's bitmap
-		// values without mixing with neighboring pixel values.
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -410,13 +408,7 @@ push_quad(Quad dst, Quad src, Color color)
 void
 r_draw_rect(Quad rect, Color color)
 {
-	Quad source =
-	{
-		.x = 0.0f,
-		.y = +(f32)BLANK_BITMAP_HEIGHT,
-		.w = +(f32)BLANK_BITMAP_WIDTH,
-		.h = -(f32)BLANK_BITMAP_HEIGHT,
-	};
+	Quad source = {0};
 	push_quad(rect, source, color);
 }
 
@@ -510,7 +502,7 @@ r_draw_text(String text, Vector2 pos, Color color)
 				.w = +(f32)glyph->width,
 				.h = -(f32)glyph->height,
 			};
-			destination.y += FONT_SIZE - FONT_SIZE / 4;
+			destination.y += FONT_SIZE;
 			destination.w = source.w;
 			destination.h = source.h;
 			push_quad(destination, source, color);

@@ -392,7 +392,7 @@ ui_button(String label)
 	Vector2 text_position =
 	{
 		.x = target.x + (target.w - text_dimensions.w) / 2,
-		.y = target.y + (target.h - text_dimensions.h) / 2 + 2,
+		.y = target.y + (target.h - text_dimensions.h) / 2 - 2,
 	};
 	r_draw_rect(target, button_color);
 	r_draw_text(label, text_position, text_color);
@@ -432,7 +432,7 @@ ui_toggle(String label)
 	Vector2 text_position =
 	{
 		.x = target.x + (target.w - text_dimensions.w) / 2,
-		.y = target.y + (target.h - text_dimensions.h) / 2 + 2,
+		.y = target.y + (target.h - text_dimensions.h) / 2 - 2,
 	};
 	r_draw_rect(target, toggle_color);
 	r_draw_text(label, text_position, text_color);
@@ -472,7 +472,7 @@ ui_header(String label, i32 options)
 	Vector2 text_position =
 	{
 		.x = target.x + 18 * 1.2,
-		.y = target.y + 2,
+		.y = target.y - 2,
 	};
 	r_draw_text(label, text_position, text_color);
 
@@ -495,7 +495,7 @@ ui_header(String label, i32 options)
 		Quad delete_icon_dimensions =
 		{
 			.x = ui.layout.width - 18,
-			.y = target.y,
+			.y = target.y + 2,
 			.w = 18,
 			.h = 18,
 		};
@@ -666,7 +666,7 @@ ui_textbox(Buffer *buffer, String placeholder)
 		text_position = (Vector2)
 		{
 			.x = target.x + (target.w - text_dimensions.w) / 2,
-			.y = target.y + (target.h - text_dimensions.h) / 2 + 2,
+			.y = target.y + (target.h - text_dimensions.h) / 2 - 2,
 		};
 	}
 
@@ -782,7 +782,7 @@ ui_link(String text, b32 unread)
 	Quad unread_marker_target =
 	{
 		.x = target.x,
-		.y = target.y,
+		.y = target.y + 2,
 		.w = side_length,
 		.h = side_length,
 	};
