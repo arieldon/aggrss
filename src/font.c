@@ -142,7 +142,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 		FT_Error error = 0;
 		for (u32 glyph_index = min_glyph_index; glyph_index <= max_glyph_index; ++glyph_index)
 		{
-			error = FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT);
+			error = FT_Load_Glyph(face, glyph_index, FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT);
 			if (error)
 			{
 				fprintf(stderr, "error: failed to load glyph %u\n", glyph_index);
