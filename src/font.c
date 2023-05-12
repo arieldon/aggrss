@@ -245,9 +245,11 @@ bake_font(Arena *arena)
 {
 	Font_Atlas atlas = {0};
 
-	// TODO(ariel) Pass a scratch arena to these functions.
-	Font_Data characters = parse_font_file(arena, "./assets/RobotoMono-Medium.ttf");
-	Font_Data icons = parse_font_file(arena, "./assets/icons.ttf");
+	Arena scratch_arena = {0};
+	arena_init(&scratch_arena);
+
+	Font_Data characters = parse_font_file(&scratch_arena, "./assets/RobotoMono-Medium.ttf");
+	Font_Data icons = parse_font_file(&scratch_arena, "./assets/icons.ttf");
 
 	// NOTE(ariel) Initialize a data structure to quickly map a code point to a
 	// corresponding glyph index based on the results of the initial pass from
@@ -326,6 +328,7 @@ bake_font(Arena *arena)
 		atlas.character_glyphs[space_glyph_index].x_advance = 10;
 	}
 
+	arena_release(&scratch_arena);
 	return atlas;
 }
 
