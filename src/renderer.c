@@ -318,7 +318,8 @@ r_init(Arena *arena)
 			for (u32 i = 0; i < atlas.n_character_glyphs; ++i)
 			{
 				glyph = &atlas.character_glyphs[i];
-				glTexSubImage2D(GL_TEXTURE_2D, 0, glyph->texture_offset, 0, glyph->width, glyph->height,
+				glTexSubImage2D(GL_TEXTURE_2D, 0, glyph->x_texture_offset, glyph->y_texture_offset,
+					glyph->width, glyph->height,
 					GL_RED, GL_UNSIGNED_BYTE, glyph->bitmap);
 			}
 
@@ -326,7 +327,8 @@ r_init(Arena *arena)
 			for (u32 i = 0; i < atlas.n_icon_glyphs; ++i)
 			{
 				glyph = &atlas.icon_glyphs[i];
-				glTexSubImage2D(GL_TEXTURE_2D, 0, glyph->texture_offset, 0, glyph->width, glyph->height,
+				glTexSubImage2D(GL_TEXTURE_2D, 0, glyph->x_texture_offset, glyph->y_texture_offset,
+					glyph->width, glyph->height,
 					GL_RED, GL_UNSIGNED_BYTE, glyph->bitmap);
 			}
 
@@ -493,14 +495,14 @@ r_draw_text(String text, Vector2 pos, Color color)
 			Quad destination =
 			{
 				.x = pos.x,
-				.y = pos.y + (glyph->height - glyph->top),
+				.y = pos.y - glyph->y_offset,
 			};
 			Quad source =
 			{
-				.x = +(f32)glyph->texture_offset,
-				.y = +(f32)glyph->height,
-				.w = +(f32)glyph->width,
-				.h = -(f32)glyph->height,
+				.x = (f32)glyph->x_texture_offset,
+				.y = (f32)glyph->y_texture_offset,
+				.w = (f32)glyph->width,
+				.h = (f32)glyph->height,
 			};
 			destination.y += FONT_SIZE;
 			destination.w = source.w;
@@ -518,10 +520,10 @@ r_draw_icon(UI_Icon icon, Quad rect, Color color)
 	assert(icon < UI_ICON_MAX);
 	Quad source =
 	{
-		.x = +(f32)atlas.icon_glyphs[icon].texture_offset,
-		.y = +(f32)atlas.icon_glyphs[icon].height,
-		.w = +(f32)atlas.icon_glyphs[icon].width,
-		.h = -(f32)atlas.icon_glyphs[icon].height,
+		.x = (f32)atlas.icon_glyphs[icon].x_texture_offset,
+		.y = (f32)atlas.icon_glyphs[icon].y_texture_offset,
+		.w = (f32)atlas.icon_glyphs[icon].width,
+		.h = (f32)atlas.icon_glyphs[icon].height,
 	};
 	Quad destination =
 	{

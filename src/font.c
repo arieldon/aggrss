@@ -277,9 +277,13 @@ bake_font(Arena *arena)
 		}
 	}
 
-	// TODO(ariel) Pack rectangle for real.
-	atlas.width = BLANK_BITMAP_WIDTH;
-	atlas.height = BLANK_BITMAP_HEIGHT;
+	// NOTE(ariel) Pack character and icon glyphs into 512x512 rectangle.
+	atlas.width = 512;
+	atlas.height = 512;
+
+	u32 x_offset = BLANK_BITMAP_WIDTH;
+	u32 y_offset = 0;
+	u32 row_height = 0;
 
 	memset(atlas.blank, 0xff, sizeof(atlas.blank));
 
@@ -290,15 +294,25 @@ bake_font(Arena *arena)
 		{
 			u32 adjusted_glyph_index = glyph->index - icons.min_glyph_index;
 
-			atlas.icon_glyphs[adjusted_glyph_index].top = glyph->y_offset;
+			if (x_offset + glyph->width > 512)
+			{
+				x_offset = 0;
+				y_offset += row_height;
+				row_height = 0;
+			}
+
 			atlas.icon_glyphs[adjusted_glyph_index].width = glyph->width;
 			atlas.icon_glyphs[adjusted_glyph_index].height = glyph->height;
 			atlas.icon_glyphs[adjusted_glyph_index].x_advance = glyph->x_advance;
-			atlas.icon_glyphs[adjusted_glyph_index].texture_offset = atlas.width;
+			atlas.icon_glyphs[adjusted_glyph_index].x_offset = glyph->x_offset;
+			atlas.icon_glyphs[adjusted_glyph_index].y_offset = glyph->y_offset;
+			atlas.icon_glyphs[adjusted_glyph_index].x_texture_offset = x_offset;
+			atlas.icon_glyphs[adjusted_glyph_index].y_texture_offset = y_offset;
 			atlas.icon_glyphs[adjusted_glyph_index].bitmap = glyph->bitmap;
 
-			atlas.width += glyph->width;
-			atlas.height = MAX(atlas.height, glyph->height);
+			x_offset += glyph->width;
+			y_offset = MAX(y_offset, glyph->height);
+			row_height = MAX(row_height, glyph->height);
 		}
 	}
 
@@ -309,20 +323,36 @@ bake_font(Arena *arena)
 		{
 			u32 adjusted_glyph_index = glyph->index - characters.min_glyph_index;
 
-			atlas.character_glyphs[adjusted_glyph_index].top = glyph->y_offset;
+			if (x_offset + glyph->width > 512)
+			{
+				x_offset = 0;
+				y_offset += row_height;
+				row_height = 0;
+			}
+
 			atlas.character_glyphs[adjusted_glyph_index].width = glyph->width;
 			atlas.character_glyphs[adjusted_glyph_index].height = glyph->height;
 			atlas.character_glyphs[adjusted_glyph_index].x_advance = glyph->width;
-			atlas.character_glyphs[adjusted_glyph_index].texture_offset = atlas.width;
+			atlas.character_glyphs[adjusted_glyph_index].x_offset = glyph->x_offset;
+			atlas.character_glyphs[adjusted_glyph_index].y_offset = glyph->y_offset;
+			atlas.character_glyphs[adjusted_glyph_index].x_texture_offset = x_offset;
+			atlas.character_glyphs[adjusted_glyph_index].y_texture_offset = y_offset;
 			atlas.character_glyphs[adjusted_glyph_index].bitmap = glyph->bitmap;
 
-			atlas.width += glyph->width;
-			atlas.height = MAX(atlas.height, glyph->height);
+			x_offset += glyph->width;
+			y_offset = MAX(y_offset, glyph->height);
+			row_height = MAX(row_height, glyph->height);
 		}
 
 		// NOTE(ariel) Correct `x_advance` for space.
 		u32 space_glyph_index = map_code_point_to_glyph_index(&atlas, ' ');
 		atlas.character_glyphs[space_glyph_index].x_advance = 10;
+	}
+
+	if (x_offset > atlas.width || y_offset > atlas.height)
+	{
+		fprintf(stderr, "error: failed to pack glyphs into allotted space\n");
+		exit(EXIT_FAILURE);
 	}
 
 	arena_release(&scratch_arena);
