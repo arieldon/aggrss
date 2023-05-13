@@ -15,6 +15,8 @@ i32 string_find_substr(String haystack, String needle);
 i32 string_find_ch(String s, char c);
 u64 string_to_int(String s, u8 base);
 
+void string_lower(String s);
+
 typedef struct String_Node String_Node;
 struct String_Node
 {

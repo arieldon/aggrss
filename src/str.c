@@ -163,6 +163,15 @@ string_to_int(String s, u8 base)
 }
 
 void
+string_lower(String s)
+{
+	for (i32 i = 0; i < s.len; ++i)
+	{
+		s.str[i] = tolower(s.str[i]);
+	}
+}
+
+void
 string_list_push_node(String_List *ls, String_Node *n)
 {
 	if (!ls->head)
