@@ -14,9 +14,9 @@ struct First_Stage_Glyph
 	First_Stage_Glyph *next;
 	u8 *bitmap;
 	u32 index;
-	u32 width;
-	u32 height;
-	u32 x_advance;
+	i32 width;
+	i32 height;
+	i32 x_advance;
 	i32 x_offset;
 	i32 y_offset;
 };
@@ -201,6 +201,9 @@ parse_font_file(Arena *arena, char *font_file_path)
 			{
 				First_Stage_Glyph *glyph = arena_alloc(arena, sizeof(First_Stage_Glyph));
 
+				assert((i32)bitmap->width < INT32_MAX);
+				assert((i32)bitmap->rows < INT32_MAX);
+
 				glyph->bitmap = bitmap_clone;
 				glyph->index = glyph_index;
 				glyph->width = bitmap->width;
@@ -281,9 +284,9 @@ bake_font(Arena *arena)
 	atlas.width = 512;
 	atlas.height = 512;
 
-	u32 x_offset = BLANK_BITMAP_WIDTH;
-	u32 y_offset = 0;
-	u32 row_height = 0;
+	i32 x_offset = BLANK_BITMAP_WIDTH;
+	i32 y_offset = 0;
+	i32 row_height = 0;
 
 	memset(atlas.blank, 0xff, sizeof(atlas.blank));
 

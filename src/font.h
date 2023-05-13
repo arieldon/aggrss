@@ -29,21 +29,21 @@ struct Code_Point_Glyph_Index_List
 typedef struct Glyph Glyph;
 struct Glyph
 {
-	u32 width;
-	u32 height;
-	u32 x_advance;
-	u32 x_offset;
-	u32 y_offset;
-	u32 x_texture_offset;
-	u32 y_texture_offset;
+	i32 width;
+	i32 height;
+	i32 x_advance;
+	i32 x_offset;
+	i32 y_offset;
+	i32 x_texture_offset;
+	i32 y_texture_offset;
 	u8 *bitmap;
 };
 
 typedef struct Font_Atlas Font_Atlas;
 struct Font_Atlas
 {
-	u32 width;
-	u32 height;
+	i32 width;
+	i32 height;
 
 	u8 blank[BLANK_BITMAP_WIDTH * BLANK_BITMAP_HEIGHT];
 
