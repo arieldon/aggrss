@@ -134,7 +134,7 @@ ui_prompt_block(void)
 	Quad textbox_target =
 	{
 		.x = text_position.x + text_dimensions.w + 5,
-		.y = text_position.y,
+		.y = text_position.y + 4,
 		.w = ui.layout.width - textbox_target.x,
 		.h = text_dimensions.h,
 	};
@@ -142,7 +142,7 @@ ui_prompt_block(void)
 	Vector2 input_text_position =
 	{
 		.x = textbox_target.x + 3,
-		.y = textbox_target.y,
+		.y = textbox_target.y - 4,
 	};
 
 	if (ui_mouse_overlaps(textbox_target))
