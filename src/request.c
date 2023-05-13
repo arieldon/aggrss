@@ -121,7 +121,7 @@ format_get_request(Arena *arena, URL url)
 internal i32
 get_content_length(HTTP_Response_Header header)
 {
-	local_persist String content_length_field = static_string_literal("Content-Length");
+	local_persist String content_length_field = static_string_literal("content-length");
 	i32 content_length = -1;
 
 	String_Node *field_node = header.fields;
@@ -133,6 +133,7 @@ get_content_length(HTTP_Response_Header header)
 		if (colon_index > 0)
 		{
 			String name = string_prefix(field, colon_index);
+			string_lower(name);
 			if (string_match(name, content_length_field))
 			{
 				String remainder = string_suffix(field, colon_index + 1);
@@ -150,7 +151,7 @@ get_content_length(HTTP_Response_Header header)
 internal String
 get_transfer_encoding(HTTP_Response_Header header)
 {
-	local_persist String transfer_encoding_field = static_string_literal("Transfer-Encoding");
+	local_persist String transfer_encoding_field = static_string_literal("transfer-encoding");
 	String transfer_encoding = {0};
 
 	String_Node *field_node = header.fields;
@@ -162,6 +163,7 @@ get_transfer_encoding(HTTP_Response_Header header)
 		if (colon_index > 0)
 		{
 			String name = string_prefix(field, colon_index);
+			string_lower(name);
 			if (string_match(name, transfer_encoding_field))
 			{
 				String remainder = string_suffix(field, colon_index + 1);
