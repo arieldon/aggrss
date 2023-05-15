@@ -1,25 +1,23 @@
-#include <stdio.h>
-
 #include "base.h"
 #include "date_time.h"
 #include "str.h"
 
-// TODO(ariel) Compress.
-
 typedef struct Date_Time_Parser Date_Time_Parser;
 struct Date_Time_Parser
 {
-	String error;
 	String date_time;
+	String error;
+	b32 success;
 	i32 cursor;
 };
 
-internal inline i32
-parse_week_day(String day)
+internal i32
+parse_week_day(Date_Time_Parser *parser, String day)
 {
 	i32 result = -1;
 
-	String days[] = {
+	String days[] =
+	{
 		string_literal("Sun"),
 		string_literal("Mon"),
 		string_literal("Tue"),
@@ -37,15 +35,21 @@ parse_week_day(String day)
 		}
 	}
 
+	if (!parser->error.str && result == -1)
+	{
+		parser->error = string_literal("expected week day as string");
+	}
+
 	return result;
 }
 
-internal inline i32
-parse_month(String month)
+internal i32
+parse_month(Date_Time_Parser *parser, String month)
 {
 	i32 result = -1;
 
-	String months[] = {
+	String months[] =
+	{
 		string_literal("Jan"),
 		string_literal("Feb"),
 		string_literal("Mar"),
@@ -68,28 +72,27 @@ parse_month(String month)
 		}
 	}
 
+	if (!parser->error.str && result == -1)
+	{
+		parser->error = string_literal("expected month as string");
+	}
+
 	return result;
 }
 
-internal inline i32
-get_offset_from_zone(String zone)
+internal i32
+get_offset_from_zone(Date_Time_Parser *parser, String zone)
 {
-	i32 offset_in_hours = INT32_MIN;
+	i32 offset_in_hours = 0;
 
 	i32 zone_index = -1;
 	String zones[] =
 	{
-		string_literal("UT"),
-		string_literal("GMT"),
-		string_literal("Z"),
-		string_literal("EST"),
-		string_literal("EDT"),
-		string_literal("CST"),
-		string_literal("CDT"),
-		string_literal("MST"),
-		string_literal("MDT"),
-		string_literal("PST"),
-		string_literal("PDT"),
+		string_literal("UT"), string_literal("GMT"), string_literal("Z"),
+		string_literal("EST"), string_literal("EDT"),
+		string_literal("CST"), string_literal("CDT"),
+		string_literal("MST"), string_literal("MDT"),
+		string_literal("PST"), string_literal("PDT"),
 	};
 	for (u32 i = 0; i < ARRAY_COUNT(zones); ++i)
 	{
@@ -112,453 +115,305 @@ get_offset_from_zone(String zone)
 		};
 		offset_in_hours = offsets[zone_index];
 	}
+	else
+	{
+		parser->error = string_literal("expected time zone");
+	}
 
 	return offset_in_hours;
 }
 
-// NOTE(ariel) The date time format in RSS feeds follows RFC 822, Section 5 --
-// https://datatracker.ietf.org/doc/html/rfc822#section-5
-internal Date_Time
-parse_rfc_822_format(String date_time)
+internal i32
+parse_number(Date_Time_Parser *parser, char delimiter, String error_message)
 {
-	Date_Time result = {0};
-	Date_Time_Parser parser =
+	String s =
 	{
-		.error = {0},
-		.date_time = date_time,
-		.cursor = 0,
+		.str = parser->date_time.str + parser->cursor,
+		.len = 0,
 	};
 
+	while (parser->cursor < parser->date_time.len && !parser->error.str)
 	{
-		String week_day =
+		char ch = parser->date_time.str[parser->cursor++];
+		if (ch == delimiter)
 		{
-			.str = parser.date_time.str,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ',')
-			{
-				if (parser.date_time.str[parser.cursor] == ' ')
-				{
-					++parser.cursor;
-					break;
-				}
-				else
-				{
-					parser.error = string_literal(
-						"expected space after comma following week day");
-				}
-			}
-			++week_day.len;
+			break;
 		}
-
-		result.week_day = parse_week_day(week_day);
-		if (result.week_day == -1)
+		else if (ch < '0' || ch > '9')
 		{
-			parser.error = string_literal("expected week day");
+			parser->error = error_message;
+			break;
 		}
+		++s.len;
 	}
 
-	if (!parser.error.str)
+	i32 number = string_to_int(s, 10);
+	return number;
+}
+
+internal String
+parse_string(Date_Time_Parser *parser, char delimiter)
+{
+	String s =
 	{
-		String month_day =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
+		.str = parser->date_time.str + parser->cursor,
+		.len = 0,
+	};
 
-		while (parser.cursor < parser.date_time.len)
+	while (parser->cursor < parser->date_time.len && !parser->error.str)
+	{
+		char ch = parser->date_time.str[parser->cursor++];
+		if (ch == delimiter)
 		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ' ')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer for day of month");
-				break;
-			}
-			++month_day.len;
+			break;
 		}
-
-		result.month_day = string_to_int(month_day, 10);
+		++s.len;
 	}
 
-	if (!parser.error.str)
-	{
-		String month =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
+	return s;
+}
 
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ' ')
-			{
-				break;
-			}
-			++month.len;
-		}
-
-		result.month = parse_month(month);
-		if (result.month == -1)
-		{
-			parser.error = string_literal("expected a month");
-		}
-	}
-
-	if (!parser.error.str)
-	{
-		String year =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ' ')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer for year");
-				break;
-			}
-			++year.len;
-		}
-
-		result.year = string_to_int(year, 10);
-	}
-
-	if (!parser.error.str)
-	{
-		String hours =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ':')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer to define hours");
-				break;
-			}
-			++hours.len;
-		}
-
-		result.hours = string_to_int(hours, 10);
-	}
-
-	if (!parser.error.str)
-	{
-		String minutes =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ':')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer define minutes");
-				break;
-			}
-			++minutes.len;
-		}
-
-		result.minutes = string_to_int(minutes, 10);
-	}
-
-	if (!parser.error.str)
-	{
-		String seconds =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ' ')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer define seconds");
-				break;
-			}
-			++seconds.len;
-		}
-
-		result.seconds = string_to_int(seconds, 10);
-	}
-
-	if (!parser.error.str)
-	{
-		String zone =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			++parser.cursor;
-			++zone.len;
-		}
-
-		i32 offset_in_hours = get_offset_from_zone(zone);
-		if (offset_in_hours == INT32_MIN)
-		{
-			parser.error = string_literal("failed to parse time zone");
-		}
-		result.hours += offset_in_hours;
-	}
-
-	if (parser.cursor != parser.date_time.len)
-	{
-		parser.error = string_literal("failed to parse entire date time string");
-	}
-
-	if (parser.error.str)
-	{
-		fprintf(stderr, "%.*s\n", parser.error.len, parser.error.str);
-		MEM_ZERO_STRUCT(&result);
-	}
-
+internal inline b32
+is_leap_year(i32 year)
+{
+	b32 result = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 	return result;
+}
+
+internal inline i32
+get_days_in_month(i32 month, i32 year)
+{
+	i32 days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+	b32 leap = month == 1 && is_leap_year(year);
+	i32 result = days[month] + 1 * leap;
+	return result;
+}
+
+internal i64
+get_unix_timestamp(Expanded_Date_Time date_time)
+{
+	i64 unix_timestamp = 0;
+
+	// NOTE(ariel) Add date.
+	{
+		// NOTE(ariel) Calculate total number of days from 1970 to given year.
+		for (i32 year = 1970; year < date_time.year; ++year)
+		{
+			unix_timestamp += 365 + is_leap_year(year);
+		}
+
+		// NOTE(ariel) Calculate total number of days from January 1st to given
+		// date.
+		for (i32 month = 0; month < date_time.month; ++month)
+		{
+			unix_timestamp += get_days_in_month(month, date_time.year);
+		}
+
+		// NOTE(ariel) Add the remaining days.
+		unix_timestamp += date_time.day - 1;
+
+		// NOTE(ariel) Convert days to seconds
+		unix_timestamp *= 24 * 60 * 60;
+	}
+
+	// NOTE(ariel) Add time.
+	{
+		unix_timestamp += date_time.hours * 60 * 60;
+		unix_timestamp += date_time.minutes * 60;
+		unix_timestamp += date_time.seconds;
+	}
+
+	return unix_timestamp;
+}
+
+// NOTE(ariel) The date time format in RSS feeds follows RFC 822, Section 5 --
+// https://datatracker.ietf.org/doc/html/rfc822#section-5
+//
+// date-time   =  [ day "," ] date time        ; dd mm yy
+//                                             ;  hh:mm:ss zzz
+//
+// day         =  "Mon"  / "Tue" /  "Wed"  / "Thu"
+//             /  "Fri"  / "Sat" /  "Sun"
+//
+// date        =  1*2DIGIT month 2DIGIT        ; day month year
+//                                             ;  e.g. 20 Jun 82
+//
+// month       =  "Jan"  /  "Feb" /  "Mar"  /  "Apr"
+//             /  "May"  /  "Jun" /  "Jul"  /  "Aug"
+//             /  "Sep"  /  "Oct" /  "Nov"  /  "Dec"
+//
+// time        =  hour zone                    ; ANSI and Military
+//
+// hour        =  2DIGIT ":" 2DIGIT [":" 2DIGIT]
+//                                             ; 00:00:00 - 23:59:59
+//
+// zone        =  "UT"  / "GMT"                ; Universal Time
+//                                             ; North American : UT
+//             /  "EST" / "EDT"                ;  Eastern:  - 5/ - 4
+//             /  "CST" / "CDT"                ;  Central:  - 6/ - 5
+//             /  "MST" / "MDT"                ;  Mountain: - 7/ - 6
+//             /  "PST" / "PDT"                ;  Pacific:  - 8/ - 7
+//             /  1ALPHA                       ; Military: Z = UT;
+//                                             ;  A:-1; (J not used)
+//                                             ;  M:-12; N:+1; Y:+12
+//             / ( ("+" / "-") 4DIGIT )        ; Local differential
+//                                             ;  hours+min. (HHMM)
+internal void
+parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
+{
+	Expanded_Date_Time result = {0};
+
+	// NOTE(ariel) Eat week day.
+	String week_day = parse_string(parser, ',');
+	parse_week_day(parser, week_day);
+
+	// NOTE(ariel) Eat comma-and-space combo that trails week day.
+	if (!parser->error.str)
+	{
+		if (parser->date_time.str[parser->cursor] == ' ')
+		{
+			++parser->cursor;
+		}
+		else
+		{
+			parser->error = string_literal("expected space after comma trailing week day");
+		}
+	}
+
+	result.day = parse_number(parser, ' ', string_literal("expected day of month"));
+	String month = parse_string(parser, ' ');
+	result.month = parse_month(parser, month);
+	result.year = parse_number(parser, ' ', string_literal("expected year"));
+
+	result.hours = parse_number(parser, ':', string_literal("expected hours"));
+	result.minutes = parse_number(parser, ':', string_literal("expected minutes"));
+	result.seconds = parse_number(parser, ' ', string_literal("expected seconds"));
+
+	String zone = parse_string(parser, 0);
+	i32 offset_in_hours = get_offset_from_zone(parser, zone);
+	result.hours += offset_in_hours;
+
+	if (!parser->error.str && parser->cursor != parser->date_time.len)
+	{
+		parser->error = string_literal("failed to parse date time string from start to finish");
+	}
+
+	if (!parser->error.str)
+	{
+		parser->success = true;
+		timestamp->expanded_format = result;
+		timestamp->unix_format = get_unix_timestamp(result);
+	}
 }
 
 // NOTE(ariel) The date time format in Atom feeds follows RFC 3339 --
 // https://datatracker.ietf.org/doc/html/rfc3339#section-5.6
-internal Date_Time
-parse_rfc_3339_format(String date_time)
+//
+// date-fullyear   = 4DIGIT
+// date-month      = 2DIGIT  ; 01-12
+// date-mday       = 2DIGIT  ; 01-28, 01-29, 01-30, 01-31 based on
+//                           ; month/year
+// time-hour       = 2DIGIT  ; 00-23
+// time-minute     = 2DIGIT  ; 00-59
+// time-second     = 2DIGIT  ; 00-58, 00-59, 00-60 based on leap second
+//                           ; rules
+// time-secfrac    = "." 1*DIGIT
+// time-numoffset  = ("+" / "-") time-hour ":" time-minute
+// time-offset     = "Z" / time-numoffset
+//
+// partial-time    = time-hour ":" time-minute ":" time-second
+//                   [time-secfrac]
+// full-date       = date-fullyear "-" date-month "-" date-mday
+// full-time       = partial-time time-offset
+//
+// date-time       = full-date "T" full-time
+internal void
+parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 {
-	Date_Time result = {0};
-	Date_Time_Parser parser =
-	{
-		.error = {0},
-		.date_time = date_time,
-		.cursor = 0,
-	};
+	Expanded_Date_Time result = {0};
 
-	{
-		String year =
-		{
-			.str = parser.date_time.str,
-			.len = 0,
-		};
+	result.year = parse_number(parser, '-', string_literal("expected year"));
+	result.month = parse_number(parser, '-', string_literal("expected month"));
+	result.day = parse_number(parser, 'T', string_literal("expected day of day"));
 
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == '-')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer for year");
-				break;
-			}
-			++year.len;
-		}
+	result.hours = parse_number(parser, ':', string_literal("expected hours"));
+	result.minutes = parse_number(parser, ':', string_literal("expected minutes"));
 
-		result.year = string_to_int(year, 10);
-	}
-
-	if (!parser.error.str)
-	{
-		String month =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == '-')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer for month");
-				break;
-			}
-			++month.len;
-		}
-
-		result.month = string_to_int(month, 10);
-	}
-
-	if (!parser.error.str)
-	{
-		String month_day =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == 'T')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer for month_day");
-				break;
-			}
-			++month_day.len;
-		}
-
-		result.month_day = string_to_int(month_day, 10);
-	}
-
-	if (!parser.error.str)
-	{
-		String hours =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ':')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer to define hours");
-				break;
-			}
-			++hours.len;
-		}
-
-		result.hours = string_to_int(hours, 10);
-	}
-
-	if (!parser.error.str)
-	{
-		String minutes =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			char ch = parser.date_time.str[parser.cursor++];
-			if (ch == ':')
-			{
-				break;
-			}
-			else if (ch < '0' || ch > '9')
-			{
-				parser.error = string_literal("expected integer to define minutes");
-				break;
-			}
-			++minutes.len;
-		}
-
-		result.minutes = string_to_int(minutes, 10);
-	}
-
-	if (!parser.error.str)
+	if (!parser->error.str)
 	{
 		String seconds =
 		{
-			.str = parser.date_time.str + parser.cursor,
+			.str = parser->date_time.str + parser->cursor,
 			.len = 0,
 		};
 
-		while (parser.cursor < parser.date_time.len)
+		while (parser->cursor < parser->date_time.len)
 		{
-			char ch = parser.date_time.str[parser.cursor];
+			char ch = parser->date_time.str[parser->cursor];
 			if (ch < '0' || ch > '9')
 			{
 				break;
 			}
 			++seconds.len;
-			++parser.cursor;
+			++parser->cursor;
 		}
 
 		result.seconds = string_to_int(seconds, 10);
 	}
 
-	// TODO(ariel) Optionally parse fractional seconds.
+	// TODO(ariel) Eat fractional seconds.
 	{
 	}
 
-	if (!parser.error.str)
+	String zone = parse_string(parser, 0);
+	i32 offset_in_hours = get_offset_from_zone(parser, zone);
+	result.hours += offset_in_hours;
+
+	if (!parser->error.str && parser->cursor != parser->date_time.len)
 	{
-		String zone =
-		{
-			.str = parser.date_time.str + parser.cursor,
-			.len = 0,
-		};
-
-		while (parser.cursor < parser.date_time.len)
-		{
-			++parser.cursor;
-			++zone.len;
-		}
-
-		i32 offset_in_hours = get_offset_from_zone(zone);
-		if (offset_in_hours == INT32_MIN)
-		{
-			parser.error = string_literal("failed to parse time zone");
-		}
-		result.hours += offset_in_hours;
+		parser->error = string_literal("failed to parse date time string from start to finish");
 	}
 
-	if (parser.error.str)
+	if (!parser->error.str)
 	{
-		fprintf(stderr, "%.*s\n", parser.error.len, parser.error.str);
-		MEM_ZERO_STRUCT(&result);
+		parser->success = true;
+		timestamp->expanded_format = result;
+		timestamp->unix_format = get_unix_timestamp(result);
 	}
-
-	return result;
 }
 
-Date_Time
+Timestamp
 parse_date_time(String date_time)
 {
-	Date_Time result = {0};
+	Timestamp timestamp = {0};
 
-	// result = parse_rfc_822_format(date_time);
-	result = parse_rfc_3339_format(date_time);
+	Date_Time_Parser parser =
+	{
+		.date_time = date_time,
+		.success = false,
+	};
+	if (!parser.success)
+	{
+		parse_rfc_822_format(&parser, &timestamp);
+	}
+	if (!parser.success)
+	{
+		i32 previous_cursor_position = parser.cursor;
+		String previous_error_message = parser.error;
 
-	return result;
+		// NOTE(ariel) Reset parser for another pass.
+		parser.cursor = 0;
+		MEM_ZERO_STRUCT(&parser.error);
+
+		parse_rfc_3339_format(&parser, &timestamp);
+
+		// NOTE(ariel) In the case that both calls fail to parse the date time
+		// string, return the error message from whichever path progressed further.
+		if (!parser.success && previous_cursor_position > parser.cursor)
+		{
+			timestamp.error = previous_error_message;
+		}
+	}
+
+	return timestamp;
 }
