@@ -1,9 +1,9 @@
 #include <stdio.h>
-#include <time.h>
 
 #include <sqlite3.h>
 
 #include "base.h"
+#include "date_time.h"
 #include "db.h"
 #include "rss.h"
 #include "str.h"
@@ -73,7 +73,7 @@ db_init(sqlite3 **db)
 			"items("
 				"link TEXT PRIMARY KEY,"
 				"title TEXT NOT NULL,"
-				"date_last_modified INTEGER NOT NULL DEFAULT 0,"
+				"date_last_modified BIGINT NOT NULL DEFAULT 0,"
 				"unread BOOLEAN NOT NULL DEFAULT 0,"
 				"feed REFERENCES feeds(id) ON DELETE CASCADE);";
 	error = sqlite3_exec(*db, create_items_table, 0, 0, &errmsg);
@@ -188,50 +188,16 @@ get_content_from_node(RSS_Tree_Node *item_node, String term, String default_valu
 	}
 }
 
-typedef struct Timestamp Timestamp;
-struct Timestamp
+internal i64
+get_unix_timestamp(String date_time)
 {
-	struct tm tm_format;
-	u32 unix_format;
-};
-
-internal inline void
-parse_date(char *date, char *format, Timestamp *timestamp)
-{
-	if (!timestamp->unix_format && strptime(date, format, &timestamp->tm_format))
+	Timestamp timestamp = parse_date_time(date_time);
+	if (timestamp.error.str)
 	{
-		timestamp->unix_format = mktime(&timestamp->tm_format);
+		fprintf(stderr, "[DB ERROR] failed to parse date %.*s: %.*s\n",
+			date_time.len, date_time.str,
+			timestamp.error.len, timestamp.error.str);
 	}
-}
-
-internal u32
-get_unix_timestamp(String date)
-{
-	Timestamp timestamp = {0};
-
-	char terminated_date[32] = {0};
-	i32 max_date_len = sizeof(terminated_date);
-	if (date.len > 0 && date.len < max_date_len)
-	{
-		memcpy(terminated_date, date.str, date.len);
-
-		// NOTE(ariel) Handle dates that specify fractional seconds.
-		i32 dot_index = string_find_ch(date, '.');
-		if (dot_index > 0 && dot_index < 32)
-		{
-			terminated_date[dot_index] = 0;
-		}
-
-		parse_date(terminated_date, "%a, %d %b %Y %H:%M:%S %Z", &timestamp);
-		parse_date(terminated_date, "%Y-%m-%dT%H:%M:%S%z", &timestamp);
-		parse_date(terminated_date, "%Y-%m-%dT%H:%M:%S", &timestamp);
-
-		if (!timestamp.unix_format)
-		{
-			fprintf(stderr, "[DB ERROR] failed to parse date %s\n", terminated_date);
-		}
-	}
-
 	return timestamp.unix_format;
 }
 
@@ -246,7 +212,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	String date = {0};
 	get_content_from_node(item_node, string_literal("pubDate"), date, &date);
 	get_content_from_node(item_node, string_literal("updated"), date, &date);
-	u32 unix_timestamp = get_unix_timestamp(date);
+	i64 unix_timestamp = get_unix_timestamp(date);
 
 	// NOTE(ariel) 1 in the VALUES(...) expression below indicates the item
 	// remains unread.
