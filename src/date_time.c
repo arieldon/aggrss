@@ -185,7 +185,7 @@ get_days_in_month(i32 month, i32 year)
 {
 	i32 days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 	b32 leap = month == 1 && is_leap_year(year);
-	i32 result = days[month] + 1 * leap;
+	i32 result = days[month] + leap;
 	return result;
 }
 
@@ -193,34 +193,40 @@ get_days_in_month(i32 month, i32 year)
 internal i64
 compute_unix_timestamp(Expanded_Date_Time date_time)
 {
+	const i32 SECONDS_PER_DAY = 86400;
+	const i32 SECONDS_PER_HOUR = 3600;
+	const i32 SECONDS_PER_MINUTE = 60;
+
 	i64 unix_timestamp = 0;
 
 	// NOTE(ariel) Add date.
 	{
+		i32 days = 0;
+
 		// NOTE(ariel) Calculate total number of days from 1970 to given year.
 		for (i32 year = 1970; year < date_time.year; ++year)
 		{
-			unix_timestamp += 365 + is_leap_year(year);
+			days += 365 + is_leap_year(year);
 		}
 
-		// NOTE(ariel) Calculate total number of days from January 1st to given
-		// date.
+		// NOTE(ariel) Calculate total number of days from beginning of year to
+		// given month.
 		for (i32 month = 0; month < date_time.month; ++month)
 		{
-			unix_timestamp += get_days_in_month(month, date_time.year);
+			days += get_days_in_month(month, date_time.year);
 		}
 
-		// NOTE(ariel) Add the remaining days.
-		unix_timestamp += date_time.day - 1;
+		// NOTE(ariel) Add remaining days of month.
+		days += date_time.day - 1;
 
 		// NOTE(ariel) Convert days to seconds
-		unix_timestamp *= 24 * 60 * 60;
+		unix_timestamp += days * SECONDS_PER_DAY;
 	}
 
 	// NOTE(ariel) Add time.
 	{
-		unix_timestamp += date_time.hours * 60 * 60;
-		unix_timestamp += date_time.minutes * 60;
+		unix_timestamp += date_time.hours * SECONDS_PER_HOUR;
+		unix_timestamp += date_time.minutes * SECONDS_PER_MINUTE;
 		unix_timestamp += date_time.seconds;
 	}
 
