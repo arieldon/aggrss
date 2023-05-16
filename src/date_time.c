@@ -372,10 +372,6 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 		result.seconds = string_to_int(seconds, 10);
 	}
 
-	// TODO(ariel) Eat fractional seconds.
-	{
-	}
-
 	String zone = parse_string(parser, 0);
 	i32 offset_in_hours = get_offset_from_zone(parser, zone);
 	result.hours += offset_in_hours;
