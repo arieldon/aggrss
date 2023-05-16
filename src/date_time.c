@@ -80,47 +80,76 @@ parse_month(Date_Time_Parser *parser, String month)
 	return result;
 }
 
-internal i32
+typedef struct Time_Zone_Offset Time_Zone_Offset;
+struct Time_Zone_Offset
+{
+	i32 hours;
+	i32 minutes;
+};
+
+internal Time_Zone_Offset
 get_offset_from_zone(Date_Time_Parser *parser, String zone)
 {
-	i32 offset_in_hours = 0;
+	Time_Zone_Offset offset = {0};
 
-	i32 zone_index = -1;
-	String zones[] =
+	if (zone.len == 5)
 	{
-		string_literal("UT"), string_literal("GMT"), string_literal("Z"),
-		string_literal("EST"), string_literal("EDT"),
-		string_literal("CST"), string_literal("CDT"),
-		string_literal("MST"), string_literal("MDT"),
-		string_literal("PST"), string_literal("PDT"),
-	};
-	for (u32 i = 0; i < ARRAY_COUNT(zones); ++i)
-	{
-		if (string_match(zones[i], zone))
-		{
-			zone_index = i;
-			break;
-		}
-	}
+		b32 negative = zone.str[0] == '-';
 
-	if (zone_index != -1)
-	{
-		i32 offsets[] =
+		String hours =
 		{
-			+0, +0, +0,
-			-5, -4,
-			-6, -5,
-			-7, -6,
-			-8, -7,
+			.str = zone.str + 1,
+			.len = 2,
 		};
-		offset_in_hours = offsets[zone_index];
+		String minutes =
+		{
+			.str = zone.str + 3,
+			.len = 2,
+		};
+
+		offset.hours = (string_to_int(hours, 10) ^ -negative) + negative;
+		offset.minutes = (string_to_int(minutes, 10) ^ -negative) + negative;
 	}
 	else
 	{
-		parser->error = string_literal("expected time zone");
+		i32 zone_index = -1;
+
+		String zones[] =
+		{
+			string_literal("UT"), string_literal("GMT"), string_literal("Z"),
+			string_literal("EST"), string_literal("EDT"),
+			string_literal("CST"), string_literal("CDT"),
+			string_literal("MST"), string_literal("MDT"),
+			string_literal("PST"), string_literal("PDT"),
+		};
+		for (u32 i = 0; i < ARRAY_COUNT(zones); ++i)
+		{
+			if (string_match(zones[i], zone))
+			{
+				zone_index = i;
+				break;
+			}
+		}
+
+		if (zone_index != -1)
+		{
+			i32 offsets[] =
+			{
+				+0, +0, +0,
+				-5, -4,
+				-6, -5,
+				-7, -6,
+				-8, -7,
+			};
+			offset.hours = offsets[zone_index];
+		}
+		else
+		{
+			parser->error = string_literal("expected time zone");
+		}
 	}
 
-	return offset_in_hours;
+	return offset;
 }
 
 internal i32
@@ -297,8 +326,9 @@ parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	result.seconds = parse_number(parser, ' ', string_literal("expected seconds"));
 
 	String zone = parse_string(parser, 0);
-	i32 offset_in_hours = get_offset_from_zone(parser, zone);
-	result.hours += offset_in_hours;
+	Time_Zone_Offset offset = get_offset_from_zone(parser, zone);
+	result.hours += offset.hours;
+	result.minutes += offset.minutes;
 
 	if (!parser->error.str && parser->cursor != parser->date_time.len)
 	{
@@ -373,8 +403,9 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	}
 
 	String zone = parse_string(parser, 0);
-	i32 offset_in_hours = get_offset_from_zone(parser, zone);
-	result.hours += offset_in_hours;
+	Time_Zone_Offset offset = get_offset_from_zone(parser, zone);
+	result.hours += offset.hours;
+	result.minutes += offset.minutes;
 
 	if (!parser->error.str && parser->cursor != parser->date_time.len)
 	{
