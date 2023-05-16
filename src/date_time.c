@@ -189,8 +189,9 @@ get_days_in_month(i32 month, i32 year)
 	return result;
 }
 
+// NOTE(ariel) This doesn't support dates _before_ the Unix epoch.
 internal i64
-get_unix_timestamp(Expanded_Date_Time date_time)
+compute_unix_timestamp(Expanded_Date_Time date_time)
 {
 	i64 unix_timestamp = 0;
 
@@ -302,7 +303,7 @@ parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	{
 		parser->success = true;
 		timestamp->expanded_format = result;
-		timestamp->unix_format = get_unix_timestamp(result);
+		timestamp->unix_format = compute_unix_timestamp(result);
 	}
 }
 
@@ -378,7 +379,7 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	{
 		parser->success = true;
 		timestamp->expanded_format = result;
-		timestamp->unix_format = get_unix_timestamp(result);
+		timestamp->unix_format = compute_unix_timestamp(result);
 	}
 }
 
