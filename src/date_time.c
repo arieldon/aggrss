@@ -337,6 +337,10 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	result.month = parse_number(parser, '-', string_literal("expected month"));
 	result.day = parse_number(parser, 'T', string_literal("expected day of day"));
 
+	// NOTE(ariel) RFC 3339 specifies months from 1 to 12, but I want to use zero
+	// later in the code path.
+	result.month -= 1;
+
 	result.hours = parse_number(parser, ':', string_literal("expected hours"));
 	result.minutes = parse_number(parser, ':', string_literal("expected minutes"));
 
