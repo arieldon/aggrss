@@ -36,7 +36,7 @@ mat4_scale(f32 x, f32 y, f32 z)
 {
 	Matrix4f result =
 	{
-		.e =\
+		.e =
 		{
 			{ x, 0, 0, 0 },
 			{ 0, y, 0, 0 },
