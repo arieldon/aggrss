@@ -1,18 +1,11 @@
 #include <ctype.h>
-#include <errno.h>
 #include <stdio.h>
-
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 
 #include "arena.h"
 #include "base.h"
-#include "err.h"
 #include "request.h"
 #include "str.h"
 
