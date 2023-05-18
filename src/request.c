@@ -369,10 +369,12 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 				}
 				node = node->next;
 
-				assert(node->string.len > 0);
-				memcpy(decoded.str + decoded.len, node->string.str, node->string.len);
-				decoded.len += node->string.len;
-				expected_chunk_size -= node->string.len;
+				if (node->string.len > 0)
+				{
+					memcpy(decoded.str + decoded.len, node->string.str, node->string.len);
+					decoded.len += node->string.len;
+					expected_chunk_size -= node->string.len;
+				}
 			}
 
 			assert(expected_chunk_size >= 0);
