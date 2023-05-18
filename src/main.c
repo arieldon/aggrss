@@ -407,6 +407,10 @@ main(void)
 			{
 				err_exit("failed to launch thread");
 			}
+			if (pthread_detach(worker->thread_id))
+			{
+				err_exit("failed to mark thread %d as detached", i);
+			}
 			arena_init(&worker->scratch_arena);
 			arena_init(&worker->persistent_arena);
 		}
