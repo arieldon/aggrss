@@ -186,8 +186,9 @@ get_work_entry(void *arg)
 		pthread_spin_unlock(&work_queue.big_lock);
 
 		parse_feed(worker, entry->url);
-		arena_clear(&worker->scratch_arena);
 		free_work_entry(entry);
+		arena_clear(&worker->scratch_arena);
+		arena_clear(&worker->persistent_arena);
 	}
 
 	return 0;
