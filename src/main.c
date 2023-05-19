@@ -15,6 +15,7 @@
 
 #include "arena.h"
 #include "err.h"
+#include "pool.h"
 #include "request.h"
 #include "rss.h"
 #include "str.h"
@@ -23,6 +24,8 @@ enum { FPS = 60 };
 global u32 delta_ms = 1000 / FPS;
 
 global Arena g_arena;
+global Pool g_entry_pool;
+
 global sqlite3 *db;
 
 global char mouse_button_map[] =
@@ -59,6 +62,7 @@ struct Work_Entry
 {
 	Work_Entry *next;
 	String url;
+	char short_url_buffer[64];
 };
 
 // NOTE(ariel) This queue models the single producer, multiple consumer
@@ -130,6 +134,34 @@ parse_feed(Worker *worker, String url)
 	}
 }
 
+internal inline Work_Entry *
+init_work_entry(String url)
+{
+	Work_Entry *entry = get_slot(&g_entry_pool);
+	entry->next = 0;
+	entry->url.len = url.len;
+	if (url.len < (isize)sizeof(entry->short_url_buffer))
+	{
+		entry->url.str = entry->short_url_buffer;
+	}
+	else
+	{
+		entry->url.str = calloc(url.len, sizeof(char));
+	}
+	memcpy(entry->url.str, url.str, url.len);
+	return entry;
+}
+
+internal inline void
+free_work_entry(Work_Entry *entry)
+{
+	if (entry->url.str != entry->short_url_buffer)
+	{
+		free(entry->url.str);
+	}
+	return_slot(&g_entry_pool, entry);
+}
+
 internal void *
 get_work_entry(void *arg)
 {
@@ -155,8 +187,7 @@ get_work_entry(void *arg)
 
 		parse_feed(worker, entry->url);
 		arena_clear(&worker->scratch_arena);
-		free(entry->url.str);
-		free(entry);
+		free_work_entry(entry);
 	}
 
 	return 0;
@@ -167,12 +198,7 @@ add_work_entry(String url)
 {
 	// NOTE(ariel) This routine serves as a producer. Only a single thread of
 	// execution adds entries to the work queue.
-	// TODO(ariel) Create a custom pool allocator for the work queue?
-	Work_Entry *entry = calloc(1, sizeof(Work_Entry));
-	entry->next = 0;
-	entry->url.len = url.len;
-	entry->url.str = calloc(url.len, sizeof(char));
-	memcpy(entry->url.str, url.str, url.len);
+	Work_Entry *entry = init_work_entry(url);
 
 	pthread_spin_lock(&work_queue.big_lock);
 	{
@@ -386,6 +412,10 @@ main(void)
 {
 	arena_init(&g_arena);
 
+	g_entry_pool.slot_size = sizeof(Work_Entry);
+	g_entry_pool.page_size = g_entry_pool.slot_size * 16;
+	init_pool(&g_entry_pool);
+
 	// NOTE(ariel) Initialize work queue.
 	{
 		i32 n_logical_cpu_cores = SDL_GetCPUCount();
@@ -488,6 +518,7 @@ main(void)
 
 exit:
 	db_free(db);
+	free_pool(&g_entry_pool);
 	arena_release(&g_arena);
 	return 0;
 }
