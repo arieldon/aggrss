@@ -326,8 +326,6 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 			goto exit;
 		}
 
-		// TODO(ariel) Use logging to reveal the issues with some resources,
-		// particularly those from Substack.
 		String decoded =
 		{
 			.str = arena_alloc(persistent_arena, 0),
