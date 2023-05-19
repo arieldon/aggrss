@@ -129,7 +129,7 @@ struct UI_Prompt_Block
  * ---
  */
 
-enum { N_MAX_BLOCKS = 64 };
+enum { N_MAX_BLOCKS = 256 };
 
 typedef struct UI_Block UI_Block;
 struct UI_Block
@@ -176,7 +176,6 @@ struct UI_Context
 	UI_ID active_block;
 	UI_ID active_keyboard_block;
 
-	// FIXME(ariel) This only supports 64 headers at a time.
 	// NOTE(ariel) Store some state for each UI block that demands some sort of
 	// persistence between frames.
 	UI_Block_Pool block_pool;
