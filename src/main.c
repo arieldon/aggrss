@@ -83,17 +83,17 @@ struct Work_Queue
 global Worker *workers;
 global Work_Queue work_queue;
 
-typedef struct Error_Stack Error_Stack;
-struct Error_Stack
+typedef struct Message_Stack Message_Stack;
+struct Message_Stack
 {
 	pthread_mutex_t lock;
-	String_Node *first_error;
+	String_Node *first_message;
 };
 
-global Error_Stack g_error_stack = { .lock = PTHREAD_MUTEX_INITIALIZER };
+global Message_Stack g_message_stack = { .lock = PTHREAD_MUTEX_INITIALIZER };
 
 internal void
-push_error_message(String message)
+push_message(String message)
 {
 	local_persist String_Table table;
 
@@ -104,14 +104,14 @@ push_error_message(String message)
 		init_pool(&g_error_pool);
 	}
 
-	pthread_mutex_lock(&g_error_stack.lock);
+	pthread_mutex_lock(&g_message_stack.lock);
 	{
 		String_Node *node = get_slot(&g_error_pool);
 		node->string = intern(&table, message);
-		node->next = g_error_stack.first_error;
-		g_error_stack.first_error = node;
+		node->next = g_message_stack.first_message;
+		g_message_stack.first_message = node;
 	}
-	pthread_mutex_unlock(&g_error_stack.lock);
+	pthread_mutex_unlock(&g_message_stack.lock);
 }
 
 internal void
@@ -125,7 +125,7 @@ parse_feed(Worker *worker, String url)
 			string_literal("failed to download "), url, string_literal(": "), resource.error
 		};
 		String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
-		push_error_message(message);
+		push_message(message);
 		return;
 	}
 
@@ -147,7 +147,7 @@ parse_feed(Worker *worker, String url)
 		}
 
 		String message = string_list_concat(&worker->scratch_arena, ls);
-		push_error_message(message);
+		push_message(message);
 		return;
 	}
 
@@ -159,7 +159,7 @@ parse_feed(Worker *worker, String url)
 			// NOTE(ariel) Invalidate feeds without a title tag.
 			String strings[] = { string_literal("failed to parse title of "), url };
 			String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
-			push_error_message(message);
+			push_message(message);
 			return;
 		}
 
@@ -172,15 +172,15 @@ parse_feed(Worker *worker, String url)
 			db_add_item(db, url, item);
 		}
 
-#ifdef DEBUG
-		fprintf(stderr, "successfully parsed %.*s\n", url.len, url.str);
-#endif
+		String strings[] = { string_literal("successfully parsed "), feed->feed_title->content };
+		String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
+		push_message(message);
 	}
 	else
 	{
 		String strings[] = { string_literal("failed to parse title of %.*s\n"), url };
 		String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
-		push_error_message(message);
+		push_message(message);
 	}
 }
 
@@ -457,18 +457,18 @@ process_frame(void)
 
 	ui_separator();
 
-	if (ui_header(string_literal("Errors"), 0))
+	if (ui_header(string_literal("Messages"), 0))
 	{
-		pthread_mutex_lock(&g_error_stack.lock);
+		pthread_mutex_lock(&g_message_stack.lock);
 		{
-			String_Node *error = g_error_stack.first_error;
-			while (error)
+			String_Node *message = g_message_stack.first_message;
+			while (message)
 			{
-				ui_text(error->string);
-				error = error->next;
+				ui_text(message->string);
+				message = message->next;
 			}
 		}
-		pthread_mutex_unlock(&g_error_stack.lock);
+		pthread_mutex_unlock(&g_message_stack.lock);
 	}
 
 	ui_end();
