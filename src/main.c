@@ -584,6 +584,5 @@ main(void)
 exit:
 	db_free(db);
 	free_pool(&g_entry_pool);
-	arena_release(&g_arena);
 	return 0;
 }
