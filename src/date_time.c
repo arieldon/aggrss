@@ -325,10 +325,13 @@ parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	result.minutes = parse_number(parser, ':', string_literal("expected minutes"));
 	result.seconds = parse_number(parser, ' ', string_literal("expected seconds"));
 
-	String zone = parse_string(parser, 0);
-	Time_Zone_Offset offset = get_offset_from_zone(parser, zone);
-	result.hours += offset.hours;
-	result.minutes += offset.minutes;
+	if (!parser->error.str)
+	{
+		String zone = parse_string(parser, 0);
+		Time_Zone_Offset offset = get_offset_from_zone(parser, zone);
+		result.hours += offset.hours;
+		result.minutes += offset.minutes;
+	}
 
 	if (!parser->error.str && parser->cursor != parser->date_time.len)
 	{
@@ -402,10 +405,13 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 		result.seconds = string_to_int(seconds, 10);
 	}
 
-	String zone = parse_string(parser, 0);
-	Time_Zone_Offset offset = get_offset_from_zone(parser, zone);
-	result.hours += offset.hours;
-	result.minutes += offset.minutes;
+	if (!parser->error.str)
+	{
+		String zone = parse_string(parser, 0);
+		Time_Zone_Offset offset = get_offset_from_zone(parser, zone);
+		result.hours += offset.hours;
+		result.minutes += offset.minutes;
+	}
 
 	if (!parser->error.str && parser->cursor != parser->date_time.len)
 	{
