@@ -189,13 +189,14 @@ get_content_from_node(RSS_Tree_Node *item_node, String term, String default_valu
 }
 
 internal i64
-get_unix_timestamp(String date_time)
+get_unix_timestamp(String feed_link, String date_time)
 {
 	Timestamp timestamp = parse_date_time(date_time);
 	if (timestamp.error.str)
 	{
-		fprintf(stderr, "[DB ERROR] failed to parse date %.*s: %.*s\n",
+		fprintf(stderr, "[DB ERROR] failed to parse date %.*s for %.*s: %.*s\n",
 			date_time.len, date_time.str,
+			feed_link.len, feed_link.str,
 			timestamp.error.len, timestamp.error.str);
 	}
 	return timestamp.unix_format;
@@ -212,7 +213,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	String date = {0};
 	get_content_from_node(item_node, string_literal("pubDate"), date, &date);
 	get_content_from_node(item_node, string_literal("updated"), date, &date);
-	i64 unix_timestamp = get_unix_timestamp(date);
+	i64 unix_timestamp = get_unix_timestamp(feed_link, date);
 
 	// NOTE(ariel) 1 in the VALUES(...) expression below indicates the item
 	// remains unread.
