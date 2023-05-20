@@ -339,9 +339,10 @@ download_resource(Arena *persistent_arena, Arena *scratch_arena, String urlstr)
 				if (!isxdigit(node->string.str[i]))
 				{
 					String_List error = {0};
+					string_list_push_string(scratch_arena, &error, string_literal("\""));
 					string_list_push_string(scratch_arena, &error, node->string);
 					string_list_push_string(scratch_arena, &error,
-						string_literal(" does not specify the length of chunk in the response"));
+						string_literal("\" does not specify the length of chunk in the response"));
 					resource.error = string_list_concat(scratch_arena, error);
 					goto exit;
 				}
