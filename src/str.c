@@ -339,3 +339,17 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 
 	return s;
 }
+
+String
+concat_strings(Arena *arena, i32 n_strings, String *strings)
+{
+	String_List ls = {0};
+
+	for (i32 i = 0; i < n_strings; ++i)
+	{
+		string_list_push_string(arena, &ls, strings[i]);
+	}
+
+	String result = string_list_concat(arena, ls);
+	return result;
+}

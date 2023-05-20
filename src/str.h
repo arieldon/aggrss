@@ -41,4 +41,6 @@ String_List string_strsplit(Arena *arena, String s, String delim);
 String string_list_concat(Arena *arena, String_List ls);
 String string_list_join(Arena *arena, String_List ls, u8 sep);
 
+String concat_strings(Arena *arena, i32 n_strings, String *strings);
+
 #endif
