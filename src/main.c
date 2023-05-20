@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -96,6 +97,7 @@ internal void
 push_message(String message)
 {
 	local_persist String_Table table;
+	local_persist pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 	if (!g_error_pool.buffer)
 	{
@@ -104,14 +106,17 @@ push_message(String message)
 		init_pool(&g_error_pool);
 	}
 
-	pthread_mutex_lock(&g_message_stack.lock);
+	String_Node *new_message = get_slot(&g_error_pool);
+
+	pthread_mutex_lock(&lock);
 	{
-		String_Node *node = get_slot(&g_error_pool);
-		node->string = intern(&table, message);
-		node->next = g_message_stack.first_message;
-		g_message_stack.first_message = node;
+		new_message->string = intern(&table, message);
 	}
-	pthread_mutex_unlock(&g_message_stack.lock);
+	pthread_mutex_unlock(&lock);
+
+	String_Node *expected = atomic_load(&g_message_stack.first_message);
+	do new_message->next = expected;
+	while (!atomic_compare_exchange_weak(&g_message_stack.first_message, &expected, new_message));
 }
 
 internal void
@@ -459,16 +464,12 @@ process_frame(void)
 
 	if (ui_header(string_literal("Messages"), 0))
 	{
-		pthread_mutex_lock(&g_message_stack.lock);
+		String_Node *message = atomic_load(&g_message_stack.first_message);
+		while (message)
 		{
-			String_Node *message = g_message_stack.first_message;
-			while (message)
-			{
-				ui_text(message->string);
-				message = message->next;
-			}
+			ui_text(message->string);
+			message = message->next;
 		}
-		pthread_mutex_unlock(&g_message_stack.lock);
 	}
 
 	ui_end();
