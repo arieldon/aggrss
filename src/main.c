@@ -19,12 +19,14 @@
 #include "request.h"
 #include "rss.h"
 #include "str.h"
+#include "string_table.h"
 
 enum { FPS = 60 };
 global u32 delta_ms = 1000 / FPS;
 
 global Arena g_arena;
 global Pool g_entry_pool;
+global Pool g_error_pool;
 
 global sqlite3 *db;
 
@@ -79,16 +81,49 @@ struct Work_Queue
 global Worker *workers;
 global Work_Queue work_queue;
 
+typedef struct Error_Stack Error_Stack;
+struct Error_Stack
+{
+	pthread_mutex_t lock;
+	String_Node *first_error;
+};
+
+global Error_Stack g_error_stack = { .lock = PTHREAD_MUTEX_INITIALIZER };
+
+internal void
+push_error_message(String message)
+{
+	local_persist String_Table table;
+
+	if (!g_error_pool.buffer)
+	{
+		g_error_pool.slot_size = sizeof(String_Node);
+		g_error_pool.page_size = g_error_pool.slot_size * 16;
+		init_pool(&g_error_pool);
+	}
+
+	pthread_mutex_lock(&g_error_stack.lock);
+	{
+		String_Node *node = get_slot(&g_error_pool);
+		node->string = intern(&table, message);
+		node->next = g_error_stack.first_error;
+		g_error_stack.first_error = node;
+	}
+	pthread_mutex_unlock(&g_error_stack.lock);
+}
+
 internal void
 parse_feed(Worker *worker, String url)
 {
 	Resource resource = download_resource(&worker->persistent_arena, &worker->scratch_arena, url);
 	if (resource.error.len > 0)
 	{
-		// TODO(ariel) Push error on global RSS tree instead of or in addition to
-		// logging a message here.
-		fprintf(stderr, "failed to download %.*s: %.*s\n",
-			url.len, url.str, resource.error.len, resource.error.str);
+		String strings[] =
+		{
+			string_literal("failed to download "), url, string_literal(": "), resource.error
+		};
+		String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
+		push_error_message(message);
 		return;
 	}
 
@@ -97,13 +132,20 @@ parse_feed(Worker *worker, String url)
 
 	if (feed->errors.first)
 	{
-		fprintf(stderr, "failed to parse %.*s\n", url.len, url.str);
+		String_List ls = {0};
+		string_list_push_string(&worker->scratch_arena, &ls, string_literal("failed to parse "));
+		string_list_push_string(&worker->scratch_arena, &ls, url);
+
 		RSS_Error *error = feed->errors.first;
 		while (error)
 		{
-			fprintf(stderr, "\t%.*s\n", error->text.len, error->text.str);
+			string_list_push_string(&worker->scratch_arena, &ls, string_literal("\t"));
+			string_list_push_string(&worker->scratch_arena, &ls, error->text);
 			error = error->next;
 		}
+
+		String message = string_list_concat(&worker->scratch_arena, ls);
+		push_error_message(message);
 		return;
 	}
 
@@ -113,7 +155,9 @@ parse_feed(Worker *worker, String url)
 		if (!feed->feed_title)
 		{
 			// NOTE(ariel) Invalidate feeds without a title tag.
-			fprintf(stderr, "failed to parse title of %.*s\n", url.len, url.str);
+			String strings[] = { string_literal("failed to parse title of "), url };
+			String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
+			push_error_message(message);
 			return;
 		}
 
@@ -126,11 +170,15 @@ parse_feed(Worker *worker, String url)
 			db_add_item(db, url, item);
 		}
 
+#ifdef DEBUG
 		fprintf(stderr, "successfully parsed %.*s\n", url.len, url.str);
+#endif
 	}
 	else
 	{
-		fprintf(stderr, "failed to parse %.*s\n", url.len, url.str);
+		String strings[] = { string_literal("failed to parse title of %.*s\n"), url };
+		String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
+		push_error_message(message);
 	}
 }
 
@@ -403,6 +451,22 @@ process_frame(void)
 	if (feed_to_tag.str)
 	{
 		tag_feed();
+	}
+
+	ui_separator();
+
+	if (ui_header(string_literal("Errors"), 0))
+	{
+		pthread_mutex_lock(&g_error_stack.lock);
+		{
+			String_Node *error = g_error_stack.first_error;
+			while (error)
+			{
+				ui_text(error->string);
+				error = error->next;
+			}
+		}
+		pthread_mutex_unlock(&g_error_stack.lock);
 	}
 
 	ui_end();
