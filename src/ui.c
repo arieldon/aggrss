@@ -211,14 +211,26 @@ ui_end(void)
 		ui.active_block = -1;
 	}
 
+	if (ui.key_press & UI_KEY_PAGE_DOWN)
+	{
+		ui.scroll_delta_y -= 10 * ui.layout.row_height;
+	}
+	else if (ui.key_press & UI_KEY_PAGE_UP)
+	{
+		ui.scroll_delta_y += 10 * ui.layout.row_height;
+	}
+
 	i32 scroll = ui.scroll_y + ui.scroll_delta_y;
 	if (ui.scroll_delta_y > 0)
 	{
+		// NOTE(ariel) Scroll up.
 		ui.scroll_y = CLAMP(ui.scroll_y, 0, scroll);
 	}
 	else if (ui.scroll_delta_y < 0)
 	{
-		if (ui.layout.y - ui.scroll_delta_y > ui.layout.height)
+		// NOTE(ariel) Scroll down.
+		i32 y_offset = ui.layout.y - ui.scroll_delta_y;
+		if (y_offset > ui.layout.height)
 		{
 			ui.scroll_y = scroll;
 		}

@@ -43,6 +43,8 @@ global char modifier_key_map[256] =
 	[SDLK_LCTRL     & 0xff] = UI_KEY_CONTROL,
 	[SDLK_RCTRL     & 0xff] = UI_KEY_CONTROL,
 	[SDLK_ESCAPE    & 0xff] = UI_KEY_ESCAPE,
+	[SDLK_PAGEUP    & 0xff] = UI_KEY_PAGE_UP,
+	[SDLK_PAGEDOWN  & 0xff] = UI_KEY_PAGE_DOWN,
 };
 
 typedef struct Worker Worker;
