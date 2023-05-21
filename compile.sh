@@ -2,7 +2,7 @@
 
 set -eux
 
-BIN="rss"
+BIN="aggrss"
 
 CFLAGS="-std=c11 -D_DEFAULT_SOURCE"
 WARNINGS="-Wall -Wextra -Wpedantic"
