@@ -251,8 +251,13 @@ bake_font(Arena *arena)
 	Arena scratch_arena = {0};
 	arena_init(&scratch_arena);
 
-	Font_Data characters = parse_font_file(&scratch_arena, "./assets/RobotoMono-Medium.ttf");
-	Font_Data icons = parse_font_file(&scratch_arena, "./assets/icons.ttf");
+	// NOTE(ariel) Compile script defines macro CONFIG_DIRECTORY_PATH.
+#define CHARACTERS_FILE_PATH CONFIG_DIRECTORY_PATH "/assets/RobotoMono-Medium.ttf"
+#define ICONS_FILE_PATH CONFIG_DIRECTORY_PATH "/assets/icons.ttf"
+	Font_Data characters = parse_font_file(&scratch_arena, CHARACTERS_FILE_PATH);
+	Font_Data icons = parse_font_file(&scratch_arena, ICONS_FILE_PATH);
+#undef ICONS_FILE_PATH
+#undef CHARACTERS_FILE_PATH
 
 	// NOTE(ariel) Initialize a data structure to quickly map a code point to a
 	// corresponding glyph index based on the results of the initial pass from

@@ -38,12 +38,15 @@ db_init(sqlite3 **db)
 {
 	assert(sqlite3_threadsafe());
 
-	i32 error = sqlite3_open("./feeds.db", db);
+	// NOTE(ariel) Compile script defines macro CONFIG_DIRECTORY_PATH.
+#define DATABASE_FILE_PATH CONFIG_DIRECTORY_PATH "feeds.db"
+	i32 error = sqlite3_open(DATABASE_FILE_PATH, db);
 	if (error)
 	{
 		fprintf(stderr, "[DB ERROR] failed to open database file\n");
 		exit(EXIT_FAILURE);
 	}
+#undef DATABASE_FILE_PATH
 
 	char *errmsg = 0;
 	char *enable_foreign_keys = "PRAGMA foreign_keys = ON;";
