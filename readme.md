@@ -53,6 +53,7 @@ $ ./install.sh
     even if it's much, much messier.
   - [Sol on Immediate Mode GUIs (IMGUI)](https://solhsa.com/imgui/index.html)
   - [docs.GL for OpenGL API Documentation](https://docs.gl/)
+  - [Loading OpenGL without GLEW](https://apoorvaj.io/loading-opengl-without-glew/)
 
 Then there are RFCs and specs for various formats/protocols and docs for all
 the libraries I used, but those are easy to find.
