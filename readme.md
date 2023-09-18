@@ -2,6 +2,7 @@
 
 aggrss is a graphical RSS/Atom feed aggregator for Linux.
 
+![Screenshot of aggrss](./screenshot.png)
 
 ## Compile and Install
 
