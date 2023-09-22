@@ -539,9 +539,9 @@ main(void)
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 
 	// NOTE(ariel) Initialize work queue.
+	i32 n_logical_cpu_cores = SDL_GetCPUCount();
+	i32 n_workers = n_logical_cpu_cores - 1;
 	{
-		i32 n_logical_cpu_cores = SDL_GetCPUCount();
-		i32 n_workers = n_logical_cpu_cores - 1;
 		workers = arena_alloc(&g_arena, n_workers * sizeof(Worker));
 
 		if (sem_init(&work_queue.semaphore, 0, 0) == -1)
@@ -647,6 +647,11 @@ main(void)
 	}
 
 exit:
+	for (i8 i = 0; i < n_workers; ++i)
+	{
+		Worker *worker = &workers[i];
+		curl_easy_cleanup(worker->curl_handle);
+	}
 	curl_global_cleanup();
 	db_free(db);
 	free_pool(&g_entry_pool);
