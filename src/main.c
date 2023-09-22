@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <curl/curl.h>
+
 #include "SDL.h"
 #include "renderer.h"
 #include "ui.h"
@@ -17,7 +19,6 @@
 #include "arena.h"
 #include "err.h"
 #include "pool.h"
-#include "request.h"
 #include "rss.h"
 #include "str.h"
 #include "string_table.h"
@@ -52,6 +53,8 @@ typedef struct Worker Worker;
 struct Worker
 {
 	pthread_t thread_id;
+
+	CURL *curl_handle;
 
 	// NOTE(ariel) The scratch arena stores temporary data for the thread -- data
 	// unnecessary for the main thread's use, or any later use for that matter.
@@ -119,22 +122,71 @@ push_message(String message)
 	while (!atomic_compare_exchange_weak(&g_message_stack.first_message, &expected, new_message));
 }
 
+typedef struct Response Response;
+struct Response
+{
+	Worker *worker;
+	String data;
+};
+
+internal size_t
+store_response_from_curl(void *data, size_t size, size_t nmemb, void *userp)
+{
+	size_t new_size = size * nmemb;
+
+	Response *response = (Response *)userp;
+	if (response->data.str)
+	{
+		response->data.str = arena_realloc(&response->worker->scratch_arena, response->data.len + new_size);
+	}
+	else
+	{
+		response->data.str = arena_alloc(&response->worker->scratch_arena, new_size);
+	}
+	memcpy(response->data.str + response->data.len, data, new_size);
+	response->data.len += new_size;
+
+	return new_size;
+}
+
 internal void
 parse_feed(Worker *worker, String url)
 {
-	Resource resource = download_resource(&worker->persistent_arena, &worker->scratch_arena, url);
-	if (resource.error.len > 0)
+	Response resource = { .worker = worker };
+	curl_easy_setopt(worker->curl_handle, CURLOPT_URL, url);
+	curl_easy_setopt(worker->curl_handle, CURLOPT_WRITEFUNCTION, store_response_from_curl);
+	curl_easy_setopt(worker->curl_handle, CURLOPT_WRITEDATA, &resource);
+
+	CURLcode curl_result = curl_easy_perform(worker->curl_handle);
+	if (curl_result != CURLE_OK)
 	{
-		String strings[] =
+		char *curl_error = (char *)curl_easy_strerror(curl_result);
+		String length_based_curl_error =
 		{
-			string_literal("failed to download "), url, string_literal(": "), resource.error
+			.str = curl_error,
+			.len = strlen(curl_error),
 		};
+		String strings[] = { url, string_literal(" "), length_based_curl_error };
 		String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
 		push_message(message);
+		curl_easy_reset(worker->curl_handle);
 		return;
 	}
 
-	String rss = resource.result;
+	long http_response_code;
+	curl_easy_getinfo(worker->curl_handle, CURLINFO_RESPONSE_CODE, &http_response_code);
+	if (http_response_code != 200)
+	{
+		String strings[] = { string_literal("response code for "), url, string_literal(" != 200") };
+		String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);
+		push_message(message);
+		curl_easy_reset(worker->curl_handle);
+		return;
+	}
+
+	curl_easy_reset(worker->curl_handle);
+
+	String rss = resource.data;
 	RSS_Tree *feed = parse_rss(&worker->persistent_arena, rss);
 
 	if (feed->errors.first)
@@ -484,6 +536,8 @@ main(void)
 	g_entry_pool.page_size = g_entry_pool.slot_size * 16;
 	init_pool(&g_entry_pool);
 
+	curl_global_init(CURL_GLOBAL_DEFAULT);
+
 	// NOTE(ariel) Initialize work queue.
 	{
 		i32 n_logical_cpu_cores = SDL_GetCPUCount();
@@ -501,6 +555,7 @@ main(void)
 		for (i8 i = 0; i < n_workers; ++i)
 		{
 			Worker *worker = &workers[i];
+
 			if (pthread_create(&worker->thread_id, 0, get_work_entry, worker))
 			{
 				err_exit("failed to launch thread");
@@ -509,6 +564,13 @@ main(void)
 			{
 				err_exit("failed to mark thread %d as detached", i);
 			}
+
+			worker->curl_handle = curl_easy_init();
+			if (!worker->curl_handle)
+			{
+				err_exit("failed to initialize CURL handle for thread %d", i);
+			}
+
 			arena_init(&worker->scratch_arena);
 			arena_init(&worker->persistent_arena);
 		}
@@ -585,6 +647,7 @@ main(void)
 	}
 
 exit:
+	curl_global_cleanup();
 	db_free(db);
 	free_pool(&g_entry_pool);
 	return 0;
