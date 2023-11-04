@@ -1,10 +1,6 @@
 #ifndef STRING_TABLE_H
 #define STRING_TABLE_H
 
-#include <pthread.h>
-
-#include "base.h"
-
 enum
 {
 	EXPONENT = 16,
@@ -17,13 +13,12 @@ enum
 typedef struct String_Table String_Table;
 struct String_Table
 {
-
 	String buckets[TABLE_CAPACITY];
 	i32 size;
 	i32 cursor;
 	char buffer[BUFFER_CAPACITY];
 };
 
-String intern(String_Table *table, String key);
+static String intern(String_Table *table, String key);
 
 #endif

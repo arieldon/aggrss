@@ -1,3 +1,7 @@
+#include <ctype.h>
+#include <errno.h>
+#include <math.h>
+#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,23 +9,46 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
 #include <curl/curl.h>
+#include <sqlite3.h>
 
 #include "SDL.h"
-#include "renderer.h"
-#include "ui.h"
+#include "SDL_opengl.h"
 
-#include "db.h"
-
+#include "base.h"
 #include "arena.h"
-#include "err.h"
-#include "pool.h"
-#include "rss.h"
+#include "date_time.h"
 #include "str.h"
+#include "rss.h"
+#include "db.h"
+#include "err.h"
+#include "font.h"
+#include "linalg.h"
+#include "load_opengl.h"
+#include "pool.h"
+#include "ui.h"
+#include "renderer.h"
 #include "string_table.h"
+
+#include "arena.c"
+#include "date_time.c"
+#include "str.c"
+#include "rss.c"
+#include "db.c"
+#include "err.c"
+#include "font.c"
+#include "linalg.c"
+#include "load_opengl.c"
+#include "pool.c"
+#include "ui.c"
+#include "renderer.c"
+#include "string_table.c"
 
 enum { FPS = 60 };
 global u32 delta_ms = 1000 / FPS;
@@ -96,7 +123,7 @@ struct Message_Stack
 
 global Message_Stack g_message_stack = { .lock = PTHREAD_MUTEX_INITIALIZER };
 
-internal void
+static void
 push_message(String message)
 {
 	local_persist String_Table table;
@@ -129,7 +156,7 @@ struct Response
 	String data;
 };
 
-internal size_t
+static size_t
 store_response_from_curl(void *data, size_t size, size_t nmemb, void *userp)
 {
 	size_t new_size = size * nmemb;
@@ -149,7 +176,7 @@ store_response_from_curl(void *data, size_t size, size_t nmemb, void *userp)
 	return new_size;
 }
 
-internal void
+static void
 parse_feed(Worker *worker, String url)
 {
 	Response resource = { .worker = worker };
@@ -241,7 +268,7 @@ parse_feed(Worker *worker, String url)
 	}
 }
 
-internal inline Work_Entry *
+static inline Work_Entry *
 init_work_entry(String url)
 {
 	Work_Entry *entry = get_slot(&g_entry_pool);
@@ -259,7 +286,7 @@ init_work_entry(String url)
 	return entry;
 }
 
-internal inline void
+static inline void
 free_work_entry(Work_Entry *entry)
 {
 	if (entry->url.str != entry->short_url_buffer)
@@ -269,7 +296,7 @@ free_work_entry(Work_Entry *entry)
 	return_slot(&g_entry_pool, entry);
 }
 
-internal void *
+static void *
 get_work_entry(void *arg)
 {
 	// NOTE(ariel) This routine serves as a consumer. Several threads process
@@ -301,7 +328,7 @@ get_work_entry(void *arg)
 	return 0;
 }
 
-internal void
+static void
 add_work_entry(String url)
 {
 	// NOTE(ariel) This routine serves as a producer. Only a single thread of
@@ -334,7 +361,7 @@ add_work_entry(String url)
 global String feed_to_tag;
 global char short_feed_to_tag_buffer[64];
 
-internal inline void
+static inline void
 free_feed_to_tag(void)
 {
 	if (feed_to_tag.str != short_feed_to_tag_buffer)
@@ -345,7 +372,7 @@ free_feed_to_tag(void)
 	feed_to_tag.len = 0;
 }
 
-internal void
+static void
 set_feed_to_tag(String feed_link)
 {
 	if (feed_to_tag.str)
@@ -365,7 +392,7 @@ set_feed_to_tag(String feed_link)
 	memcpy(feed_to_tag.str, feed_link.str, feed_link.len);
 }
 
-internal void
+static void
 tag_feed(void)
 {
 	local_persist char tag_name_input[1024];
@@ -390,7 +417,7 @@ tag_feed(void)
 	}
 }
 
-internal void
+static void
 process_frame(void)
 {
 	ui_begin();

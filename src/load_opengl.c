@@ -1,9 +1,3 @@
-#include <stdio.h>
-
-#include "base.h"
-#include "load_opengl.h"
-#include "str.h"
-
 #define DEFINE_OPENGL_PROCEDURE(type, name) \
 	type name = 0;
 #define OPENGL_PROCEDURE_TRANSFORM DEFINE_OPENGL_PROCEDURE
@@ -17,7 +11,7 @@ union Get_Function_Pointer
 	void (*function_pointer)(void);
 };
 
-b32
+static b32
 load_gl_procedures(void)
 {
 	b32 success = true;
@@ -45,7 +39,7 @@ load_gl_procedures(void)
 	return success;
 }
 
-b32
+static b32
 confirm_gl_extension_support(String desired_extension)
 {
 	b32 extension_support_exists = false;

@@ -1,17 +1,10 @@
-#include <string.h>
-
-#include <sys/mman.h>
-
-#include "arena.h"
-#include "base.h"
-
 enum
 {
 	MEMORY_ALIGNMENT = (sizeof(void *) * 2),
 	PAGE_SIZE = KB(8),
 };
 
-void
+static void
 arena_init(Arena *arena)
 {
 	u8 *buf = mmap(NULL, GB(4), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -30,14 +23,14 @@ arena_init(Arena *arena)
 	arena->prev = 0;
 }
 
-void
+static void
 arena_release(Arena *arena)
 {
 	arena_clear(arena);
 	(void)munmap(arena->buf, arena->cap);
 }
 
-internal uintptr_t
+static uintptr_t
 align(uintptr_t p)
 {
 	uintptr_t m = p % MEMORY_ALIGNMENT;
@@ -48,7 +41,7 @@ align(uintptr_t p)
 	return p;
 }
 
-void *
+static void *
 arena_alloc(Arena *arena, usize size)
 {
 	uintptr_t curr = (uintptr_t)arena->buf + (uintptr_t)arena->curr;
@@ -77,7 +70,7 @@ alloc:
 	return 0;
 }
 
-void *
+static void *
 arena_realloc(Arena *arena, usize size)
 {
 	assert(((uintptr_t)arena->buf + (uintptr_t)arena->prev) % MEMORY_ALIGNMENT == 0);
@@ -103,7 +96,7 @@ alloc:
 	return 0;
 }
 
-void
+static void
 arena_clear(Arena *arena)
 {
 	assert(arena->cap >= PAGE_SIZE);
@@ -117,7 +110,7 @@ arena_clear(Arena *arena)
 	arena->curr = arena->prev = 0;
 }
 
-Arena_Checkpoint
+static Arena_Checkpoint
 arena_checkpoint_set(Arena *arena)
 {
 	Arena_Checkpoint checkpoint =
@@ -129,7 +122,7 @@ arena_checkpoint_set(Arena *arena)
 	return checkpoint;
 }
 
-void
+static void
 arena_checkpoint_restore(Arena_Checkpoint checkpoint)
 {
 	Arena *arena = checkpoint.arena;

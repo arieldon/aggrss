@@ -1,10 +1,6 @@
 #ifndef POOL_H
 #define POOL_H
 
-#include <pthread.h>
-
-#include "base.h"
-
 typedef struct Slot Slot;
 struct Slot
 {
@@ -23,9 +19,9 @@ struct Pool
 	pthread_mutex_t big_lock;
 };
 
-void init_pool(Pool *pool);
-void *get_slot(Pool *pool);
-void return_slot(Pool *pool, void *slot_address);
-void free_pool(Pool *pool);
+static void init_pool(Pool *pool);
+static void *get_slot(Pool *pool);
+static void return_slot(Pool *pool, void *slot_address);
+static void free_pool(Pool *pool);
 
 #endif

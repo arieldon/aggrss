@@ -1,21 +1,16 @@
-#include <math.h>
-
-#include "base.h"
-#include "linalg.h"
-
-f32
+static f32
 convert_degrees_to_radians(f32 degrees)
 {
 	return degrees * (M_PI / 180.0f);
 }
 
-f32
+static f32
 convert_radians_to_degrees(f32 radians)
 {
 	return radians * (180.0f / M_PI);
 }
 
-Matrix4f
+static Matrix4f
 mat4_identity(void)
 {
 	Matrix4f identity =
@@ -31,7 +26,7 @@ mat4_identity(void)
 	return identity;
 }
 
-Matrix4f
+static Matrix4f
 mat4_scale(f32 x, f32 y, f32 z)
 {
 	Matrix4f result =
@@ -47,7 +42,7 @@ mat4_scale(f32 x, f32 y, f32 z)
 	return result;
 }
 
-Matrix4f
+static Matrix4f
 mat4_translate(f32 x, f32 y, f32 z)
 {
 	Matrix4f result =
@@ -63,7 +58,7 @@ mat4_translate(f32 x, f32 y, f32 z)
 	return result;
 }
 
-Matrix4f
+static Matrix4f
 mat4_rotate_x(f32 degrees)
 {
 	f32 r = convert_degrees_to_radians(degrees);
@@ -82,7 +77,7 @@ mat4_rotate_x(f32 degrees)
 	return result;
 }
 
-Matrix4f
+static Matrix4f
 mat4_rotate_y(f32 degrees)
 {
 	f32 r = convert_degrees_to_radians(degrees);
@@ -101,7 +96,7 @@ mat4_rotate_y(f32 degrees)
 	return result;
 }
 
-Matrix4f
+static Matrix4f
 mat4_rotate_z(f32 degrees)
 {
 	f32 r = convert_degrees_to_radians(degrees);
@@ -120,7 +115,7 @@ mat4_rotate_z(f32 degrees)
 	return result;
 }
 
-Matrix4f
+static Matrix4f
 mat4_ortho(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
 {
 	f32 x  = +2.0f / (right - left);
@@ -142,7 +137,7 @@ mat4_ortho(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
 	return result;
 }
 
-Matrix4f
+static Matrix4f
 mat4_mul_mat4(Matrix4f a, Matrix4f b)
 {
 	Matrix4f p = {0};
@@ -161,7 +156,7 @@ mat4_mul_mat4(Matrix4f a, Matrix4f b)
 	return p;
 }
 
-Vector4f
+static Vector4f
 mat4_mul_vec4(Matrix4f m, Vector4f v)
 {
 	Vector4f result =

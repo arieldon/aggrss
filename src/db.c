@@ -1,15 +1,5 @@
-#include <stdio.h>
-
-#include <sqlite3.h>
-
-#include "base.h"
-#include "date_time.h"
-#include "db.h"
-#include "rss.h"
-#include "str.h"
-
-internal u32
-hash(String s)
+static u32
+db_hash(String s)
 {
 	u32 hash = 2166136261;
 	for (i32 i = 0; i < s.len; ++i)
@@ -19,7 +9,7 @@ hash(String s)
 	return hash;
 }
 
-internal inline void
+static inline void
 confirm_success(sqlite3 *db, i32 status_code, char *error_message)
 {
 	b32 ok = status_code == SQLITE_OK;
@@ -33,7 +23,7 @@ confirm_success(sqlite3 *db, i32 status_code, char *error_message)
 	}
 }
 
-void
+static void
 db_init(sqlite3 **db)
 {
 	assert(sqlite3_threadsafe());
@@ -116,7 +106,7 @@ db_init(sqlite3 **db)
 	}
 }
 
-i32
+static i32
 db_count_rows(sqlite3 *db)
 {
 	i32 count = -1;
@@ -135,17 +125,17 @@ db_count_rows(sqlite3 *db)
 	return count;
 }
 
-void
+static void
 db_free(sqlite3 *db)
 {
 	i32 status = sqlite3_close(db);
 	confirm_success(db, status, "failed to close database");
 }
 
-void
+static void
 db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 {
-	u32 feed_id = hash(feed_link);
+	u32 feed_id = db_hash(feed_link);
 
 	sqlite3_stmt *statement = 0;
 	String insert_feed = string_literal("INSERT INTO feeds VALUES(?, ?, ?);");
@@ -159,10 +149,10 @@ db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 	confirm_success(db, status, "failed to add feed to database");
 }
 
-void
+static void
 db_add_or_update_feed(sqlite3 *db, String feed_link, String feed_title)
 {
-	u32 feed_id = hash(feed_link);
+	u32 feed_id = db_hash(feed_link);
 
 	sqlite3_stmt *statement = 0;
 	String insert_feed = string_literal(
@@ -177,7 +167,7 @@ db_add_or_update_feed(sqlite3 *db, String feed_link, String feed_title)
 	confirm_success(db, status, "failed to add or update feed in database");
 }
 
-internal inline void
+static inline void
 get_content_from_node(RSS_Tree_Node *item_node, String term, String default_value, String *value)
 {
 	RSS_Tree_Node *node = find_item_child_node(item_node, term);
@@ -191,7 +181,7 @@ get_content_from_node(RSS_Tree_Node *item_node, String term, String default_valu
 	}
 }
 
-internal i64
+static i64
 get_unix_timestamp(String feed_link, String date_time)
 {
 	Timestamp timestamp = parse_date_time(date_time);
@@ -205,7 +195,7 @@ get_unix_timestamp(String feed_link, String date_time)
 	return timestamp.unix_format;
 }
 
-void
+static void
 db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 {
 	String link = find_link(item_node);
@@ -226,7 +216,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	sqlite3_bind_text(statement, 1, link.str, link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, title.str, title.len, SQLITE_STATIC);
 	sqlite3_bind_int(statement, 3, unix_timestamp);
-	u32 feed_id = hash(feed_link);
+	u32 feed_id = db_hash(feed_link);
 	sqlite3_bind_int(statement, 4, feed_id);
 	i32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
@@ -234,13 +224,13 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	confirm_success(db, status, "failed to add item to database");
 }
 
-void
+static void
 db_tag_feed(sqlite3 *db, String tag, String feed_link)
 {
 	if (tag.len > 0)
 	{
-		u32 tag_id = hash(tag);
-		u32 feed_id = hash(feed_link);
+		u32 tag_id = db_hash(tag);
+		u32 feed_id = db_hash(feed_link);
 
 		sqlite3_stmt *statement = 0;
 		String insert_tag = string_literal("INSERT OR IGNORE INTO tags VALUES(?, ?);");
@@ -261,10 +251,10 @@ db_tag_feed(sqlite3 *db, String tag, String feed_link)
 	}
 }
 
-void
+static void
 db_del_feed(sqlite3 *db, String feed_link)
 {
-	u32 feed_id = hash(feed_link);
+	u32 feed_id = db_hash(feed_link);
 	sqlite3_stmt *statement = 0;
 	String delete_feed = string_literal("DELETE FROM feeds WHERE id = ?");
 	sqlite3_prepare_v2(db, delete_feed.str, delete_feed.len, &statement, 0);
@@ -274,7 +264,7 @@ db_del_feed(sqlite3 *db, String feed_link)
 	confirm_success(db, status, "failed to delete feed from database");
 }
 
-void
+static void
 db_mark_item_read(sqlite3 *db, String item_link)
 {
 	sqlite3_stmt *statement = 0;
@@ -286,10 +276,10 @@ db_mark_item_read(sqlite3 *db, String item_link)
 	confirm_success(db, status, "failed to mark item as read in database");
 }
 
-void
+static void
 db_mark_all_read(sqlite3 *db, String feed_link)
 {
-	u32 feed_id = hash(feed_link);
+	u32 feed_id = db_hash(feed_link);
 	sqlite3_stmt *statement = 0;
 	String update_items = string_literal("UPDATE items SET unread = 0 WHERE feed = ?");
 	sqlite3_prepare_v2(db, update_items.str, update_items.len, &statement, 0);
@@ -299,7 +289,7 @@ db_mark_all_read(sqlite3 *db, String feed_link)
 	confirm_success(db, status, "failed to mark all items of feed as read in database");
 }
 
-internal inline String
+static inline String
 create_query(String_List tags)
 {
 #define QUERY_STARTING_LENGTH 166
@@ -340,7 +330,7 @@ enum
 	UNREAD_COLUMN = 2
 };
 
-b32
+static b32
 db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, String_List tags)
 {
 	b32 feed_exists = false;
@@ -385,7 +375,7 @@ db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, Strin
 	return feed_exists;
 }
 
-b32
+static b32
 db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 {
 	b32 feed_exists = false;
@@ -416,7 +406,7 @@ db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 	return feed_exists;
 }
 
-b32
+static b32
 db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 {
 	b32 item_exists = false;
@@ -430,7 +420,7 @@ db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 			"WHERE feed = ? "
 			"ORDER BY datetime(date_last_modified, 'unixepoch') DESC;");
 		sqlite3_prepare_v2(db, select_items.str, select_items.len, &select_statement, 0);
-		u32 feed_id = hash(feed_link);
+		u32 feed_id = db_hash(feed_link);
 		sqlite3_bind_int(select_statement, 1, feed_id);
 	}
 
@@ -454,7 +444,7 @@ db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 	return item_exists;
 }
 
-b32
+static b32
 db_iterate_tags(sqlite3 *db, String *tag)
 {
 	b32 tag_exists = false;

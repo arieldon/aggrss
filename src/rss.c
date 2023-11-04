@@ -1,8 +1,3 @@
-#include "arena.h"
-#include "base.h"
-#include "rss.h"
-#include "str.h"
-
 /* ---
  * Parser
  * ---
@@ -18,7 +13,7 @@ struct Parser
 	i32 cursor;
 };
 
-internal void
+static void
 error(Parser *parser, String message)
 {
 	RSS_Error *e = arena_alloc(parser->arena, sizeof(RSS_Error));
@@ -40,7 +35,7 @@ error(Parser *parser, String message)
 	}
 }
 
-internal char
+static char
 peek_char(Parser *parser)
 {
 	char ch = 0;
@@ -51,7 +46,7 @@ peek_char(Parser *parser)
 	return ch;
 }
 
-internal b32
+static b32
 is_alphanumeric(char c)
 {
 	b32 number = c >= '0' && c <= '9';
@@ -61,7 +56,7 @@ is_alphanumeric(char c)
 	return result;
 }
 
-internal b32
+static b32
 is_name_char(char c)
 {
 	b32 alphanumeral = is_alphanumeric(c);
@@ -73,7 +68,7 @@ is_name_char(char c)
 	return result;
 }
 
-internal b32
+static b32
 is_whitespace(char c)
 {
 	b32 space = c == ' ';
@@ -84,7 +79,7 @@ is_whitespace(char c)
 	return result;
 }
 
-internal void
+static void
 skip_whitespace(Parser *parser)
 {
 	while (is_whitespace(peek_char(parser)))
@@ -93,7 +88,7 @@ skip_whitespace(Parser *parser)
 	}
 }
 
-internal b32
+static b32
 accept_char(Parser *parser, char c)
 {
 	b32 accept = false;
@@ -105,7 +100,7 @@ accept_char(Parser *parser, char c)
 	return accept;
 }
 
-internal b32
+static b32
 accept_string(Parser *parser, String s)
 {
 	b32 accept = false;
@@ -127,7 +122,7 @@ accept_string(Parser *parser, String s)
 	return accept;
 }
 
-internal String
+static String
 expect_name(Parser *parser)
 {
 	String s = {0};
@@ -152,7 +147,7 @@ expect_name(Parser *parser)
 	return s;
 }
 
-internal void
+static void
 continue_to_char(Parser *parser, char c)
 {
 	while (parser->cursor < parser->source.len && c != parser->source.str[parser->cursor])
@@ -161,7 +156,7 @@ continue_to_char(Parser *parser, char c)
 	}
 }
 
-internal void
+static void
 continue_past_string(Parser *parser, String s)
 {
 	while (parser->cursor < parser->source.len && !accept_string(parser, s))
@@ -170,7 +165,7 @@ continue_past_string(Parser *parser, String s)
 	}
 }
 
-internal void
+static void
 push_rss_node(Parser *parser)
 {
 	if (!parser->current_node)
@@ -208,13 +203,13 @@ push_rss_node(Parser *parser)
 	}
 }
 
-internal void
+static void
 pop_rss_node(Parser *parser)
 {
 	parser->current_node = parser->current_node->parent;
 }
 
-internal void
+static void
 continue_past_end_of_tag(Parser *parser)
 {
 	while (parser->cursor < parser->source.len)
@@ -239,7 +234,7 @@ continue_past_end_of_tag(Parser *parser)
 	}
 }
 
-internal b32
+static b32
 expect_char(Parser *parser, char c)
 {
 	b32 expected = false;
@@ -255,7 +250,7 @@ expect_char(Parser *parser, char c)
 	return expected;
 }
 
-internal String
+static String
 expect_string_literal(Parser *parser)
 {
 	String s = {0};
@@ -278,7 +273,7 @@ expect_string_literal(Parser *parser)
 	return s;
 }
 
-internal RSS_Attribute *
+static RSS_Attribute *
 accept_attributes(Parser *parser)
 {
 	RSS_Attribute *attributes = 0;
@@ -316,7 +311,7 @@ accept_attributes(Parser *parser)
 	return attributes;
 }
 
-internal void
+static void
 parse_tree(Parser *parser)
 {
 	for (;;)
@@ -379,7 +374,7 @@ parse_tree(Parser *parser)
 }
 
 #ifdef PRINT_TREE_SUPPORT
-internal void
+static void
 print_rss_tree_recursively(RSS_Tree_Node *node, i8 layer, FILE *stream)
 {
 	while (node)
@@ -396,14 +391,14 @@ print_rss_tree_recursively(RSS_Tree_Node *node, i8 layer, FILE *stream)
 	}
 }
 
-void
+static void
 print_rss_tree(RSS_Tree *tree, FILE *stream)
 {
 	print_rss_tree_recursively(tree->root, 0, stream);
 }
 #endif
 
-RSS_Tree *
+static RSS_Tree *
 parse_rss(Arena *arena, String source)
 {
 	Parser parser =
@@ -436,7 +431,7 @@ struct Stack
 	Node *top;
 };
 
-internal inline void
+static inline void
 push_node(Arena *arena, Stack *s, void *data)
 {
 	Node *node = arena_alloc(arena, sizeof(Node));
@@ -445,7 +440,7 @@ push_node(Arena *arena, Stack *s, void *data)
 	s->top = node;
 }
 
-internal inline void *
+static inline void *
 pop_node(Stack *s)
 {
 	Node *node = s->top;
@@ -453,7 +448,7 @@ pop_node(Stack *s)
 	return node->data;
 }
 
-internal inline bool
+static inline bool
 is_stack_empty(Stack *s)
 {
 	return !s->top;
@@ -464,7 +459,7 @@ global String item_string = static_string_literal("item");
 global String entry_string = static_string_literal("entry");
 global String title_string = static_string_literal("title");
 
-RSS_Tree_Node *
+static RSS_Tree_Node *
 find_feed_title(Arena *arena, RSS_Tree_Node *root)
 {
 	RSS_Tree_Node *title_node = 0;
@@ -496,7 +491,7 @@ find_feed_title(Arena *arena, RSS_Tree_Node *root)
 	return title_node;
 }
 
-RSS_Tree_Node *
+static RSS_Tree_Node *
 find_item_child_node(RSS_Tree_Node *item, String name)
 {
 	RSS_Tree_Node *child_node = 0;
@@ -518,7 +513,7 @@ find_item_child_node(RSS_Tree_Node *item, String name)
 	return child_node;
 }
 
-RSS_Tree_Node *
+static RSS_Tree_Node *
 find_item_title(RSS_Tree_Node *item)
 {
 	RSS_Tree_Node *item_title_node = 0;
@@ -540,7 +535,7 @@ find_item_title(RSS_Tree_Node *item)
 	return item_title_node;
 }
 
-RSS_Tree_Node *
+static RSS_Tree_Node *
 find_item_link(RSS_Tree_Node *item)
 {
 	RSS_Tree_Node *item_link_node = 0;
@@ -562,7 +557,7 @@ find_item_link(RSS_Tree_Node *item)
 	return item_link_node;
 }
 
-RSS_Tree_Node *
+static RSS_Tree_Node *
 find_item_node(Arena *arena, RSS_Tree_Node *root)
 {
 	RSS_Tree_Node *item_node = 0;
@@ -595,7 +590,7 @@ find_item_node(Arena *arena, RSS_Tree_Node *root)
 	return item_node;
 }
 
-String
+static String
 find_link(RSS_Tree_Node *item)
 {
 	String link = {0};

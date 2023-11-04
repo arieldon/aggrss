@@ -31,7 +31,6 @@ struct String
 #define static_string_literal(s)  { .str = (char *)(s), .len = sizeof(s) - 1 }
 #define string_literal(s) (String){ .str = (char *)(s), .len = sizeof(s) - 1 }
 
-#define      internal static
 #define        global static
 #define local_persist static
 #define  thread_local _Thread_local

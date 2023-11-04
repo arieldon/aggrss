@@ -1,13 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
-#include "arena.h"
-#include "base.h"
-#include "font.h"
-
 typedef struct First_Stage_Glyph First_Stage_Glyph;
 struct First_Stage_Glyph
 {
@@ -37,7 +27,7 @@ struct Font_Data
 	First_Stage_Glyph_List glyphs;
 };
 
-internal String
+static String
 load_file(Arena *arena, FILE *file)
 {
 	String contents = {0};
@@ -59,7 +49,7 @@ load_file(Arena *arena, FILE *file)
 
 // TODO(ariel) Use a list of errors as strings instead of printing directly to
 // stderr and (intentionally) crashing?
-internal Font_Data
+static Font_Data
 parse_font_file(Arena *arena, char *font_file_path)
 {
 	Font_Data result = {0};
@@ -243,7 +233,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 
 enum { N_CODE_POINT_SLOTS = 128 };
 
-Font_Atlas
+static Font_Atlas
 bake_font(Arena *arena)
 {
 	Font_Atlas atlas = {0};
@@ -367,7 +357,7 @@ bake_font(Arena *arena)
 	return atlas;
 }
 
-u32
+static u32
 map_code_point_to_glyph_index(Font_Atlas *atlas, u32 code_point)
 {
 	u32 glyph_index = 0;

@@ -1,12 +1,6 @@
-#include <pthread.h>
-#include <sys/mman.h>
-
-#include "base.h"
-#include "pool.h"
-
 enum { N_PAGES = 4 };
 
-void
+static void
 init_pool(Pool *pool)
 {
 	assert(pool->page_size);
@@ -52,7 +46,7 @@ init_pool(Pool *pool)
 	pthread_mutex_init(&pool->big_lock, 0);
 }
 
-void *
+static void *
 get_slot(Pool *pool)
 {
 	void *slot_address = 0;
@@ -97,7 +91,7 @@ get_slot(Pool *pool)
 	return slot_address;
 }
 
-void
+static void
 return_slot(Pool *pool, void *slot_address)
 {
 	pthread_mutex_lock(&pool->big_lock);
@@ -116,7 +110,7 @@ return_slot(Pool *pool, void *slot_address)
 	pthread_mutex_unlock(&pool->big_lock);
 }
 
-void
+static void
 free_pool(Pool *pool)
 {
 	for (;;)

@@ -5,9 +5,9 @@ set -eux
 BIN="aggrss"
 
 COMPILER="gcc"
-CFLAGS="-std=c11 -D_DEFAULT_SOURCE"
-WARNINGS="-Wall -Wextra -Wshadow -Wconversion -Wdouble-promotion -Wno-unused-function -Wno-sign-conversion -Wno-string-conversion"
-LIBRARIES="-pthread"
+CFLAGS="-std=c11 -D_DEFAULT_SOURCE -fPIC"
+WARNINGS="-Wall -Wextra -Wshadow -Wno-unused-function"
+LIBRARIES="-pthread -lm"
 LIBRARIES="$LIBRARIES `curl-config --cflags --libs`"
 LIBRARIES="$LIBRARIES `pkg-config --cflags --libs sqlite3`"
 LIBRARIES="$LIBRARIES `pkg-config --cflags --libs freetype2`"
@@ -28,4 +28,4 @@ if [ $# -ge 1 ]; then
 	FLAGS="$FLAGS $@"
 fi
 
-$COMPILER src/*.c $FLAGS -o $BIN
+$COMPILER src/main.c $FLAGS -o $BIN

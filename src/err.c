@@ -1,13 +1,4 @@
-#include <errno.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "base.h"
-#include "err.h"
-
-internal inline void
+static inline void
 err_out(va_list args, char *fmt, int errcode)
 {
 	fprintf(stderr, "error: ");
@@ -19,7 +10,7 @@ err_out(va_list args, char *fmt, int errcode)
 	else fprintf(stderr, "\n");
 }
 
-void
+static void
 err_msg(char *fmt, ...)
 {
 	int errcode = errno;
@@ -29,7 +20,7 @@ err_msg(char *fmt, ...)
 	va_end(args);
 }
 
-void
+static void
 err_exit(char *fmt, ...)
 {
 	int errcode = errno;

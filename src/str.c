@@ -1,10 +1,4 @@
-#include <ctype.h>
-#include <string.h>
-
-#include "arena.h"
-#include "str.h"
-
-bool
+static bool
 string_match(String s, String t)
 {
 	if (s.len != t.len)
@@ -21,7 +15,7 @@ string_match(String s, String t)
 	return true;
 }
 
-char *
+static char *
 string_terminate(Arena *arena, String s)
 {
 	char *t = arena_alloc(arena, s.len + 1);
@@ -30,7 +24,7 @@ string_terminate(Arena *arena, String s)
 	return t;
 }
 
-String
+static String
 string_duplicate(Arena *arena, String s)
 {
 	String t = {0};
@@ -40,7 +34,7 @@ string_duplicate(Arena *arena, String s)
 	return t;
 }
 
-String
+static String
 string_trim_spaces(String s)
 {
 	i32 leading_spaces = 0;
@@ -68,7 +62,7 @@ string_trim_spaces(String s)
 	return substr;
 }
 
-String
+static String
 string_substr(String s, i32 offset, i32 len)
 {
 	String t = {0};
@@ -85,7 +79,7 @@ string_substr(String s, i32 offset, i32 len)
 	return t;
 }
 
-String
+static String
 string_prefix(String s, i32 len)
 {
 	assert(len >= 0);
@@ -99,7 +93,7 @@ string_prefix(String s, i32 len)
 	return t;
 }
 
-String
+static String
 string_suffix(String s, i32 offset)
 {
 	assert(offset >= 0);
@@ -113,7 +107,7 @@ string_suffix(String s, i32 offset)
 	return t;
 }
 
-i32
+static i32
 string_find_substr(String haystack, String needle)
 {
 	assert(haystack.len >= needle.len);
@@ -129,7 +123,7 @@ string_find_substr(String haystack, String needle)
 	return -1;
 }
 
-i32
+static i32
 string_find_ch(String s, char c)
 {
 	for (i32 i = 0; i < s.len; ++i)
@@ -142,7 +136,7 @@ string_find_ch(String s, char c)
 	return -1;
 }
 
-u64
+static u64
 string_to_int(String s, u8 base)
 {
 	assert(base >=  2);
@@ -162,7 +156,7 @@ string_to_int(String s, u8 base)
 	return result;
 }
 
-void
+static void
 string_lower(String s)
 {
 	for (i32 i = 0; i < s.len; ++i)
@@ -171,7 +165,7 @@ string_lower(String s)
 	}
 }
 
-void
+static void
 string_list_push_node(String_List *ls, String_Node *n)
 {
 	if (!ls->head)
@@ -192,7 +186,7 @@ string_list_push_node(String_List *ls, String_Node *n)
 	++ls->list_size;
 }
 
-void
+static void
 string_list_push_string(Arena *arena, String_List *ls, String s)
 {
 	String_Node *n = arena_alloc(arena, sizeof(String_Node));
@@ -200,7 +194,7 @@ string_list_push_string(Arena *arena, String_List *ls, String s)
 	string_list_push_node(ls, n);
 }
 
-String_List
+static String_List
 string_split(Arena *arena, String s, u8 delim)
 {
 	String_List ls = {0};
@@ -234,7 +228,7 @@ string_split(Arena *arena, String s, u8 delim)
 	return ls;
 }
 
-String_List
+static String_List
 string_strsplit(Arena *arena, String s, String delim)
 {
 	String_List ls = {0};
@@ -273,7 +267,7 @@ string_strsplit(Arena *arena, String s, String delim)
 	return ls;
 }
 
-String
+static String
 string_list_concat(Arena *arena, String_List ls)
 {
 	String s =
@@ -296,7 +290,7 @@ string_list_concat(Arena *arena, String_List ls)
 	return s;
 }
 
-String
+static String
 string_list_join(Arena *arena, String_List ls, u8 sep)
 {
 	if (ls.list_size == 1)
@@ -340,7 +334,7 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 	return s;
 }
 
-String
+static String
 concat_strings(Arena *arena, i32 n_strings, String *strings)
 {
 	String_List ls = {0};

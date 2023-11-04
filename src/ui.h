@@ -1,8 +1,6 @@
 #ifndef UI_H
 #define UI_H
 
-#include "base.h"
-
 /* ---
  * Primitive UI Types
  * ---
@@ -190,14 +188,14 @@ struct UI_Context
  * ---
  */
 
-extern void r_draw_rect(Quad dimensions, Color color);
-extern void r_draw_text(String text, Vector2 position, Color color);
-extern void r_draw_icon(UI_Icon icon_index, Quad dimensions, Color color);
+static void r_draw_rect(Quad dimensions, Color color);
+static void r_draw_text(String text, Vector2 position, Color color);
+static void r_draw_icon(UI_Icon icon_index, Quad dimensions, Color color);
 
-extern void r_set_clip_quad(Quad dimensions);
+static void r_set_clip_quad(Quad dimensions);
 
-extern i32 r_get_text_width(String text);
-extern i32 r_get_text_height(String text);
+static i32 r_get_text_width(String text);
+static i32 r_get_text_height(String text);
 
 
 /* ---
@@ -205,31 +203,31 @@ extern i32 r_get_text_height(String text);
  * ---
  */
 
-void ui_init(void);
-void ui_begin(void);
-void ui_end(void);
+static void ui_init(void);
+static void ui_begin(void);
+static void ui_end(void);
 
-void ui_layout_row(i32 total_blocks);
+static void ui_layout_row(i32 total_blocks);
 
-b32 ui_button(String label);
-b32 ui_toggle(String label);
-i32 ui_header(String label, i32 options);
-b32 ui_header_expanded(i32 header_state);
-b32 ui_header_deleted(i32 header_state);
-b32 ui_header_optionized(i32 header_state);
-i32 ui_popup_menu(UI_Option_List options);
-b32 ui_textbox(Buffer *buffer, String placeholder);
-b32 ui_link(String text, b32 unread);
-i32 ui_prompt(String prompt, Buffer *input_buffer);
-void ui_text(String text);
-void ui_label(String text);
-void ui_separator(void);
+static b32 ui_button(String label);
+static b32 ui_toggle(String label);
+static i32 ui_header(String label, i32 options);
+static b32 ui_header_expanded(i32 header_state);
+static b32 ui_header_deleted(i32 header_state);
+static b32 ui_header_optionized(i32 header_state);
+static i32 ui_popup_menu(UI_Option_List options);
+static b32 ui_textbox(Buffer *buffer, String placeholder);
+static b32 ui_link(String text, b32 unread);
+static i32 ui_prompt(String prompt, Buffer *input_buffer);
+static void ui_text(String text);
+static void ui_label(String text);
+static void ui_separator(void);
 
-void ui_input_mouse_move(i32 x, i32 y);
-void ui_input_mouse_down(i32 x, i32 y, i32 mouse_button);
-void ui_input_mouse_up(i32 x, i32 y, i32 mouse_button);
-void ui_input_mouse_scroll(i32 x, i32 y);
-void ui_input_text(char *text);
-void ui_input_key(i32 key);
+static void ui_input_mouse_move(i32 x, i32 y);
+static void ui_input_mouse_down(i32 x, i32 y, i32 mouse_button);
+static void ui_input_mouse_up(i32 x, i32 y, i32 mouse_button);
+static void ui_input_mouse_scroll(i32 x, i32 y);
+static void ui_input_text(char *text);
+static void ui_input_key(i32 key);
 
 #endif

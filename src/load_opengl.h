@@ -1,11 +1,6 @@
 #ifndef LOAD_OPENGL_H
 #define LOAD_OPENGL_H
 
-#include "SDL.h"
-#include "SDL_opengl.h"
-
-#include "base.h"
-
 #define DESIRED_OPENGL_PROCEDURES \
 	OPENGL_PROCEDURE_TRANSFORM(PFNGLCREATESHADERPROC, glCreateShader) \
 	OPENGL_PROCEDURE_TRANSFORM(PFNGLDELETESHADERPROC, glDeleteShader) \
@@ -40,7 +35,7 @@
 DESIRED_OPENGL_PROCEDURES
 #undef OPENGL_PROCEDURE_TRANSFORM
 
-b32 load_gl_procedures(void);
-b32 confirm_gl_extension_support(String desired_extension);
+static b32 load_gl_procedures(void);
+static b32 confirm_gl_extension_support(String desired_extension);
 
 #endif

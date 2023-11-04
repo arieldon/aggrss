@@ -1,9 +1,5 @@
-#include "base.h"
-#include "str.h"
-#include "string_table.h"
-
-internal inline u64
-hash(String s)
+static inline u64
+string_table_hash(String s)
 {
 	u64 hash = 0x100;
 	for (i32 i = 0; i < s.len; i++)
@@ -15,7 +11,7 @@ hash(String s)
 	return hash;
 }
 
-internal inline i32
+static inline i32
 get_index(u64 hash, i32 index)
 {
 	u32 mask = ((u32)1 << EXPONENT) - 1;
@@ -24,12 +20,12 @@ get_index(u64 hash, i32 index)
 	return result;
 }
 
-String
+static String
 intern(String_Table *table, String s)
 {
 	String result = {0};
 
-	u64 h = hash(s);
+	u64 h = string_table_hash(s);
 	i32 index = h;
 	while (!result.str)
 	{

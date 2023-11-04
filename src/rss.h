@@ -1,9 +1,6 @@
 #ifndef RSS_H
 #define RSS_H
 
-#include "arena.h"
-#include "base.h"
-
 typedef struct RSS_Attribute RSS_Attribute;
 struct RSS_Attribute
 {
@@ -59,17 +56,16 @@ struct RSS_Tree_List
 	RSS_Tree *last;
 };
 
-RSS_Tree *parse_rss(Arena *arena, String source);
+static RSS_Tree *parse_rss(Arena *arena, String source);
 
-RSS_Tree_Node *find_feed_title(Arena *arena, RSS_Tree_Node *root);
-RSS_Tree_Node *find_item_child_node(RSS_Tree_Node *item, String name);
-RSS_Tree_Node *find_item_title(RSS_Tree_Node *item);
-RSS_Tree_Node *find_item_link(RSS_Tree_Node *item);
-RSS_Tree_Node *find_item_node(Arena *arena, RSS_Tree_Node *root);
-String find_link(RSS_Tree_Node *item);
+static RSS_Tree_Node *find_feed_title(Arena *arena, RSS_Tree_Node *root);
+static RSS_Tree_Node *find_item_child_node(RSS_Tree_Node *item, String name);
+static RSS_Tree_Node *find_item_title(RSS_Tree_Node *item);
+static RSS_Tree_Node *find_item_link(RSS_Tree_Node *item);
+static RSS_Tree_Node *find_item_node(Arena *arena, RSS_Tree_Node *root);
+static String find_link(RSS_Tree_Node *item);
 
 #ifdef PRINT_TREE_SUPPORT
-#include <stdio.h>
 void print_rss_tree(RSS_Tree *tree, FILE *stream);
 #endif
 

@@ -1,9 +1,6 @@
 #ifndef FONT_H
 #define FONT_H
 
-#include "arena.h"
-#include "base.h"
-
 enum
 {
 	FONT_SIZE = 18,
@@ -55,7 +52,7 @@ struct Font_Atlas
 	Glyph *icon_glyphs;
 };
 
-Font_Atlas bake_font(Arena *arena);
-u32 map_code_point_to_glyph_index(Font_Atlas *atlas, u32 code_point);
+static Font_Atlas bake_font(Arena *arena);
+static u32 map_code_point_to_glyph_index(Font_Atlas *atlas, u32 code_point);
 
 #endif

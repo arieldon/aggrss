@@ -1,7 +1,3 @@
-#include "base.h"
-#include "str.h"
-#include "ui.h"
-
 enum
 {
 	POPUP_MENU_LIGHT_PADDING =  5,
@@ -15,7 +11,7 @@ global Color text_color = {230, 230, 230, 255};
 
 global UI_Context ui;
 
-void
+static void
 ui_init(void)
 {
 	ui.frame = 0;
@@ -27,7 +23,7 @@ ui_init(void)
 	ui.input_text.cap = 128;
 }
 
-internal inline b32
+static inline b32
 ui_mouse_overlaps(Quad target)
 {
 	b32 overlaps =
@@ -38,7 +34,7 @@ ui_mouse_overlaps(Quad target)
 	return overlaps;
 }
 
-internal inline b32
+static inline b32
 is_popup_menu_blank(void)
 {
 	b32 x = !ui.popup_menu.target.x;
@@ -48,7 +44,7 @@ is_popup_menu_blank(void)
 	return x | y | w | h;
 }
 
-void
+static void
 ui_begin(void)
 {
 	ui.hot_block = 0;
@@ -70,7 +66,7 @@ ui_begin(void)
 	}
 }
 
-internal void
+static void
 ui_popup_menu_options(void)
 {
 	Color menu_color = {50, 50, 50, 255};
@@ -102,7 +98,7 @@ ui_popup_menu_options(void)
 	}
 }
 
-internal Vector2
+static Vector2
 get_text_dimensions(String text)
 {
 	Vector2 text_dimensions =
@@ -115,7 +111,7 @@ get_text_dimensions(String text)
 
 // NOTE(ariel) This is a close replica of ui_textbox(). If I improve the layout
 // engine, I can compress a decent number of lines of code.
-internal void
+static void
 ui_prompt_block(void)
 {
 	// NOTE(ariel) Draw background.
@@ -187,7 +183,7 @@ ui_prompt_block(void)
 	r_draw_text(input_buffer->data, input_text_position, text_color);
 }
 
-void
+static void
 ui_end(void)
 {
 	// NOTE(ariel) Draw popup menu and/or prompt entry lazily here so it sits on top
@@ -245,7 +241,7 @@ ui_end(void)
 	++ui.frame;
 }
 
-void
+static void
 ui_layout_row(i32 total_blocks)
 {
 	assert(total_blocks > 0);
@@ -255,7 +251,7 @@ ui_layout_row(i32 total_blocks)
 	ui.layout.current_row.total_blocks = total_blocks;
 }
 
-internal Quad
+static Quad
 ui_layout_next_block(void)
 {
 	Quad next_block = {0};
@@ -278,7 +274,7 @@ ui_layout_next_block(void)
 	return next_block;
 }
 
-internal inline b32
+static inline b32
 ui_register_left_click(UI_ID id)
 {
 	// NOTE(ariel) The user must _release_ the mouse button to complete a click.
@@ -290,7 +286,7 @@ ui_register_left_click(UI_ID id)
 	return clicked;
 }
 
-internal inline b32
+static inline b32
 ui_register_right_click(UI_ID id)
 {
 	b32 hot = id == ui.hot_block;
@@ -300,7 +296,7 @@ ui_register_right_click(UI_ID id)
 	return clicked;
 }
 
-internal inline void
+static inline void
 ui_update_control(UI_ID id, Quad dimensions)
 {
 	if (!ui_mouse_overlaps(ui.prompt_block.target))
@@ -317,7 +313,7 @@ ui_update_control(UI_ID id, Quad dimensions)
 	}
 }
 
-internal UI_ID
+static UI_ID
 get_id(String s)
 {
 	UI_ID hash = 2166136261;
@@ -328,7 +324,7 @@ get_id(String s)
 	return hash;
 }
 
-internal i32
+static i32
 find_block(UI_ID id)
 {
 	for (i32 i = 0; i < N_MAX_BLOCKS; ++i)
@@ -341,7 +337,7 @@ find_block(UI_ID id)
 	return -1;
 }
 
-internal i32
+static i32
 alloc_block(UI_ID id)
 {
 	i32 block_index = -1;
@@ -367,7 +363,7 @@ alloc_block(UI_ID id)
 	return block_index;
 }
 
-internal inline Color
+static inline Color
 color_block(UI_ID id)
 {
 	Color color = {0};
@@ -391,7 +387,7 @@ color_block(UI_ID id)
 	return color;
 }
 
-b32
+static b32
 ui_button(String label)
 {
 	UI_ID id = get_id(label);
@@ -413,7 +409,7 @@ ui_button(String label)
 	return clicked;
 }
 
-b32
+static b32
 ui_toggle(String label)
 {
 	UI_ID id = get_id(label);
@@ -452,7 +448,7 @@ ui_toggle(String label)
 	return persistent_block->enabled;
 }
 
-i32
+static i32
 ui_header(String label, i32 options)
 {
 	UI_ID id = get_id(label);
@@ -523,28 +519,28 @@ ui_header(String label, i32 options)
 	return header_state;
 }
 
-inline b32
+static inline b32
 ui_header_expanded(i32 header_state)
 {
 	b32 expanded = header_state & UI_HEADER_EXPANDED;
 	return expanded;
 }
 
-inline b32
+static inline b32
 ui_header_deleted(i32 header_state)
 {
 	b32 deleted = header_state & UI_HEADER_DELETED;
 	return deleted;
 }
 
-inline b32
+static inline b32
 ui_header_optionized(i32 header_state)
 {
 	b32 prompted = header_state & UI_HEADER_OPTIONIZED;
 	return prompted;
 }
 
-void
+static void
 ui_label(String text)
 {
 	Quad target = ui_layout_next_block();
@@ -555,7 +551,7 @@ ui_label(String text)
 	r_draw_text(text, text_position, text_color);
 }
 
-void
+static void
 ui_separator(void)
 {
 	Quad target = ui_layout_next_block();
@@ -565,7 +561,7 @@ ui_separator(void)
 	r_draw_rect(target, gray);
 }
 
-i32
+static i32
 ui_popup_menu(UI_Option_List options)
 {
 	// NOTE(ariel) Layout the popup menu without issuing any draw calls. Draw the
@@ -618,7 +614,7 @@ ui_popup_menu(UI_Option_List options)
 	return -1;
 }
 
-b32
+static b32
 ui_textbox(Buffer *buffer, String placeholder)
 {
 	b32 submit_text = false;
@@ -703,7 +699,7 @@ ui_textbox(Buffer *buffer, String placeholder)
 	return submit_text;
 }
 
-void
+static void
 ui_text(String text)
 {
 	i32 max_width = ui.layout.width - 30;
@@ -760,7 +756,7 @@ ui_text(String text)
 	}
 }
 
-b32
+static b32
 ui_link(String text, b32 unread)
 {
 	UI_ID id = get_id(text);
@@ -812,7 +808,7 @@ ui_link(String text, b32 unread)
 	return clicked;
 }
 
-internal inline b32
+static inline b32
 is_prompt_block_blank(void)
 {
 	b32 x = !ui.prompt_block.target.x;
@@ -822,7 +818,7 @@ is_prompt_block_blank(void)
 	return x & y & w & h;
 }
 
-i32
+static i32
 ui_prompt(String prompt, Buffer *input_buffer)
 {
 	u32 prompt_state = 0;
@@ -859,35 +855,35 @@ ui_prompt(String prompt, Buffer *input_buffer)
 	return prompt_state;
 }
 
-void
+static void
 ui_input_mouse_move(i32 x, i32 y)
 {
 	ui.mouse_x = x;
 	ui.mouse_y = y;
 }
 
-void
+static void
 ui_input_mouse_down(i32 x, i32 y, i32 mouse_button)
 {
 	ui_input_mouse_move(x, y);
 	ui.mouse_down |= mouse_button;
 }
 
-void
+static void
 ui_input_mouse_up(i32 x, i32 y, i32 mouse_button)
 {
 	ui_input_mouse_move(x, y);
 	ui.mouse_down &= ~mouse_button;
 }
 
-void
+static void
 ui_input_mouse_scroll(i32 x, i32 y)
 {
 	(void)x;
 	ui.scroll_delta_y = y * ui.layout.row_height;
 }
 
-void
+static void
 ui_input_text(char *text)
 {
 	i32 len = strlen(text);
@@ -895,7 +891,7 @@ ui_input_text(char *text)
 	memcpy(ui.input_text.data.str, text, ui.input_text.data.len);
 }
 
-void
+static void
 ui_input_key(i32 key)
 {
 	ui.key_press |= key;

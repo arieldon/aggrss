@@ -1,13 +1,3 @@
-#include "SDL.h"
-
-#include "arena.h"
-#include "base.h"
-#include "font.h"
-#include "linalg.h"
-#include "load_opengl.h"
-#include "renderer.h"
-#include "str.h"
-
 global const char *vertex_shader_source =
 "#version 330 core\n"
 "uniform mat4 projection;\n"
@@ -72,7 +62,7 @@ global u32 indices[N_MAX_QUADS * 6];
 global Vertex vertices[N_MAX_QUADS * 4];
 
 #ifdef DEBUG
-internal void
+static void
 MessageCallback(
 	GLenum source,
 	GLenum type,
@@ -105,7 +95,7 @@ struct Shader_Handle
 	String error;
 };
 
-internal Shader_Handle
+static Shader_Handle
 compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_type)
 {
 	Shader_Handle result = {0};
@@ -139,7 +129,7 @@ compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_typ
 	return result;
 }
 
-internal Shader_Handle
+static Shader_Handle
 link_shader_program(Arena *arena, GLuint *shaders, i32 n_shaders)
 {
 	Shader_Handle result = {0};
@@ -176,7 +166,7 @@ link_shader_program(Arena *arena, GLuint *shaders, i32 n_shaders)
 	return result;
 }
 
-void
+static void
 r_init(Arena *arena)
 {
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
@@ -341,7 +331,7 @@ r_init(Arena *arena)
 	assert(glGetError() == GL_NO_ERROR);
 }
 
-internal void
+static void
 flush(void)
 {
 	if (vertices_cursor)
@@ -361,7 +351,7 @@ flush(void)
 	}
 }
 
-internal void
+static void
 push_quad(Quad dst, Quad src, Color color)
 {
 	if (vertices_cursor == N_MAX_QUADS)
@@ -407,7 +397,7 @@ push_quad(Quad dst, Quad src, Color color)
 	++vertices_cursor;
 }
 
-void
+static void
 r_draw_rect(Quad rect, Color color)
 {
 	Quad source = {0};
@@ -421,7 +411,7 @@ struct UTF8_Result
 	i32 offset_increment;
 };
 
-internal inline UTF8_Result
+static inline UTF8_Result
 decode_utf8_code_point(String s, i32 offset)
 {
 	UTF8_Result result =
@@ -480,7 +470,7 @@ decode_utf8_code_point(String s, i32 offset)
 	return result;
 }
 
-void
+static void
 r_draw_text(String text, Vector2 pos, Color color)
 {
 	UTF8_Result result = {0};
@@ -514,7 +504,7 @@ r_draw_text(String text, Vector2 pos, Color color)
 	}
 }
 
-void
+static void
 r_draw_icon(UI_Icon icon, Quad rect, Color color)
 {
 	assert(icon < UI_ICON_MAX);
@@ -535,14 +525,14 @@ r_draw_icon(UI_Icon icon, Quad rect, Color color)
 	push_quad(destination, source, color);
 }
 
-void
+static void
 r_set_clip_quad(Quad dimensions)
 {
   flush();
   glScissor(dimensions.x, dimensions.y, dimensions.w, dimensions.h);
 }
 
-i32
+static i32
 r_get_text_width(String text)
 {
 	i32 width = 0;
@@ -563,21 +553,21 @@ r_get_text_width(String text)
 	return width;
 }
 
-i32
+static i32
 r_get_text_height(String text)
 {
 	(void)text;
 	return FONT_SIZE;
 }
 
-void
+static void
 r_clear(Color color)
 {
 	glClearColor(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void
+static void
 r_present(void)
 {
 	flush();

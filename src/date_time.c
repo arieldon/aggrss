@@ -1,7 +1,3 @@
-#include "base.h"
-#include "date_time.h"
-#include "str.h"
-
 typedef struct Date_Time_Parser Date_Time_Parser;
 struct Date_Time_Parser
 {
@@ -11,7 +7,7 @@ struct Date_Time_Parser
 	i32 cursor;
 };
 
-internal i32
+static i32
 parse_week_day(Date_Time_Parser *parser, String day)
 {
 	i32 result = -1;
@@ -43,7 +39,7 @@ parse_week_day(Date_Time_Parser *parser, String day)
 	return result;
 }
 
-internal i32
+static i32
 parse_month(Date_Time_Parser *parser, String month)
 {
 	i32 result = -1;
@@ -87,7 +83,7 @@ struct Time_Zone_Offset
 	i32 minutes;
 };
 
-internal Time_Zone_Offset
+static Time_Zone_Offset
 get_offset_from_zone(Date_Time_Parser *parser, String zone)
 {
 	Time_Zone_Offset offset = {0};
@@ -152,7 +148,7 @@ get_offset_from_zone(Date_Time_Parser *parser, String zone)
 	return offset;
 }
 
-internal i32
+static i32
 parse_number(Date_Time_Parser *parser, char delimiter, String error_message)
 {
 	String s =
@@ -180,7 +176,7 @@ parse_number(Date_Time_Parser *parser, char delimiter, String error_message)
 	return number;
 }
 
-internal String
+static String
 parse_string(Date_Time_Parser *parser, char delimiter)
 {
 	String s =
@@ -202,14 +198,14 @@ parse_string(Date_Time_Parser *parser, char delimiter)
 	return s;
 }
 
-internal inline b32
+static inline b32
 is_leap_year(i32 year)
 {
 	b32 result = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 	return result;
 }
 
-internal inline i32
+static inline i32
 get_days_in_month(i32 month, i32 year)
 {
 	i32 days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -219,7 +215,7 @@ get_days_in_month(i32 month, i32 year)
 }
 
 // NOTE(ariel) This doesn't support dates _before_ the Unix epoch.
-internal i64
+static i64
 compute_unix_timestamp(Expanded_Date_Time date_time)
 {
 	const i32 SECONDS_PER_DAY = 86400;
@@ -294,7 +290,7 @@ compute_unix_timestamp(Expanded_Date_Time date_time)
 //                                             ;  M:-12; N:+1; Y:+12
 //             / ( ("+" / "-") 4DIGIT )        ; Local differential
 //                                             ;  hours+min. (HHMM)
-internal void
+static void
 parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
 {
 	Expanded_Date_Time result = {0};
@@ -367,7 +363,7 @@ parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
 // full-time       = partial-time time-offset
 //
 // date-time       = full-date "T" full-time
-internal void
+static void
 parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 {
 	Expanded_Date_Time result = {0};
@@ -426,7 +422,7 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	}
 }
 
-Timestamp
+static Timestamp
 parse_date_time(String date_time)
 {
 	Timestamp timestamp = {0};
