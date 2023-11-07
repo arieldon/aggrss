@@ -5,7 +5,7 @@ string_match(String s, String t)
 	{
 		return false;
 	}
-	for (i32 i = 0; i < s.len; ++i)
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		if (s.str[i] != t.str[i])
 		{
@@ -37,8 +37,8 @@ string_duplicate(Arena *arena, String s)
 static String
 string_trim_spaces(String s)
 {
-	i32 leading_spaces = 0;
-	for (i32 i = 0; i < s.len; ++i)
+	s32 leading_spaces = 0;
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		if (!isspace(s.str[i]))
 		{
@@ -47,8 +47,8 @@ string_trim_spaces(String s)
 		++leading_spaces;
 	}
 
-	i32 trailing_spaces = 0;
-	for (i32 i = s.len - 1; i >= 0; --i)
+	s32 trailing_spaces = 0;
+	for (s32 i = s.len - 1; i >= 0; --i)
 	{
 		if (!isspace(s.str[i]))
 		{
@@ -57,13 +57,13 @@ string_trim_spaces(String s)
 		++trailing_spaces;
 	}
 
-	i32 length = s.len - leading_spaces - trailing_spaces;
+	s32 length = s.len - leading_spaces - trailing_spaces;
 	String substr = string_substr(s, leading_spaces, length);
 	return substr;
 }
 
 static String
-string_substr(String s, i32 offset, i32 len)
+string_substr(String s, s32 offset, s32 len)
 {
 	String t = {0};
 	if (offset >= s.len)
@@ -80,7 +80,7 @@ string_substr(String s, i32 offset, i32 len)
 }
 
 static String
-string_prefix(String s, i32 len)
+string_prefix(String s, s32 len)
 {
 	assert(len >= 0);
 	String t = {0};
@@ -94,7 +94,7 @@ string_prefix(String s, i32 len)
 }
 
 static String
-string_suffix(String s, i32 offset)
+string_suffix(String s, s32 offset)
 {
 	assert(offset >= 0);
 	String t = {0};
@@ -107,12 +107,12 @@ string_suffix(String s, i32 offset)
 	return t;
 }
 
-static i32
+static s32
 string_find_substr(String haystack, String needle)
 {
 	assert(haystack.len >= needle.len);
-	i32 end = haystack.len - needle.len;
-	for (i32 i = 0; i <= end; ++i)
+	s32 end = haystack.len - needle.len;
+	for (s32 i = 0; i <= end; ++i)
 	{
 		String substr = string_substr(haystack, i, needle.len);
 		if (string_match(substr, needle))
@@ -123,10 +123,10 @@ string_find_substr(String haystack, String needle)
 	return -1;
 }
 
-static i32
+static s32
 string_find_ch(String s, char c)
 {
-	for (i32 i = 0; i < s.len; ++i)
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		if (s.str[i] == c)
 		{
@@ -148,7 +148,7 @@ string_to_int(String s, u8 base)
 		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 	};
 	u64 result = 0;
-	for (i32 i = 0; i < s.len; ++i)
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		result *= base;
 		result += char_to_value[(s.str[i] - 0x30) & 0x1F];
@@ -159,7 +159,7 @@ string_to_int(String s, u8 base)
 static void
 string_lower(String s)
 {
-	for (i32 i = 0; i < s.len; ++i)
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		s.str[i] = tolower(s.str[i]);
 	}
@@ -199,8 +199,8 @@ string_split(Arena *arena, String s, u8 delim)
 {
 	String_List ls = {0};
 
-	i32 j = 0;
-	for (i32 i = 0; i < s.len; ++i)
+	s32 j = 0;
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		if (s.str[i] == delim)
 		{
@@ -233,8 +233,8 @@ string_strsplit(Arena *arena, String s, String delim)
 {
 	String_List ls = {0};
 
-	i32 j = 0;
-	for (i32 i = 0; i < s.len; ++i)
+	s32 j = 0;
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		String t =
 		{
@@ -335,11 +335,11 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 }
 
 static String
-concat_strings(Arena *arena, i32 n_strings, String *strings)
+concat_strings(Arena *arena, s32 n_strings, String *strings)
 {
 	String_List ls = {0};
 
-	for (i32 i = 0; i < n_strings; ++i)
+	for (s32 i = 0; i < n_strings; ++i)
 	{
 		string_list_push_string(arena, &ls, strings[i]);
 	}

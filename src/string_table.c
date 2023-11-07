@@ -2,7 +2,7 @@ static inline u64
 string_table_hash(String s)
 {
 	u64 hash = 0x100;
-	for (i32 i = 0; i < s.len; i++)
+	for (s32 i = 0; i < s.len; i++)
 	{
 		hash ^= s.str[i] & 255;
 		hash *= 1111111111111111111;
@@ -11,12 +11,12 @@ string_table_hash(String s)
 	return hash;
 }
 
-static inline i32
-get_index(u64 hash, i32 index)
+static inline s32
+get_index(u64 hash, s32 index)
 {
 	u32 mask = ((u32)1 << EXPONENT) - 1;
 	u32 step = (hash >> (64 - EXPONENT)) | 1;
-	i32 result = (index + step) & mask;
+	s32 result = (index + step) & mask;
 	return result;
 }
 
@@ -26,7 +26,7 @@ intern(String_Table *table, String s)
 	String result = {0};
 
 	u64 h = string_table_hash(s);
-	i32 index = h;
+	s32 index = h;
 	while (!result.str)
 	{
 		index = get_index(h, index);

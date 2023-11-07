@@ -57,7 +57,7 @@ struct Vertex
 
 // NOTE(ariel) 4 vertices define 1 quad, and 1 quad consists of 2 triangles or
 // 6 total (not necessarily unique) points.
-global i32 vertices_cursor;
+global s32 vertices_cursor;
 global u32 indices[N_MAX_QUADS * 6];
 global Vertex vertices[N_MAX_QUADS * 4];
 
@@ -130,12 +130,12 @@ compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_typ
 }
 
 static Shader_Handle
-link_shader_program(Arena *arena, GLuint *shaders, i32 n_shaders)
+link_shader_program(Arena *arena, GLuint *shaders, s32 n_shaders)
 {
 	Shader_Handle result = {0};
 
 	GLuint program = glCreateProgram();
-	for (i32 i = 0; i < n_shaders; ++i)
+	for (s32 i = 0; i < n_shaders; ++i)
 	{
 		glAttachShader(program, shaders[i]);
 	}
@@ -187,8 +187,8 @@ r_init(Arena *arena)
 
 #ifdef DEBUG
 	{
-		i32 major = 0;
-		i32 minor = 0;
+		s32 major = 0;
+		s32 minor = 0;
 		SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &major);
 		SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &minor);
 		fprintf(stderr, "GL INFO: Version %d.%d\n", major, minor);
@@ -359,8 +359,8 @@ push_quad(Quad dst, Quad src, Color color)
 		flush();
 	}
 
-	i32 vertices_index = vertices_cursor * 4;
-	i32 indices_index  = vertices_cursor * 6;
+	s32 vertices_index = vertices_cursor * 4;
+	s32 indices_index  = vertices_cursor * 6;
 
 	{
 		f32 x = src.x / (f32)atlas.width;
@@ -407,12 +407,12 @@ r_draw_rect(Quad rect, Color color)
 typedef struct UTF8_Result UTF8_Result;
 struct UTF8_Result
 {
-	i32 code_point;
-	i32 offset_increment;
+	s32 code_point;
+	s32 offset_increment;
 };
 
 static inline UTF8_Result
-decode_utf8_code_point(String s, i32 offset)
+decode_utf8_code_point(String s, s32 offset)
 {
 	UTF8_Result result =
 	{
@@ -433,8 +433,8 @@ decode_utf8_code_point(String s, i32 offset)
 		if (s.len - offset >= 2)
 		{
 			result.code_point =
-				((i32)(s.str[offset + 0] & 0x1f) << 6) |
-				((i32)(s.str[offset + 1] & 0x3f) << 0);
+				((s32)(s.str[offset + 0] & 0x1f) << 6) |
+				((s32)(s.str[offset + 1] & 0x3f) << 0);
 			result.offset_increment = 2;
 		}
 	}
@@ -443,9 +443,9 @@ decode_utf8_code_point(String s, i32 offset)
 		if (s.len - offset >= 3)
 		{
 			result.code_point =
-				((i32)(s.str[offset + 0] & 0x0f) << 12) |
-				((i32)(s.str[offset + 1] & 0x3f) <<  6) |
-				((i32)(s.str[offset + 2] & 0x3f) <<  0);
+				((s32)(s.str[offset + 0] & 0x0f) << 12) |
+				((s32)(s.str[offset + 1] & 0x3f) <<  6) |
+				((s32)(s.str[offset + 2] & 0x3f) <<  0);
 			result.offset_increment = 3;
 		}
 	}
@@ -454,10 +454,10 @@ decode_utf8_code_point(String s, i32 offset)
 		if (s.len - offset >= 4)
 		{
 			result.code_point =
-				((i32)(s.str[offset + 0] & 0x07) << 18) |
-				((i32)(s.str[offset + 1] & 0x3f) << 12) |
-				((i32)(s.str[offset + 2] & 0x3f) <<  6) |
-				((i32)(s.str[offset + 3] & 0x3f) <<  0);
+				((s32)(s.str[offset + 0] & 0x07) << 18) |
+				((s32)(s.str[offset + 1] & 0x3f) << 12) |
+				((s32)(s.str[offset + 2] & 0x3f) <<  6) |
+				((s32)(s.str[offset + 3] & 0x3f) <<  0);
 			result.offset_increment = 4;
 		}
 	}
@@ -474,7 +474,7 @@ static void
 r_draw_text(String text, Vector2 pos, Color color)
 {
 	UTF8_Result result = {0};
-	for (i32 offset = 0; offset < text.len; offset += result.offset_increment)
+	for (s32 offset = 0; offset < text.len; offset += result.offset_increment)
 	{
 		result = decode_utf8_code_point(text, offset);
 		if (result.code_point != -1)
@@ -532,20 +532,20 @@ r_set_clip_quad(Quad dimensions)
   glScissor(dimensions.x, dimensions.y, dimensions.w, dimensions.h);
 }
 
-static i32
+static s32
 r_get_text_width(String text)
 {
-	i32 width = 0;
+	s32 width = 0;
 
 	UTF8_Result result = {0};
-	for (i32 offset = 0; offset < text.len; offset += result.offset_increment)
+	for (s32 offset = 0; offset < text.len; offset += result.offset_increment)
 	{
 		result = decode_utf8_code_point(text, offset);
 		if (result.code_point != -1)
 		{
 			u32 glyph_index = map_code_point_to_glyph_index(&atlas, result.code_point);
 			Glyph *glyph = &atlas.character_glyphs[glyph_index];
-			i32 glyph_width = MAX(glyph->width, glyph->x_advance);
+			s32 glyph_width = MAX(glyph->width, glyph->x_advance);
 			width += glyph_width;
 		}
 	}
@@ -553,7 +553,7 @@ r_get_text_width(String text)
 	return width;
 }
 
-static i32
+static s32
 r_get_text_height(String text)
 {
 	(void)text;

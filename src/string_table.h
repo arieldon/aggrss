@@ -14,8 +14,8 @@ typedef struct String_Table String_Table;
 struct String_Table
 {
 	String buckets[TABLE_CAPACITY];
-	i32 size;
-	i32 cursor;
+	s32 size;
+	s32 cursor;
 	char buffer[BUFFER_CAPACITY];
 };
 

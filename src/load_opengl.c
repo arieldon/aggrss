@@ -44,9 +44,9 @@ confirm_gl_extension_support(String desired_extension)
 {
 	b32 extension_support_exists = false;
 
-	i32 nextensions = 0;
+	s32 nextensions = 0;
 	glGetIntegerv(GL_NUM_EXTENSIONS, &nextensions);
-	for (i32 i = 0; i < nextensions; ++i)
+	for (s32 i = 0; i < nextensions; ++i)
 	{
 		char *raw_extension = (char *)glGetStringi(GL_EXTENSIONS, i);
 		String extension =

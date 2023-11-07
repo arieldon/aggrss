@@ -274,7 +274,7 @@ init_work_entry(String url)
 	Work_Entry *entry = get_slot(&g_entry_pool);
 	entry->next = 0;
 	entry->url.len = url.len;
-	if (url.len < (isize)sizeof(entry->short_url_buffer))
+	if (url.len < (ssize)sizeof(entry->short_url_buffer))
 	{
 		entry->url.str = entry->short_url_buffer;
 	}
@@ -381,7 +381,7 @@ set_feed_to_tag(String feed_link)
 	}
 
 	feed_to_tag.len = feed_link.len;
-	if (feed_to_tag.len <= (i32)sizeof(short_feed_to_tag_buffer))
+	if (feed_to_tag.len <= (s32)sizeof(short_feed_to_tag_buffer))
 	{
 		feed_to_tag.str = short_feed_to_tag_buffer;
 	}
@@ -470,7 +470,7 @@ process_frame(void)
 	while (db_filter_feeds_by_tag(db, &feed_link, &feed_title, tags))
 	{
 		String display_name = feed_title.len ? feed_title : feed_link;
-		i32 header_state = ui_header(display_name, UI_HEADER_SHOW_X_BUTTON);
+		s32 header_state = ui_header(display_name, UI_HEADER_SHOW_X_BUTTON);
 		if (ui_header_deleted(header_state))
 		{
 			db_del_feed(db, feed_link);
@@ -511,7 +511,7 @@ process_frame(void)
 			option_list.names = options;
 			option_list.count = ARRAY_COUNT(options);
 
-			i32 selection = ui_popup_menu(option_list);
+			s32 selection = ui_popup_menu(option_list);
 			switch (selection)
 			{
 				case 0:
@@ -566,8 +566,8 @@ main(void)
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 
 	// NOTE(ariel) Initialize work queue.
-	i32 n_logical_cpu_cores = SDL_GetCPUCount();
-	i32 n_workers = n_logical_cpu_cores - 1;
+	s32 n_logical_cpu_cores = SDL_GetCPUCount();
+	s32 n_workers = n_logical_cpu_cores - 1;
 	{
 		workers = arena_alloc(&g_arena, n_workers * sizeof(Worker));
 
@@ -579,7 +579,7 @@ main(void)
 		{
 			err_exit("failed to initialize spin lock for workers");
 		}
-		for (i8 i = 0; i < n_workers; ++i)
+		for (s8 i = 0; i < n_workers; ++i)
 		{
 			Worker *worker = &workers[i];
 
@@ -624,18 +624,18 @@ main(void)
 				case SDL_MOUSEWHEEL:  ui_input_mouse_scroll(0, e.wheel.y); break;
 				case SDL_MOUSEBUTTONDOWN:
 				{
-					i32 mouse_button = mouse_button_map[e.button.button & 0xff];
+					s32 mouse_button = mouse_button_map[e.button.button & 0xff];
 					ui_input_mouse_down(e.button.x, e.button.y, mouse_button);
 				} break;
 				case SDL_MOUSEBUTTONUP:
 				{
-					i32 mouse_button = mouse_button_map[e.button.button & 0xff];
+					s32 mouse_button = mouse_button_map[e.button.button & 0xff];
 					ui_input_mouse_up(e.button.x, e.button.y, mouse_button);
 				} break;
 
 				case SDL_KEYDOWN:
 				{
-					i32 modifier_key = modifier_key_map[e.key.keysym.sym & 0xff];
+					s32 modifier_key = modifier_key_map[e.key.keysym.sym & 0xff];
 					if (modifier_key)
 					{
 						ui_input_key(modifier_key);
@@ -674,7 +674,7 @@ main(void)
 	}
 
 exit:
-	for (i8 i = 0; i < n_workers; ++i)
+	for (s8 i = 0; i < n_workers; ++i)
 	{
 		Worker *worker = &workers[i];
 		curl_easy_cleanup(worker->curl_handle);

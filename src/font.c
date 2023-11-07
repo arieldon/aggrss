@@ -4,11 +4,11 @@ struct First_Stage_Glyph
 	First_Stage_Glyph *next;
 	u8 *bitmap;
 	u32 index;
-	i32 width;
-	i32 height;
-	i32 x_advance;
-	i32 x_offset;
-	i32 y_offset;
+	s32 width;
+	s32 height;
+	s32 x_advance;
+	s32 x_offset;
+	s32 y_offset;
 };
 
 typedef struct First_Stage_Glyph_List First_Stage_Glyph_List;
@@ -36,7 +36,7 @@ load_file(Arena *arena, FILE *file)
 	contents.len = ftell(file);
 	rewind(file);
 	contents.str = arena_alloc(arena, contents.len);
-	isize len = fread(contents.str, contents.len, sizeof(char), file);
+	ssize len = fread(contents.str, contents.len, sizeof(char), file);
 	if (!len)
 	{
 		contents.str = 0;
@@ -63,9 +63,9 @@ parse_font_file(Arena *arena, char *font_file_path)
 
 #ifdef DEBUG
 	{
-		i32 major = 0;
-		i32 minor = 0;
-		i32 patch = 0;
+		s32 major = 0;
+		s32 minor = 0;
+		s32 patch = 0;
 		FT_Library_Version(library, &major, &minor, &patch);
 		fprintf(stderr, "FreeType INFO: Version %d.%d.%d\n", major, minor, patch);
 	}
@@ -169,7 +169,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 				{
 					bitmap_clone = arena_alloc(arena, bitmap->width * bitmap->rows);
 
-					i32 pitch = bitmap->pitch;
+					s32 pitch = bitmap->pitch;
 					u8 *first_line = bitmap->buffer;
 					if (pitch < 0)
 					{
@@ -191,8 +191,8 @@ parse_font_file(Arena *arena, char *font_file_path)
 			{
 				First_Stage_Glyph *glyph = arena_alloc(arena, sizeof(First_Stage_Glyph));
 
-				assert((i32)bitmap->width < INT32_MAX);
-				assert((i32)bitmap->rows < INT32_MAX);
+				assert((s32)bitmap->width < INT32_MAX);
+				assert((s32)bitmap->rows < INT32_MAX);
 
 				glyph->bitmap = bitmap_clone;
 				glyph->index = glyph_index;
@@ -279,9 +279,9 @@ bake_font(Arena *arena)
 	atlas.width = 512;
 	atlas.height = 512;
 
-	i32 x_offset = BLANK_BITMAP_WIDTH;
-	i32 y_offset = 0;
-	i32 row_height = 0;
+	s32 x_offset = BLANK_BITMAP_WIDTH;
+	s32 y_offset = 0;
+	s32 row_height = 0;
 
 	memset(atlas.blank, 0xff, sizeof(atlas.blank));
 

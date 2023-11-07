@@ -10,7 +10,7 @@ struct Parser
 	RSS_Tree *tree;
 	RSS_Tree_Node *current_node;
 	String source;
-	i32 cursor;
+	s32 cursor;
 };
 
 static void
@@ -259,7 +259,7 @@ expect_string_literal(Parser *parser)
 	if (quote == '"' || quote == '\'')
 	{
 		expect_char(parser, quote);
-		i32 start = parser->cursor;
+		s32 start = parser->cursor;
 		continue_to_char(parser, quote);
 		s.str = parser->source.str + start;
 		s.len = parser->cursor - start;
@@ -333,7 +333,7 @@ parse_tree(Parser *parser)
 			{
 				if (accept_string(parser, string_literal("[CDATA[")))
 				{
-					i32 start = parser->cursor;
+					s32 start = parser->cursor;
 					String cdend = string_literal("]]>");
 					continue_past_string(parser, cdend);
 					parser->current_node->content.str = parser->source.str + start;
@@ -365,7 +365,7 @@ parse_tree(Parser *parser)
 		}
 		else
 		{
-			i32 start = parser->cursor;
+			s32 start = parser->cursor;
 			continue_to_char(parser, '<');
 			parser->current_node->content.str = parser->source.str + start;
 			parser->current_node->content.len = parser->cursor - start;
@@ -375,7 +375,7 @@ parse_tree(Parser *parser)
 
 #ifdef PRINT_TREE_SUPPORT
 static void
-print_rss_tree_recursively(RSS_Tree_Node *node, i8 layer, FILE *stream)
+print_rss_tree_recursively(RSS_Tree_Node *node, s8 layer, FILE *stream)
 {
 	while (node)
 	{

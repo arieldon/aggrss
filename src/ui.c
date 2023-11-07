@@ -72,9 +72,9 @@ ui_popup_menu_options(void)
 	Color menu_color = {50, 50, 50, 255};
 	r_draw_rect(ui.popup_menu.target, menu_color);
 
-	i32 x = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.x;
-	i32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
-	for (i32 i = 0; i < ui.popup_menu.options.count; ++i)
+	s32 x = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.x;
+	s32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
+	for (s32 i = 0; i < ui.popup_menu.options.count; ++i)
 	{
 		Vector2 text_position =
 		{
@@ -154,7 +154,7 @@ ui_prompt_block(void)
 	{
 		if (ui.input_text.data.len)
 		{
-			i32 n = MIN(input_buffer->cap - input_buffer->data.len, ui.input_text.data.len);
+			s32 n = MIN(input_buffer->cap - input_buffer->data.len, ui.input_text.data.len);
 			if (n > 0)
 			{
 				memcpy(input_buffer->data.str + input_buffer->data.len, ui.input_text.data.str, n);
@@ -216,7 +216,7 @@ ui_end(void)
 		ui.scroll_delta_y += 10 * ui.layout.row_height;
 	}
 
-	i32 scroll = ui.scroll_y + ui.scroll_delta_y;
+	s32 scroll = ui.scroll_y + ui.scroll_delta_y;
 	if (ui.scroll_delta_y > 0)
 	{
 		// NOTE(ariel) Scroll up.
@@ -225,7 +225,7 @@ ui_end(void)
 	else if (ui.scroll_delta_y < 0)
 	{
 		// NOTE(ariel) Scroll down.
-		i32 y_offset = ui.layout.y - ui.scroll_delta_y;
+		s32 y_offset = ui.layout.y - ui.scroll_delta_y;
 		if (y_offset > ui.layout.height)
 		{
 			ui.scroll_y = scroll;
@@ -242,7 +242,7 @@ ui_end(void)
 }
 
 static void
-ui_layout_row(i32 total_blocks)
+ui_layout_row(s32 total_blocks)
 {
 	assert(total_blocks > 0);
 	ui.layout.x = 10;
@@ -317,17 +317,17 @@ static UI_ID
 get_id(String s)
 {
 	UI_ID hash = 2166136261;
-	for (i32 i = 0; i < s.len; ++i)
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		hash = (hash ^ s.str[i]) * 16777619;
 	}
 	return hash;
 }
 
-static i32
+static s32
 find_block(UI_ID id)
 {
-	for (i32 i = 0; i < N_MAX_BLOCKS; ++i)
+	for (s32 i = 0; i < N_MAX_BLOCKS; ++i)
 	{
 		if (id == ui.block_pool.blocks[i].id)
 		{
@@ -337,10 +337,10 @@ find_block(UI_ID id)
 	return -1;
 }
 
-static i32
+static s32
 alloc_block(UI_ID id)
 {
-	i32 block_index = -1;
+	s32 block_index = -1;
 
 	if (ui.block_pool.index < N_MAX_BLOCKS)
 	{
@@ -348,8 +348,8 @@ alloc_block(UI_ID id)
 	}
 	else
 	{
-		i32 least_recently_updated_index = 0;
-		for (i32 i = 0; i < N_MAX_BLOCKS; ++i)
+		s32 least_recently_updated_index = 0;
+		for (s32 i = 0; i < N_MAX_BLOCKS; ++i)
 		{
 			least_recently_updated_index = MIN(
 				ui.block_pool.blocks[i].last_frame_updated, least_recently_updated_index);
@@ -415,7 +415,7 @@ ui_toggle(String label)
 	UI_ID id = get_id(label);
 	Quad target = ui_layout_next_block();
 
-	i32 block_index = find_block(id);
+	s32 block_index = find_block(id);
 	if (block_index == -1)
 	{
 		block_index = alloc_block(id);
@@ -448,12 +448,12 @@ ui_toggle(String label)
 	return persistent_block->enabled;
 }
 
-static i32
-ui_header(String label, i32 options)
+static s32
+ui_header(String label, s32 options)
 {
 	UI_ID id = get_id(label);
 
-	i32 block_index = find_block(id);
+	s32 block_index = find_block(id);
 	if (block_index == -1)
 	{
 		block_index = alloc_block(id);
@@ -467,7 +467,7 @@ ui_header(String label, i32 options)
 	Color header_color = color_block(id);
 	r_draw_rect(target, header_color);
 
-	i32 chevron_icon_index = persistent_block->expanded ? UI_ICON_EXPANDED : UI_ICON_COLLAPSED;
+	s32 chevron_icon_index = persistent_block->expanded ? UI_ICON_EXPANDED : UI_ICON_COLLAPSED;
 	Quad chevron_icon_dimensions =
 	{
 		.x = target.x,
@@ -496,10 +496,10 @@ ui_header(String label, i32 options)
 		ui.popup_menu.target.y = ui.mouse_y;
 	}
 
-	i32 deleted = 0;
+	s32 deleted = 0;
 	if (options & UI_HEADER_SHOW_X_BUTTON)
 	{
-		i32 delete_icon_index = UI_ICON_CLOSE;
+		s32 delete_icon_index = UI_ICON_CLOSE;
 		Quad delete_icon_dimensions =
 		{
 			.x = ui.layout.width - 18,
@@ -511,30 +511,30 @@ ui_header(String label, i32 options)
 		deleted = UI_HEADER_DELETED * (left_clicked && ui_mouse_overlaps(delete_icon_dimensions));
 	}
 
-	i32 header_state = 0;
-	i32 expanded = UI_HEADER_EXPANDED * persistent_block->expanded;
-	i32 prompted = UI_HEADER_OPTIONIZED * (id == ui.popup_menu.id);
+	s32 header_state = 0;
+	s32 expanded = UI_HEADER_EXPANDED * persistent_block->expanded;
+	s32 prompted = UI_HEADER_OPTIONIZED * (id == ui.popup_menu.id);
 	header_state = expanded | deleted | prompted;
 
 	return header_state;
 }
 
 static inline b32
-ui_header_expanded(i32 header_state)
+ui_header_expanded(s32 header_state)
 {
 	b32 expanded = header_state & UI_HEADER_EXPANDED;
 	return expanded;
 }
 
 static inline b32
-ui_header_deleted(i32 header_state)
+ui_header_deleted(s32 header_state)
 {
 	b32 deleted = header_state & UI_HEADER_DELETED;
 	return deleted;
 }
 
 static inline b32
-ui_header_optionized(i32 header_state)
+ui_header_optionized(s32 header_state)
 {
 	b32 prompted = header_state & UI_HEADER_OPTIONIZED;
 	return prompted;
@@ -561,14 +561,14 @@ ui_separator(void)
 	r_draw_rect(target, gray);
 }
 
-static i32
+static s32
 ui_popup_menu(UI_Option_List options)
 {
 	// NOTE(ariel) Layout the popup menu without issuing any draw calls. Draw the
 	// popup menu at the end to ensure it sits atop all other blocks.
 	if (is_popup_menu_blank() && ui.popup_menu.id == ui.hot_block)
 	{
-		for (i32 i = 0; i < options.count; ++i)
+		for (s32 i = 0; i < options.count; ++i)
 		{
 			Vector2 text_dimensions = get_text_dimensions(options.names[i]);
 			ui.popup_menu.target.w = MAX(ui.popup_menu.target.w, text_dimensions.w);
@@ -577,8 +577,8 @@ ui_popup_menu(UI_Option_List options)
 		ui.popup_menu.target.w += POPUP_MENU_HEAVY_PADDING;
 		ui.popup_menu.target.h += POPUP_MENU_HEAVY_PADDING;
 
-		i32 menu_overflows_x = ui.popup_menu.target.x + ui.popup_menu.target.w > ui.layout.width;
-		i32 menu_overflows_y = ui.popup_menu.target.y + ui.popup_menu.target.h > ui.layout.height;
+		s32 menu_overflows_x = ui.popup_menu.target.x + ui.popup_menu.target.w > ui.layout.width;
+		s32 menu_overflows_y = ui.popup_menu.target.y + ui.popup_menu.target.h > ui.layout.height;
 		ui.popup_menu.target.x -= ui.popup_menu.target.w * menu_overflows_x;
 		ui.popup_menu.target.y -= ui.popup_menu.target.h * menu_overflows_y;
 
@@ -591,8 +591,8 @@ ui_popup_menu(UI_Option_List options)
 		b32 released = !(ui.mouse_down & UI_MOUSE_BUTTON_LEFT);
 		if (pressed && released)
 		{
-			i32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
-			for (i32 i = 0; i < options.count; ++i)
+			s32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
+			for (s32 i = 0; i < options.count; ++i)
 			{
 				Quad target =
 				{
@@ -635,7 +635,7 @@ ui_textbox(Buffer *buffer, String placeholder)
 
 	if (id == ui.active_keyboard_block)
 	{
-		i32 n = MIN(buffer->cap - buffer->data.len, ui.input_text.data.len);
+		s32 n = MIN(buffer->cap - buffer->data.len, ui.input_text.data.len);
 		if (n > 0)
 		{
 			memcpy(buffer->data.str + buffer->data.len, ui.input_text.data.str, n);
@@ -702,19 +702,19 @@ ui_textbox(Buffer *buffer, String placeholder)
 static void
 ui_text(String text)
 {
-	i32 max_width = ui.layout.width - 30;
+	s32 max_width = ui.layout.width - 30;
 	String substr = text;
 
-	i32 offset = 0;
-	i32 previous_offset = 0;
+	s32 offset = 0;
+	s32 previous_offset = 0;
 	for (; offset < text.len; ++offset)
 	{
 		char c = text.str[offset];
 		if (c == ' ' || c == '\n')
 		{
-			i32 length = offset - previous_offset;
+			s32 length = offset - previous_offset;
 			substr = string_substr(text, previous_offset, length);
-			i32 width = r_get_text_width(substr);
+			s32 width = r_get_text_width(substr);
 			if (width >= max_width)
 			{
 				Quad target = ui_layout_next_block();
@@ -733,7 +733,7 @@ ui_text(String text)
 
 	if (previous_offset != offset)
 	{
-		i32 length = text.len - previous_offset;
+		s32 length = text.len - previous_offset;
 		substr = string_substr(text, previous_offset, length);
 		Quad target = ui_layout_next_block();
 		Vector2 text_position =
@@ -786,7 +786,7 @@ ui_link(String text, b32 unread)
 		}
 	}
 
-	i32 side_length = r_get_text_height(text);
+	s32 side_length = r_get_text_height(text);
 	Quad unread_marker_target =
 	{
 		.x = target.x,
@@ -818,7 +818,7 @@ is_prompt_block_blank(void)
 	return x & y & w & h;
 }
 
-static i32
+static s32
 ui_prompt(String prompt, Buffer *input_buffer)
 {
 	u32 prompt_state = 0;
@@ -856,28 +856,28 @@ ui_prompt(String prompt, Buffer *input_buffer)
 }
 
 static void
-ui_input_mouse_move(i32 x, i32 y)
+ui_input_mouse_move(s32 x, s32 y)
 {
 	ui.mouse_x = x;
 	ui.mouse_y = y;
 }
 
 static void
-ui_input_mouse_down(i32 x, i32 y, i32 mouse_button)
+ui_input_mouse_down(s32 x, s32 y, s32 mouse_button)
 {
 	ui_input_mouse_move(x, y);
 	ui.mouse_down |= mouse_button;
 }
 
 static void
-ui_input_mouse_up(i32 x, i32 y, i32 mouse_button)
+ui_input_mouse_up(s32 x, s32 y, s32 mouse_button)
 {
 	ui_input_mouse_move(x, y);
 	ui.mouse_down &= ~mouse_button;
 }
 
 static void
-ui_input_mouse_scroll(i32 x, i32 y)
+ui_input_mouse_scroll(s32 x, s32 y)
 {
 	(void)x;
 	ui.scroll_delta_y = y * ui.layout.row_height;
@@ -886,13 +886,13 @@ ui_input_mouse_scroll(i32 x, i32 y)
 static void
 ui_input_text(char *text)
 {
-	i32 len = strlen(text);
+	s32 len = strlen(text);
 	ui.input_text.data.len = MIN(ui.input_text.cap, len);
 	memcpy(ui.input_text.data.str, text, ui.input_text.data.len);
 }
 
 static void
-ui_input_key(i32 key)
+ui_input_key(s32 key)
 {
 	ui.key_press |= key;
 }

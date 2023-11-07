@@ -12,7 +12,7 @@ struct DB_Item
 static void db_init(sqlite3 **db);
 static void db_free(sqlite3 *db);
 
-static i32 db_count_rows(sqlite3 *db);
+static s32 db_count_rows(sqlite3 *db);
 
 static void db_add_feed(sqlite3 *db, String feed_link, String feed_title);
 static void db_add_or_update_feed(sqlite3 *db, String feed_link, String feed_title);

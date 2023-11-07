@@ -12,7 +12,7 @@ struct Vector2f
 typedef struct Vector2i Vector2i;
 struct Vector2i
 {
-	i32 x, y;
+	s32 x, y;
 };
 
 typedef union Vector3f Vector3f;

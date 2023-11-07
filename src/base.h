@@ -9,16 +9,16 @@
 #include <sys/types.h>
 
 typedef  uint8_t    u8;
-typedef   int8_t    i8;
+typedef   int8_t    s8;
 typedef uint16_t   u16;
-typedef  int16_t   i16;
+typedef  int16_t   s16;
 typedef uint32_t   u32;
-typedef  int32_t   i32;
+typedef  int32_t   s32;
 typedef uint64_t   u64;
-typedef  int64_t   i64;
+typedef  int64_t   s64;
 typedef   size_t usize;
-typedef  ssize_t isize;
-typedef      i32   b32;
+typedef  ssize_t ssize;
+typedef      s32   b32;
 typedef    float   f32;
 typedef   double   f64;
 
@@ -26,7 +26,7 @@ typedef struct String String;
 struct String
 {
 	char *str;
-	i32 len;
+	s32 len;
 };
 #define static_string_literal(s)  { .str = (char *)(s), .len = sizeof(s) - 1 }
 #define string_literal(s) (String){ .str = (char *)(s), .len = sizeof(s) - 1 }

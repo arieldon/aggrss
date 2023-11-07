@@ -23,15 +23,15 @@ struct Color
 typedef union Vector2 Vector2;
 union Vector2
 {
-	struct { i32 x, y; };
-	struct { i32 w, h; };
+	struct { s32 x, y; };
+	struct { s32 w, h; };
 };
 
 typedef struct Buffer Buffer;
 struct Buffer
 {
 	String data;
-	i32 cap;
+	s32 cap;
 };
 
 
@@ -86,22 +86,22 @@ struct UI_Layout
 {
 	struct
 	{
-		i32 current_block;
-		i32 total_blocks;
+		s32 current_block;
+		s32 total_blocks;
 	} current_row;
 
-	i32 width;
-	i32 height;
-	i32 row_height;
-	i32 x;
-	i32 y;
+	s32 width;
+	s32 height;
+	s32 row_height;
+	s32 x;
+	s32 y;
 };
 
 typedef struct UI_Option_List UI_Option_List;
 struct UI_Option_List
 {
 	String *names;
-	i32 count;
+	s32 count;
 };
 
 typedef struct UI_Popup_Menu UI_Popup_Menu;
@@ -140,13 +140,13 @@ struct UI_Block
 		b32 expanded;
 		b32 enabled;
 	};
-	i32 last_frame_updated;
+	s32 last_frame_updated;
 };
 
 typedef struct UI_Block_Pool UI_Block_Pool;
 struct UI_Block_Pool
 {
-	i32 index;
+	s32 index;
 	UI_Block blocks[N_MAX_BLOCKS];
 };
 
@@ -155,15 +155,15 @@ struct UI_Context
 {
 	u64 frame;
 
-	i32 mouse_x;
-	i32 mouse_y;
-	i32 mouse_down;
-	i32 previous_mouse_down;
+	s32 mouse_x;
+	s32 mouse_y;
+	s32 mouse_down;
+	s32 previous_mouse_down;
 
-	i32 scroll_y;
-	i32 scroll_delta_y;
+	s32 scroll_y;
+	s32 scroll_delta_y;
 
-	i32 key_press;
+	s32 key_press;
 	Buffer input_text;
 
 	UI_Layout layout;
@@ -194,8 +194,8 @@ static void r_draw_icon(UI_Icon icon_index, Quad dimensions, Color color);
 
 static void r_set_clip_quad(Quad dimensions);
 
-static i32 r_get_text_width(String text);
-static i32 r_get_text_height(String text);
+static s32 r_get_text_width(String text);
+static s32 r_get_text_height(String text);
 
 
 /* ---
@@ -207,27 +207,27 @@ static void ui_init(void);
 static void ui_begin(void);
 static void ui_end(void);
 
-static void ui_layout_row(i32 total_blocks);
+static void ui_layout_row(s32 total_blocks);
 
 static b32 ui_button(String label);
 static b32 ui_toggle(String label);
-static i32 ui_header(String label, i32 options);
-static b32 ui_header_expanded(i32 header_state);
-static b32 ui_header_deleted(i32 header_state);
-static b32 ui_header_optionized(i32 header_state);
-static i32 ui_popup_menu(UI_Option_List options);
+static s32 ui_header(String label, s32 options);
+static b32 ui_header_expanded(s32 header_state);
+static b32 ui_header_deleted(s32 header_state);
+static b32 ui_header_optionized(s32 header_state);
+static s32 ui_popup_menu(UI_Option_List options);
 static b32 ui_textbox(Buffer *buffer, String placeholder);
 static b32 ui_link(String text, b32 unread);
-static i32 ui_prompt(String prompt, Buffer *input_buffer);
+static s32 ui_prompt(String prompt, Buffer *input_buffer);
 static void ui_text(String text);
 static void ui_label(String text);
 static void ui_separator(void);
 
-static void ui_input_mouse_move(i32 x, i32 y);
-static void ui_input_mouse_down(i32 x, i32 y, i32 mouse_button);
-static void ui_input_mouse_up(i32 x, i32 y, i32 mouse_button);
-static void ui_input_mouse_scroll(i32 x, i32 y);
+static void ui_input_mouse_move(s32 x, s32 y);
+static void ui_input_mouse_down(s32 x, s32 y, s32 mouse_button);
+static void ui_input_mouse_up(s32 x, s32 y, s32 mouse_button);
+static void ui_input_mouse_scroll(s32 x, s32 y);
 static void ui_input_text(char *text);
-static void ui_input_key(i32 key);
+static void ui_input_key(s32 key);
 
 #endif

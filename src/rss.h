@@ -26,7 +26,7 @@ typedef struct RSS_Error RSS_Error;
 struct RSS_Error
 {
 	RSS_Error *next;
-	i32 source_offset;
+	s32 source_offset;
 	String text;
 };
 

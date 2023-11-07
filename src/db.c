@@ -2,7 +2,7 @@ static u32
 db_hash(String s)
 {
 	u32 hash = 2166136261;
-	for (i32 i = 0; i < s.len; ++i)
+	for (s32 i = 0; i < s.len; ++i)
 	{
 		hash = (hash ^ s.str[i]) * 16777619;
 	}
@@ -10,7 +10,7 @@ db_hash(String s)
 }
 
 static inline void
-confirm_success(sqlite3 *db, i32 status_code, char *error_message)
+confirm_success(sqlite3 *db, s32 status_code, char *error_message)
 {
 	b32 ok = status_code == SQLITE_OK;
 	b32 row = status_code == SQLITE_ROW;
@@ -30,7 +30,7 @@ db_init(sqlite3 **db)
 
 	// NOTE(ariel) Compile script defines macro CONFIG_DIRECTORY_PATH.
 #define DATABASE_FILE_PATH CONFIG_DIRECTORY_PATH "feeds.db"
-	i32 error = sqlite3_open(DATABASE_FILE_PATH, db);
+	s32 error = sqlite3_open(DATABASE_FILE_PATH, db);
 	if (error)
 	{
 		fprintf(stderr, "[DB ERROR] failed to open database file\n");
@@ -106,16 +106,16 @@ db_init(sqlite3 **db)
 	}
 }
 
-static i32
+static s32
 db_count_rows(sqlite3 *db)
 {
-	i32 count = -1;
+	s32 count = -1;
 
 	sqlite3_stmt* statement = 0;
 	String count_rows = string_literal("SELECT COUNT(*) FROM feeds");
 	sqlite3_prepare_v2(db, count_rows.str, count_rows.len, &statement, 0);
 
-	i32 status = sqlite3_step(statement);
+	s32 status = sqlite3_step(statement);
 	if (status == SQLITE_ROW)
 	{
 		count = sqlite3_column_int(statement, 0);
@@ -128,7 +128,7 @@ db_count_rows(sqlite3 *db)
 static void
 db_free(sqlite3 *db)
 {
-	i32 status = sqlite3_close(db);
+	s32 status = sqlite3_close(db);
 	confirm_success(db, status, "failed to close database");
 }
 
@@ -143,7 +143,7 @@ db_add_feed(sqlite3 *db, String feed_link, String feed_title)
 	sqlite3_bind_int(statement, 1, feed_id);
 	sqlite3_bind_text(statement, 2, feed_link.str, feed_link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 3, feed_title.str, feed_title.len, SQLITE_STATIC);
-	i32 status = sqlite3_step(statement);
+	s32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 
 	confirm_success(db, status, "failed to add feed to database");
@@ -161,7 +161,7 @@ db_add_or_update_feed(sqlite3 *db, String feed_link, String feed_title)
 	sqlite3_bind_int(statement, 1, feed_id);
 	sqlite3_bind_text(statement, 2, feed_link.str, feed_link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 3, feed_title.str, feed_title.len, SQLITE_STATIC);
-	i32 status = sqlite3_step(statement);
+	s32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 
 	confirm_success(db, status, "failed to add or update feed in database");
@@ -181,7 +181,7 @@ get_content_from_node(RSS_Tree_Node *item_node, String term, String default_valu
 	}
 }
 
-static i64
+static s64
 get_unix_timestamp(String feed_link, String date_time)
 {
 	Timestamp timestamp = parse_date_time(date_time);
@@ -206,7 +206,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	String date = {0};
 	get_content_from_node(item_node, string_literal("pubDate"), date, &date);
 	get_content_from_node(item_node, string_literal("updated"), date, &date);
-	i64 unix_timestamp = get_unix_timestamp(feed_link, date);
+	s64 unix_timestamp = get_unix_timestamp(feed_link, date);
 
 	// NOTE(ariel) 1 in the VALUES(...) expression below indicates the item
 	// remains unread.
@@ -218,7 +218,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	sqlite3_bind_int(statement, 3, unix_timestamp);
 	u32 feed_id = db_hash(feed_link);
 	sqlite3_bind_int(statement, 4, feed_id);
-	i32 status = sqlite3_step(statement);
+	s32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 
 	confirm_success(db, status, "failed to add item to database");
@@ -237,7 +237,7 @@ db_tag_feed(sqlite3 *db, String tag, String feed_link)
 		sqlite3_prepare_v2(db, insert_tag.str, insert_tag.len, &statement, 0);
 		sqlite3_bind_int(statement, 1, tag_id);
 		sqlite3_bind_text(statement, 2, tag.str, tag.len, SQLITE_STATIC);
-		i32 status = sqlite3_step(statement);
+		s32 status = sqlite3_step(statement);
 		sqlite3_finalize(statement);
 		confirm_success(db, status, "failed to add tag to database");
 
@@ -259,7 +259,7 @@ db_del_feed(sqlite3 *db, String feed_link)
 	String delete_feed = string_literal("DELETE FROM feeds WHERE id = ?");
 	sqlite3_prepare_v2(db, delete_feed.str, delete_feed.len, &statement, 0);
 	sqlite3_bind_int(statement, 1, feed_id);
-	i32 status = sqlite3_step(statement);
+	s32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 	confirm_success(db, status, "failed to delete feed from database");
 }
@@ -271,7 +271,7 @@ db_mark_item_read(sqlite3 *db, String item_link)
 	String update_item = string_literal("UPDATE items SET unread = 0 WHERE link = ?");
 	sqlite3_prepare_v2(db, update_item.str, update_item.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, item_link.str, item_link.len, SQLITE_STATIC);
-	i32 status = sqlite3_step(statement);
+	s32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 	confirm_success(db, status, "failed to mark item as read in database");
 }
@@ -284,7 +284,7 @@ db_mark_all_read(sqlite3 *db, String feed_link)
 	String update_items = string_literal("UPDATE items SET unread = 0 WHERE feed = ?");
 	sqlite3_prepare_v2(db, update_items.str, update_items.len, &statement, 0);
 	sqlite3_bind_int(statement, 1, feed_id);
-	i32 status = sqlite3_step(statement);
+	s32 status = sqlite3_step(statement);
 	sqlite3_finalize(statement);
 	confirm_success(db, status, "failed to mark all items of feed as read in database");
 }
@@ -306,8 +306,8 @@ create_query(String_List tags)
 		"JOIN tags ON tags.id == tags_to_feeds.tag "
 		"JOIN feeds ON feeds.id == tags_to_feeds.feed "
 		"WHERE tags.name IN (";
-	i32 cursor = QUERY_STARTING_LENGTH;
-	for (i32 i = 1; i < tags.list_size; ++i)
+	s32 cursor = QUERY_STARTING_LENGTH;
+	for (s32 i = 1; i < tags.list_size; ++i)
 	{
 		select_feeds[cursor++] = '?';
 		select_feeds[cursor++] = ',';
@@ -349,14 +349,14 @@ db_filter_feeds_by_tag(sqlite3 *db, String *feed_link, String *feed_title, Strin
 			sqlite3_prepare_v2(db, select_feeds.str, select_feeds.len, &statement, 0);
 
 			String_Node *tag_node = tags.head;
-			for (i32 i = 1; tag_node; ++i, tag_node = tag_node->next)
+			for (s32 i = 1; tag_node; ++i, tag_node = tag_node->next)
 			{
 				sqlite3_bind_text(statement, i, tag_node->string.str, tag_node->string.len, SQLITE_STATIC);
 			}
 		}
 	}
 
-	i32 status = sqlite3_step(statement);
+	s32 status = sqlite3_step(statement);
 	if (status == SQLITE_ROW)
 	{
 		feed_exists = true;
@@ -387,7 +387,7 @@ db_iterate_feeds(sqlite3 *db, String *feed_link, String *feed_title)
 		sqlite3_prepare_v2(db, select_feeds.str, select_feeds.len, &select_statement, 0);
 	}
 
-	i32 status = sqlite3_step(select_statement);
+	s32 status = sqlite3_step(select_statement);
 	if (status == SQLITE_ROW)
 	{
 		feed_exists = true;
@@ -424,7 +424,7 @@ db_iterate_items(sqlite3 *db, String feed_link, DB_Item *item)
 		sqlite3_bind_int(select_statement, 1, feed_id);
 	}
 
-	i32 status = sqlite3_step(select_statement);
+	s32 status = sqlite3_step(select_statement);
 	if (status == SQLITE_ROW)
 	{
 		item_exists = true;
@@ -456,7 +456,7 @@ db_iterate_tags(sqlite3 *db, String *tag)
 		sqlite3_prepare_v2(db, select_tags.str, select_tags.len, &select_statement, 0);
 	}
 
-	i32 status = sqlite3_step(select_statement);
+	s32 status = sqlite3_step(select_statement);
 	if (status == SQLITE_ROW)
 	{
 		tag_exists = true;

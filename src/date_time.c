@@ -4,13 +4,13 @@ struct Date_Time_Parser
 	String date_time;
 	String error;
 	b32 success;
-	i32 cursor;
+	s32 cursor;
 };
 
-static i32
+static s32
 parse_week_day(Date_Time_Parser *parser, String day)
 {
-	i32 result = -1;
+	s32 result = -1;
 
 	String days[] =
 	{
@@ -39,10 +39,10 @@ parse_week_day(Date_Time_Parser *parser, String day)
 	return result;
 }
 
-static i32
+static s32
 parse_month(Date_Time_Parser *parser, String month)
 {
-	i32 result = -1;
+	s32 result = -1;
 
 	String months[] =
 	{
@@ -79,8 +79,8 @@ parse_month(Date_Time_Parser *parser, String month)
 typedef struct Time_Zone_Offset Time_Zone_Offset;
 struct Time_Zone_Offset
 {
-	i32 hours;
-	i32 minutes;
+	s32 hours;
+	s32 minutes;
 };
 
 static Time_Zone_Offset
@@ -108,7 +108,7 @@ get_offset_from_zone(Date_Time_Parser *parser, String zone)
 	}
 	else
 	{
-		i32 zone_index = -1;
+		s32 zone_index = -1;
 
 		String zones[] =
 		{
@@ -129,7 +129,7 @@ get_offset_from_zone(Date_Time_Parser *parser, String zone)
 
 		if (zone_index != -1)
 		{
-			i32 offsets[] =
+			s32 offsets[] =
 			{
 				+0, +0, +0,
 				-5, -4,
@@ -148,7 +148,7 @@ get_offset_from_zone(Date_Time_Parser *parser, String zone)
 	return offset;
 }
 
-static i32
+static s32
 parse_number(Date_Time_Parser *parser, char delimiter, String error_message)
 {
 	String s =
@@ -172,7 +172,7 @@ parse_number(Date_Time_Parser *parser, char delimiter, String error_message)
 		++s.len;
 	}
 
-	i32 number = string_to_int(s, 10);
+	s32 number = string_to_int(s, 10);
 	return number;
 }
 
@@ -199,44 +199,44 @@ parse_string(Date_Time_Parser *parser, char delimiter)
 }
 
 static inline b32
-is_leap_year(i32 year)
+is_leap_year(s32 year)
 {
 	b32 result = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 	return result;
 }
 
-static inline i32
-get_days_in_month(i32 month, i32 year)
+static inline s32
+get_days_in_month(s32 month, s32 year)
 {
-	i32 days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+	s32 days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 	b32 leap = month == 1 && is_leap_year(year);
-	i32 result = days[month] + leap;
+	s32 result = days[month] + leap;
 	return result;
 }
 
 // NOTE(ariel) This doesn't support dates _before_ the Unix epoch.
-static i64
+static s64
 compute_unix_timestamp(Expanded_Date_Time date_time)
 {
-	const i32 SECONDS_PER_DAY = 86400;
-	const i32 SECONDS_PER_HOUR = 3600;
-	const i32 SECONDS_PER_MINUTE = 60;
+	const s32 SECONDS_PER_DAY = 86400;
+	const s32 SECONDS_PER_HOUR = 3600;
+	const s32 SECONDS_PER_MINUTE = 60;
 
-	i64 unix_timestamp = 0;
+	s64 unix_timestamp = 0;
 
 	// NOTE(ariel) Add date.
 	{
-		i32 days = 0;
+		s32 days = 0;
 
 		// NOTE(ariel) Calculate total number of days from 1970 to given year.
-		for (i32 year = 1970; year < date_time.year; ++year)
+		for (s32 year = 1970; year < date_time.year; ++year)
 		{
 			days += 365 + is_leap_year(year);
 		}
 
 		// NOTE(ariel) Calculate total number of days from beginning of year to
 		// given month.
-		for (i32 month = 0; month < date_time.month; ++month)
+		for (s32 month = 0; month < date_time.month; ++month)
 		{
 			days += get_days_in_month(month, date_time.year);
 		}
@@ -438,7 +438,7 @@ parse_date_time(String date_time)
 	}
 	if (!parser.success)
 	{
-		i32 previous_cursor_position = parser.cursor;
+		s32 previous_cursor_position = parser.cursor;
 		String previous_error_message = parser.error;
 
 		// NOTE(ariel) Reset parser for another pass.
