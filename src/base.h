@@ -49,6 +49,7 @@ struct String
 #define MEM_ZERO(addr, size)  memset((addr), 0, (size))
 #define MEM_ZERO_STRUCT(addr) MEM_ZERO((addr), sizeof(*(addr)))
 
+// TODO(ariel) Remove old definition of assert().
 #ifdef DEBUG
 #if __GNUC__
 #	define assert(c) if (!(c)) __builtin_trap()
@@ -59,6 +60,16 @@ struct String
 #endif
 #else
 #	define assert(ignore) ((void)0)
+#endif
+
+#define StaticAssert(X) _Static_assert(X, "")
+#define Message(X) fprintf(stderr, "%s:%d: %s: assertion `%s` failed\n", __FILE__, __LINE__, __func__, #X)
+#define Breakpoint() do { __asm__("int $3"); __asm__("nop"); } while (0)
+#define AssertAlways(X) do { if (!(X)) { Message(X); Breakpoint(); } } while (0)
+#ifdef DEBUG
+#define Assert(X) AssertAlways(X)
+#else
+#define Assert(X)
 #endif
 
 #ifdef DEBUG
