@@ -16,7 +16,10 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <curl/curl.h>
+
+#ifdef USE_SQLITE
 #include <sqlite3.h>
+#endif
 
 #include "SDL.h"
 #include "SDL_opengl.h"
@@ -40,7 +43,11 @@
 #include "date_time.c"
 #include "str.c"
 #include "rss.c"
+#ifdef USE_SQLITE
+#include "db_sqlite.c"
+#else
 #include "db.c"
+#endif
 #include "err.c"
 #include "font.c"
 #include "linalg.c"
@@ -57,7 +64,7 @@ global Arena g_arena;
 global Pool g_entry_pool;
 global Pool g_error_pool;
 
-global sqlite3 *db;
+global Database *db;
 
 global char mouse_button_map[] =
 {
