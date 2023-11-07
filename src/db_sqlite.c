@@ -106,25 +106,6 @@ db_init(sqlite3 **db)
 	}
 }
 
-static s32
-db_count_rows(sqlite3 *db)
-{
-	s32 count = -1;
-
-	sqlite3_stmt* statement = 0;
-	String count_rows = string_literal("SELECT COUNT(*) FROM feeds");
-	sqlite3_prepare_v2(db, count_rows.str, count_rows.len, &statement, 0);
-
-	s32 status = sqlite3_step(statement);
-	if (status == SQLITE_ROW)
-	{
-		count = sqlite3_column_int(statement, 0);
-	}
-	sqlite3_finalize(statement);
-
-	return count;
-}
-
 static void
 db_free(sqlite3 *db)
 {
