@@ -49,52 +49,6 @@ struct String
 #define MEM_ZERO(addr, size)  memset((addr), 0, (size))
 #define MEM_ZERO_STRUCT(addr) MEM_ZERO((addr), sizeof(*(addr)))
 
-#define DLL_TEMPLATE_PUSH_BACK(f, l, n, next, prev) \
-	( \
-		(f) == 0 ? \
-		((f) = (l) = (n), (n)->next = (n)->prev = 0) : \
-		((n)->prev = (l), (l)->next = (n), (l) = (n), (n)->next = 0) \
-	)
-#define DLL_PUSH_BACK(f, l, n) \
-	( \
-		DLL_TEMPLATE_PUSH_BACK(f, l, n, next, prev) \
-	)
-#define DLL_PUSH_FRONT(f, l, n) \
-	( \
-		DLL_TEMPLATE_PUSH_BACK(l, f, n, prev, next) \
-	)
-
-#define SLL_TEMPLATE_PUSH_BACK(f, l, n, next) \
-	( \
-		(f) == 0 ? \
-		(f) = (l) = (n) : \
-		((l)->next = (n), (l) = (n)), \
-		(n)->next = 0 \
-	)
-#define SLL_PUSH_BACK(f, l, n) \
-	( \
-		SLL_TEMPLATE_PUSH_BACK(f, l, n, next) \
-	)
-#define SLL_TEMPLATE_PUSH_FRONT(f, l, n, next) \
-	( \
-		(f) == 0 ? \
-		(f) = (l) = (n), (n)->next = 0 : \
-		(n)->next = (f), (f) = (n) \
-	)
-#define SSL_PUSH_FRONT(f, l, n) \
-	( \
-		SLL_TEMPLATE_PUSH_BACK(f, l, n, next) \
-	)
-
-#define STACK_TEMPLATE_PUSH(f, n, next) \
-	( \
-		(n)->next = (f), (f) = (n) \
-	)
-#define STACK_PUSH(f, n) \
-	( \
-		STACK_TEMPLATE_PUSH(f, n, next) \
-	)
-
 #ifdef DEBUG
 #if __GNUC__
 #	define assert(c) if (!(c)) __builtin_trap()
