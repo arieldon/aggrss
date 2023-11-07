@@ -764,25 +764,25 @@ ui_link(String text, b32 unread)
 
 	ui_update_control(id, target);
 
-	Color text_color = {0};
+	Color link_color = {0};
 	{
-		Color dull_color = {200, 200, 200, 255};
-		Color hot_color = {215, 215, 215, 255};
-		Color active_color = {230, 230, 230, 255};
+		Color dull = {200, 200, 200, 255};
+		Color hot = {215, 215, 215, 255};
+		Color active = {230, 230, 230, 255};
 		if (id == ui.hot_block)
 		{
 			if (id == ui.active_block)
 			{
-				text_color = active_color;
+				link_color = active;
 			}
 			else
 			{
-				text_color = hot_color;
+				link_color = hot;
 			}
 		}
 		else
 		{
-			text_color = dull_color;
+			link_color = dull;
 		}
 	}
 
@@ -802,7 +802,7 @@ ui_link(String text, b32 unread)
 		.x = target.x + side_length,
 		.y = target.y,
 	};
-	r_draw_text(text, text_position, text_color);
+	r_draw_text(text, text_position, link_color);
 
 	b32 clicked = ui_register_left_click(id);
 	return clicked;
