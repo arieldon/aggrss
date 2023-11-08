@@ -181,7 +181,7 @@ get_content_from_node(RSS_Tree_Node *item_node, String term, String default_valu
 	}
 }
 
-static s64
+static u64
 get_unix_timestamp(String feed_link, String date_time)
 {
 	Timestamp timestamp = parse_date_time(date_time);
@@ -192,6 +192,7 @@ get_unix_timestamp(String feed_link, String date_time)
 			feed_link.len, feed_link.str,
 			timestamp.error.len, timestamp.error.str);
 	}
+	assert(timestamp.unix_format < UINT32_MAX);
 	return timestamp.unix_format;
 }
 
@@ -215,7 +216,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	sqlite3_prepare_v2(db, insert_items.str, insert_items.len, &statement, 0);
 	sqlite3_bind_text(statement, 1, link.str, link.len, SQLITE_STATIC);
 	sqlite3_bind_text(statement, 2, title.str, title.len, SQLITE_STATIC);
-	sqlite3_bind_int(statement, 3, unix_timestamp);
+	sqlite3_bind_int(statement, 3, (u32)unix_timestamp);
 	u32 feed_id = db_hash(feed_link);
 	sqlite3_bind_int(statement, 4, feed_id);
 	s32 status = sqlite3_step(statement);

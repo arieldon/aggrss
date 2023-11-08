@@ -1,13 +1,13 @@
 static f32
 convert_degrees_to_radians(f32 degrees)
 {
-	return degrees * (M_PI / 180.0f);
+	return degrees * ((f32)M_PI / 180.0f);
 }
 
 static f32
 convert_radians_to_degrees(f32 radians)
 {
-	return radians * (180.0f / M_PI);
+	return radians * (180.0f / (f32)M_PI);
 }
 
 static Matrix4f
@@ -62,8 +62,8 @@ static Matrix4f
 mat4_rotate_x(f32 degrees)
 {
 	f32 r = convert_degrees_to_radians(degrees);
-	f32 c = cos(r);
-	f32 s = sin(r);
+	f32 c = cosf(r);
+	f32 s = sinf(r);
 	Matrix4f result =
 	{
 		.e =
@@ -81,8 +81,8 @@ static Matrix4f
 mat4_rotate_y(f32 degrees)
 {
 	f32 r = convert_degrees_to_radians(degrees);
-	f32 c = cos(r);
-	f32 s = sin(r);
+	f32 c = cosf(r);
+	f32 s = sinf(r);
 	Matrix4f result =
 	{
 		.e =
@@ -100,8 +100,8 @@ static Matrix4f
 mat4_rotate_z(f32 degrees)
 {
 	f32 r = convert_degrees_to_radians(degrees);
-	f32 c = cos(r);
-	f32 s = sin(r);
+	f32 c = cosf(r);
+	f32 s = sinf(r);
 	Matrix4f result =
 	{
 		.e =

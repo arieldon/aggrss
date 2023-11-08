@@ -8,6 +8,9 @@
 
 typedef u32 UI_ID;
 
+// TODO(ariel) Introduce different types of quads, i.e. f32Quad, s32Quad, and
+// so on, as well as vector types in the same way to reduce the amount of
+// casting the CPU performs while executing code paths to layout the UI.
 typedef struct Quad Quad;
 struct Quad
 {
@@ -140,7 +143,7 @@ struct UI_Block
 		b32 expanded;
 		b32 enabled;
 	};
-	s32 last_frame_updated;
+	u64 last_frame_updated;
 };
 
 typedef struct UI_Block_Pool UI_Block_Pool;

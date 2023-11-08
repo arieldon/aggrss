@@ -52,7 +52,7 @@ confirm_gl_extension_support(String desired_extension)
 		String extension =
 		{
 			.str = raw_extension,
-			.len = strlen(raw_extension),
+			.len = (s32)strlen(raw_extension),
 		};
 		if (string_match(desired_extension, extension))
 		{

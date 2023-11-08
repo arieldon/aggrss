@@ -15,7 +15,7 @@ static void
 ui_init(void)
 {
 	ui.frame = 0;
-	ui.layout.row_height = r_get_text_height(string_literal("")) * 1.2f;
+	ui.layout.row_height = (s32)((f32)r_get_text_height(string_literal("")) * 1.2f);
 
 	local_persist char input_text[128];
 	ui.input_text.data.str = input_text;
@@ -72,21 +72,21 @@ ui_popup_menu_options(void)
 	Color menu_color = {50, 50, 50, 255};
 	r_draw_rect(ui.popup_menu.target, menu_color);
 
-	s32 x = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.x;
-	s32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
+	s32 x = POPUP_MENU_LIGHT_PADDING + (s32)ui.popup_menu.target.x;
+	s32 y = POPUP_MENU_LIGHT_PADDING + (s32)ui.popup_menu.target.y;
 	for (s32 i = 0; i < ui.popup_menu.options.count; ++i)
 	{
 		Vector2 text_position =
 		{
 			.x = x,
-			.y = y + ui.layout.row_height * 1.2 * i,
+			.y = y + (s32)((f32)ui.layout.row_height * 1.2f) * i,
 		};
 		Quad option_target =
 		{
 			.x = ui.popup_menu.target.x,
-			.y = text_position.y,
+			.y = (f32)text_position.y,
 			.w = ui.popup_menu.target.w,
-			.h = ui.layout.row_height,
+			.h = (f32)ui.layout.row_height,
 		};
 
 		if (ui_mouse_overlaps(option_target))
@@ -118,8 +118,8 @@ ui_prompt_block(void)
 	Vector2 text_dimensions = get_text_dimensions(ui.prompt_block.prompt);
 	Vector2 text_position =
 	{
-		.x = ui.prompt_block.target.x + 5,
-		.y = ui.prompt_block.target.y + text_dimensions.h / 2,
+		.x = (s32)ui.prompt_block.target.x + 5,
+		.y = (s32)ui.prompt_block.target.y + text_dimensions.h / 2,
 	};
 	Color background_color = {30, 30, 30, 255};
 	r_draw_rect(ui.prompt_block.target, background_color);
@@ -129,16 +129,16 @@ ui_prompt_block(void)
 	Buffer *input_buffer = ui.prompt_block.input_buffer;
 	Quad textbox_target =
 	{
-		.x = text_position.x + text_dimensions.w + 5,
-		.y = text_position.y + 4,
-		.w = ui.layout.width - textbox_target.x,
-		.h = text_dimensions.h,
+		.x = (f32)(text_position.x + text_dimensions.w + 5),
+		.y = (f32)(text_position.y + 4),
+		.w = (f32)ui.layout.width - textbox_target.x,
+		.h = (f32)text_dimensions.h,
 	};
 	Vector2 input_text_dimensions = get_text_dimensions(input_buffer->data);
 	Vector2 input_text_position =
 	{
-		.x = textbox_target.x + 3,
-		.y = textbox_target.y - 4,
+		.x = (s32)textbox_target.x + 3,
+		.y = (s32)textbox_target.y - 4,
 	};
 
 	if (ui_mouse_overlaps(textbox_target))
@@ -168,10 +168,10 @@ ui_prompt_block(void)
 
 		Quad cursor =
 		{
-			.x = input_text_position.x + input_text_dimensions.w,
+			.x = (f32)(input_text_position.x + input_text_dimensions.w),
 			.y = textbox_target.y,
-			.w = input_text_dimensions.h / 2,
-			.h = input_text_dimensions.h,
+			.w = (f32)(input_text_dimensions.h / 2),
+			.h = (f32)input_text_dimensions.h,
 		};
 		r_draw_rect(textbox_target, active_color);
 		r_draw_rect(cursor, text_color);
@@ -246,7 +246,7 @@ ui_layout_row(s32 total_blocks)
 {
 	assert(total_blocks > 0);
 	ui.layout.x = 10;
-	ui.layout.y += ui.layout.row_height * 1.3;
+	ui.layout.y += (s32)((f32)ui.layout.row_height * 1.3f);
 	ui.layout.current_row.current_block = 0;
 	ui.layout.current_row.total_blocks = total_blocks;
 }
@@ -263,12 +263,12 @@ ui_layout_next_block(void)
 		ui_layout_row(1);
 	}
 
-	next_block.x = ui.layout.x;
-	next_block.y = ui.layout.y;
-	next_block.w = ui.layout.width / ui.layout.current_row.total_blocks;
-	next_block.h = ui.layout.row_height;
+	next_block.x = (f32)ui.layout.x;
+	next_block.y = (f32)ui.layout.y;
+	next_block.w = (f32)(ui.layout.width / ui.layout.current_row.total_blocks);
+	next_block.h = (f32)ui.layout.row_height;
 
-	ui.layout.x += next_block.w;
+	ui.layout.x += (s32)next_block.w;
 	++ui.layout.current_row.current_block;
 
 	return next_block;
@@ -348,13 +348,14 @@ alloc_block(UI_ID id)
 	}
 	else
 	{
-		s32 least_recently_updated_index = 0;
+		u64 least_recently_updated_index = 0;
 		for (s32 i = 0; i < N_MAX_BLOCKS; ++i)
 		{
 			least_recently_updated_index = MIN(
 				ui.block_pool.blocks[i].last_frame_updated, least_recently_updated_index);
 		}
-		block_index = least_recently_updated_index;
+		assert(least_recently_updated_index <= INT32_MAX);
+		block_index = (s32)least_recently_updated_index;
 	}
 
 	assert(block_index != -1);
@@ -399,8 +400,8 @@ ui_button(String label)
 	Vector2 text_dimensions = get_text_dimensions(label);
 	Vector2 text_position =
 	{
-		.x = target.x + (target.w - text_dimensions.w) / 2,
-		.y = target.y + (target.h - text_dimensions.h) / 2 - 2,
+		.x = (s32)target.x + ((s32)target.w - text_dimensions.w) / 2,
+		.y = (s32)target.y + ((s32)target.h - text_dimensions.h) / 2 - 2,
 	};
 	r_draw_rect(target, button_color);
 	r_draw_text(label, text_position, text_color);
@@ -429,18 +430,18 @@ ui_toggle(String label)
 
 	Color toggle_color = color_block(id);
 	b32 hot = id == ui.hot_block;
-	toggle_color.r += 15 * hot;
-	toggle_color.g += 15 * hot;
-	toggle_color.b += 15 * hot;
-	toggle_color.r += 30 * persistent_block->enabled;
-	toggle_color.g += 30 * persistent_block->enabled;
-	toggle_color.b += 30 * persistent_block->enabled;
+	toggle_color.r += (u8)(15 * hot);
+	toggle_color.g += (u8)(15 * hot);
+	toggle_color.b += (u8)(15 * hot);
+	toggle_color.r += (u8)(30 * persistent_block->enabled);
+	toggle_color.g += (u8)(30 * persistent_block->enabled);
+	toggle_color.b += (u8)(30 * persistent_block->enabled);
 
 	Vector2 text_dimensions = get_text_dimensions(label);
 	Vector2 text_position =
 	{
-		.x = target.x + (target.w - text_dimensions.w) / 2,
-		.y = target.y + (target.h - text_dimensions.h) / 2 - 2,
+		.x = (s32)target.x + ((s32)target.w - text_dimensions.w) / 2,
+		.y = (s32)target.y + ((s32)target.h - text_dimensions.h) / 2 - 2,
 	};
 	r_draw_rect(target, toggle_color);
 	r_draw_text(label, text_position, text_color);
@@ -479,8 +480,8 @@ ui_header(String label, s32 options)
 
 	Vector2 text_position =
 	{
-		.x = target.x + 18 * 1.2,
-		.y = target.y - 2,
+		.x = (s32)((f32)target.x * 1.2f) + 18,
+		.y = (s32)target.y - 2,
 	};
 	r_draw_text(label, text_position, text_color);
 
@@ -492,8 +493,8 @@ ui_header(String label, s32 options)
 	if (right_clicked)
 	{
 		ui.popup_menu.id = id;
-		ui.popup_menu.target.x = ui.mouse_x;
-		ui.popup_menu.target.y = ui.mouse_y;
+		ui.popup_menu.target.x = (f32)ui.mouse_x;
+		ui.popup_menu.target.y = (f32)ui.mouse_y;
 	}
 
 	s32 deleted = 0;
@@ -502,7 +503,7 @@ ui_header(String label, s32 options)
 		s32 delete_icon_index = UI_ICON_CLOSE;
 		Quad delete_icon_dimensions =
 		{
-			.x = ui.layout.width - 18,
+			.x = (f32)(ui.layout.width - 18),
 			.y = target.y + 2,
 			.w = 18,
 			.h = 18,
@@ -545,8 +546,8 @@ ui_label(String text)
 {
 	Quad target = ui_layout_next_block();
 	Vector2 text_position = (Vector2){
-		.x = target.x,
-		.y = target.y,
+		.x = (s32)target.x,
+		.y = (s32)target.y,
 	};
 	r_draw_text(text, text_position, text_color);
 }
@@ -556,7 +557,7 @@ ui_separator(void)
 {
 	Quad target = ui_layout_next_block();
 	target.h = 1;
-	target.y += ui.layout.row_height / 2;
+	target.y += (f32)(ui.layout.row_height / 2);
 	Color gray = {255, 255, 255, 125};
 	r_draw_rect(target, gray);
 }
@@ -571,16 +572,16 @@ ui_popup_menu(UI_Option_List options)
 		for (s32 i = 0; i < options.count; ++i)
 		{
 			Vector2 text_dimensions = get_text_dimensions(options.names[i]);
-			ui.popup_menu.target.w = MAX(ui.popup_menu.target.w, text_dimensions.w);
-			ui.popup_menu.target.h += ui.layout.row_height * 1.2;
+			ui.popup_menu.target.w = MAX(ui.popup_menu.target.w, (f32)text_dimensions.w);
+			ui.popup_menu.target.h += (f32)ui.layout.row_height * 1.2f;
 		}
 		ui.popup_menu.target.w += POPUP_MENU_HEAVY_PADDING;
 		ui.popup_menu.target.h += POPUP_MENU_HEAVY_PADDING;
 
 		s32 menu_overflows_x = ui.popup_menu.target.x + ui.popup_menu.target.w > ui.layout.width;
 		s32 menu_overflows_y = ui.popup_menu.target.y + ui.popup_menu.target.h > ui.layout.height;
-		ui.popup_menu.target.x -= ui.popup_menu.target.w * menu_overflows_x;
-		ui.popup_menu.target.y -= ui.popup_menu.target.h * menu_overflows_y;
+		ui.popup_menu.target.x -= ui.popup_menu.target.w * (f32)menu_overflows_x;
+		ui.popup_menu.target.y -= ui.popup_menu.target.h * (f32)menu_overflows_y;
 
 		// NOTE(ariel) The given options must exist to draw later.
 		ui.popup_menu.options = options;
@@ -591,15 +592,15 @@ ui_popup_menu(UI_Option_List options)
 		b32 released = !(ui.mouse_down & UI_MOUSE_BUTTON_LEFT);
 		if (pressed && released)
 		{
-			s32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
+			f32 y = POPUP_MENU_LIGHT_PADDING + ui.popup_menu.target.y;
 			for (s32 i = 0; i < options.count; ++i)
 			{
 				Quad target =
 				{
 					.x = ui.popup_menu.target.x,
-					.y = y + ui.layout.row_height * 1.2 * i,
+					.y = y + (f32)ui.layout.row_height * 1.2f * (f32)i,
 					.w = ui.popup_menu.target.w,
-					.h = ui.layout.row_height,
+					.h = (f32)ui.layout.row_height,
 				};
 
 				b32 overlaps = ui_mouse_overlaps(target);
@@ -622,7 +623,7 @@ ui_textbox(Buffer *buffer, String placeholder)
 	// NOTE(ariel) Use the address of the buffer as the unique ID instead of
 	// hashing the contents of the buffer since its contents changes as the user
 	// types.
-	UI_ID id = (uintptr_t)buffer;
+	UI_ID id = (UI_ID)(uintptr_t)buffer;
 
 	ui_layout_row(1);
 	Quad target = ui_layout_next_block();
@@ -661,8 +662,8 @@ ui_textbox(Buffer *buffer, String placeholder)
 		text_dimensions = get_text_dimensions(text);
 		text_position = (Vector2)
 		{
-			.x = target.x,
-			.y = target.y,
+			.x = (s32)target.x,
+			.y = (s32)target.y,
 		};
 	}
 	else
@@ -673,8 +674,8 @@ ui_textbox(Buffer *buffer, String placeholder)
 		text_dimensions = get_text_dimensions(text);
 		text_position = (Vector2)
 		{
-			.x = target.x + (target.w - text_dimensions.w) / 2,
-			.y = target.y + (target.h - text_dimensions.h) / 2 - 2,
+			.x = (s32)target.x + ((s32)target.w - text_dimensions.w) / 2,
+			.y = (s32)target.y + ((s32)target.h - text_dimensions.h) / 2 - 2,
 		};
 	}
 
@@ -682,10 +683,10 @@ ui_textbox(Buffer *buffer, String placeholder)
 	{
 		Quad cursor =
 		{
-			.x = text_dimensions.w + 10,
+			.x = (f32)(text_dimensions.w + 10),
 			.y = target.y + 1,
-			.w = text_dimensions.h / 2,
-			.h = text_dimensions.h + 1,
+			.w = (f32)(text_dimensions.h / 2),
+			.h = (f32)(text_dimensions.h + 1),
 		};
 		r_draw_rect(target, active_color);
 		r_draw_rect(cursor, text_color);
@@ -718,9 +719,10 @@ ui_text(String text)
 			if (width >= max_width)
 			{
 				Quad target = ui_layout_next_block();
-				Vector2 text_position = (Vector2){
-					.x = target.x,
-					.y = target.y,
+				Vector2 text_position =
+				{
+					.x = (s32)target.x,
+					.y = (s32)target.y,
 				};
 				substr = string_trim_spaces(substr);
 				r_draw_text(substr, text_position, text_color);
@@ -738,8 +740,8 @@ ui_text(String text)
 		Quad target = ui_layout_next_block();
 		Vector2 text_position =
 		{
-			.x = target.x,
-			.y = target.y,
+			.x = (s32)target.x,
+			.y = (s32)target.y,
 		};
 		substr = string_trim_spaces(substr);
 		r_draw_text(substr, text_position, text_color);
@@ -749,8 +751,8 @@ ui_text(String text)
 		Quad target = ui_layout_next_block();
 		Vector2 text_position =
 		{
-			.x = target.x,
-			.y = target.y,
+			.x = (s32)target.x,
+			.y = (s32)target.y,
 		};
 		r_draw_text(text, text_position, text_color);
 	}
@@ -786,21 +788,21 @@ ui_link(String text, b32 unread)
 		}
 	}
 
-	s32 side_length = r_get_text_height(text);
+	f32 side_length = (f32)r_get_text_height(text);
 	Quad unread_marker_target =
 	{
 		.x = target.x,
-		.y = target.y + 2,
+		.y = target.y + 2.0f,
 		.w = side_length,
 		.h = side_length,
 	};
-	Color unread_marker_color = {245, 165, 65, 255 * unread};
+	Color unread_marker_color = {245, 165, 65, 255 * (u8)unread};
 	r_draw_icon(UI_ICON_DOT, unread_marker_target, unread_marker_color);
 
 	Vector2 text_position =
 	{
-		.x = target.x + side_length,
-		.y = target.y,
+		.x = (s32)(target.x + side_length),
+		.y = (s32)target.y,
 	};
 	r_draw_text(text, text_position, link_color);
 
@@ -831,13 +833,13 @@ ui_prompt(String prompt, Buffer *input_buffer)
 		ui.prompt_block.input_buffer = input_buffer;
 		ui.prompt_block.input_buffer->data.len = 0;
 
-		ui.prompt_block.textbox_id = (uintptr_t)input_buffer;
+		ui.prompt_block.textbox_id = (UI_ID)(uintptr_t)input_buffer;
 		ui.active_block = ui.active_keyboard_block = ui.prompt_block.textbox_id;
 
 		ui.prompt_block.target.w = 800;
-		ui.prompt_block.target.h = ui.layout.row_height * 2;
+		ui.prompt_block.target.h = (f32)(ui.layout.row_height * 2);
 		ui.prompt_block.target.x = 0;
-		ui.prompt_block.target.y = ui.layout.height - ui.prompt_block.target.h;
+		ui.prompt_block.target.y = (f32)ui.layout.height - ui.prompt_block.target.h;
 	}
 	else
 	{
@@ -886,7 +888,7 @@ ui_input_mouse_scroll(s32 x, s32 y)
 static void
 ui_input_text(char *text)
 {
-	s32 len = strlen(text);
+	s32 len = (s32)strlen(text);
 	ui.input_text.data.len = MIN(ui.input_text.cap, len);
 	memcpy(ui.input_text.data.str, text, ui.input_text.data.len);
 }

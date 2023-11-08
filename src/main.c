@@ -170,8 +170,10 @@ store_response_from_curl(void *data, size_t size, size_t nmemb, void *userp)
 	{
 		response->data.str = arena_alloc(&response->worker->scratch_arena, new_size);
 	}
+
+	assert(new_size <= INT32_MAX);
 	memcpy(response->data.str + response->data.len, data, new_size);
-	response->data.len += new_size;
+	response->data.len += (s32)new_size;
 
 	return new_size;
 }
@@ -191,7 +193,7 @@ parse_feed(Worker *worker, String url)
 		String length_based_curl_error =
 		{
 			.str = curl_error,
-			.len = strlen(curl_error),
+			.len = (s32)strlen(curl_error),
 		};
 		String strings[] = { url, string_literal(" "), length_based_curl_error };
 		String message = concat_strings(&worker->scratch_arena, ARRAY_COUNT(strings), strings);

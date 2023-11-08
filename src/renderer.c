@@ -484,8 +484,8 @@ r_draw_text(String text, Vector2 pos, Color color)
 
 			Quad destination =
 			{
-				.x = pos.x,
-				.y = pos.y - glyph->y_offset,
+				.x = (f32)pos.x,
+				.y = (f32)(pos.y - glyph->y_offset),
 			};
 			Quad source =
 			{
@@ -529,7 +529,7 @@ static void
 r_set_clip_quad(Quad dimensions)
 {
   flush();
-  glScissor(dimensions.x, dimensions.y, dimensions.w, dimensions.h);
+  glScissor((s32)dimensions.x, (s32)dimensions.y, (s32)dimensions.w, (s32)dimensions.h);
 }
 
 static s32

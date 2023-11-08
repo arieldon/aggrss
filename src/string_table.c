@@ -15,7 +15,7 @@ static inline s32
 get_index(u64 hash, s32 index)
 {
 	u32 mask = ((u32)1 << EXPONENT) - 1;
-	u32 step = (hash >> (64 - EXPONENT)) | 1;
+	u32 step = (u32)(hash >> (64 - EXPONENT)) | 1;
 	s32 result = (index + step) & mask;
 	return result;
 }
@@ -26,7 +26,7 @@ intern(String_Table *table, String s)
 	String result = {0};
 
 	u64 h = string_table_hash(s);
-	s32 index = h;
+	s32 index = (s32)h;
 	while (!result.str)
 	{
 		index = get_index(h, index);

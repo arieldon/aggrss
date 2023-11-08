@@ -161,7 +161,7 @@ string_lower(String s)
 {
 	for (s32 i = 0; i < s.len; ++i)
 	{
-		s.str[i] = tolower(s.str[i]);
+		s.str[i] = (char)tolower(s.str[i]);
 	}
 }
 

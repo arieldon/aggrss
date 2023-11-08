@@ -5,8 +5,15 @@ set -eux
 BIN="aggrss"
 
 COMPILER="gcc"
-CFLAGS="-std=c11 -D_DEFAULT_SOURCE -fPIC"
-WARNINGS="-Wall -Wextra -Wshadow -Wno-unused-function"
+CFLAGS="-std=c11 -D_DEFAULT_SOURCE"
+WARNINGS="-Wall -Wextra -Werror -Wshadow -Wconversion -Wdouble-promotion -Wformat -Wno-sign-conversion -Wno-unused-function"
+if [ "$COMPILER" = "clang" ]
+then
+	WARNINGS="$WARNINGS -Wreturn-stack-address"
+elif [ "$COMPILER" = "gcc" ]
+then
+	WARNINGS="$WARNINGS -Wreturn-local-addr"
+fi
 LIBRARIES="-pthread -lm"
 LIBRARIES="$LIBRARIES `curl-config --cflags --libs`"
 LIBRARIES="$LIBRARIES `pkg-config --cflags --libs sqlite3`"
@@ -15,7 +22,8 @@ LIBRARIES="$LIBRARIES `sdl2-config --cflags --static-libs` -lGL"
 REQUIRED_MACROS="-DCONFIG_DIRECTORY_PATH=\"$HOME/.config/$BIN\""
 FLAGS="$CFLAGS $WARNINGS $LIBRARIES $REQUIRED_MACROS"
 
-if [ $# -ge 1 ] && [ "$1" = "--release" ]; then
+if [ $# -ge 1 ] && [ "$1" = "--release" ]
+then
 	RELEASE="-O2"
 	FLAGS="$FLAGS $RELEASE"
 	shift 1
@@ -24,7 +32,8 @@ else
 	FLAGS="$FLAGS $DEBUG"
 fi
 
-if [ $# -ge 1 ]; then
+if [ $# -ge 1 ]
+then
 	FLAGS="$FLAGS $@"
 fi
 

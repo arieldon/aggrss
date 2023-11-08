@@ -103,8 +103,8 @@ get_offset_from_zone(Date_Time_Parser *parser, String zone)
 			.len = 2,
 		};
 
-		offset.hours = (string_to_int(hours, 10) ^ -negative) + negative;
-		offset.minutes = (string_to_int(minutes, 10) ^ -negative) + negative;
+		offset.hours = ((s32)string_to_int(hours, 10) ^ -negative) + negative;
+		offset.minutes = ((s32)string_to_int(minutes, 10) ^ -negative) + negative;
 	}
 	else
 	{
@@ -172,7 +172,7 @@ parse_number(Date_Time_Parser *parser, char delimiter, String error_message)
 		++s.len;
 	}
 
-	s32 number = string_to_int(s, 10);
+	s32 number = (s32)string_to_int(s, 10);
 	return number;
 }
 
@@ -398,7 +398,7 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 			++parser->cursor;
 		}
 
-		result.seconds = string_to_int(seconds, 10);
+		result.seconds = (s32)string_to_int(seconds, 10);
 	}
 
 	if (!parser->error.str)

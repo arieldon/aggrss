@@ -17,7 +17,7 @@ struct Timestamp
 {
 	String error;
 	Expanded_Date_Time expanded_format;
-	s64 unix_format;
+	u64 unix_format;
 };
 
 // NOTE(ariel) Parse date time strings in RFC 822 or 3339 formats:

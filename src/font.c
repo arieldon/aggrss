@@ -33,7 +33,7 @@ load_file(Arena *arena, FILE *file)
 	String contents = {0};
 
 	fseek(file, 0, SEEK_END);
-	contents.len = ftell(file);
+	contents.len = (s32)ftell(file);
 	rewind(file);
 	contents.str = arena_alloc(arena, contents.len);
 	ssize len = fread(contents.str, contents.len, sizeof(char), file);
@@ -103,7 +103,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 		do
 		{
 			Code_Point_Glyph_Index_Pair *pair = arena_alloc(arena, sizeof(Code_Point_Glyph_Index_Pair));
-			pair->code_point = char_code;
+			pair->code_point = (u32)char_code;
 			pair->glyph_index = glyph_index;
 
 			if (!code_points.first)
@@ -198,7 +198,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 				glyph->index = glyph_index;
 				glyph->width = bitmap->width;
 				glyph->height = bitmap->rows;
-				glyph->x_advance = face->glyph->advance.x >> 6;
+				glyph->x_advance = (s32)face->glyph->advance.x >> 6;
 				glyph->x_offset = face->glyph->bitmap_left;
 				glyph->y_offset = face->glyph->bitmap_top;
 
