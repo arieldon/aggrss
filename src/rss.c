@@ -629,7 +629,7 @@ find_link(RSS_Tree_Node *item)
 				}
 			}
 
-			if (!link.str)
+			if (!link.str && href)
 			{
 				// NOTE(ariel) Choose any link if no tag strictly matches the
 				// requirements above.
