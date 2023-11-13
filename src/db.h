@@ -16,14 +16,12 @@ enum
 	DB_PAGE_COUNT_IN_CACHE = 0x40,
 };
 
+// TODO(ariel) I think I will need locks here?
 typedef struct page page;
 struct page
 {
-	// NOTE(ariel) Maintain an internal free list of pages.
-	s32 NextFreePageInCache;
-
-	// NOTE(ariel) Store information relevant to the actual page.
-	s32 PageNumberInFile;
+	s32 MoreRecentlyUsedPage; // NOTE(ariel) Maintain an internal free list of pages.
+	b32 Dirty;
 	u8 Data[DB_PAGE_SIZE];
 };
 
@@ -35,13 +33,14 @@ struct page_cache
 	int DatabaseFileDescriptor;
 
 	s32 PageCountInMemory;
-	s32 TotalPageCountInFile;
 	s16 PageSize;
 
 	// TODO(ariel) Build a pool allocator on top of an arena dedicated to this
 	// task, i.e. dedicated to the database.
 	// Arena *arena;
-	s32 FirstFreePage;
+	s32 LeastRecentlyUsedPageNumber; // NOTE(ariel) Treat this as first page of list.
+	s32 MostRecentlyUsedPageNumber; // NOTE(ariel) Treat this as last page of list.
+	s32 CacheToFilePageNumberMap[DB_PAGE_COUNT_IN_CACHE];
 	page Pages[DB_PAGE_COUNT_IN_CACHE];
 };
 
@@ -92,15 +91,47 @@ struct btree_node
 	node_type Type;
 };
 
+typedef struct feed_cell feed_cell;
+struct feed_cell
+{
+	u64 ID;
+	String Link;
+	String Title;
+};
+
+typedef struct tag_cell tag_cell;
+struct tag_cell
+{
+};
+
+// TODO(ariel) What if I didn't do any silly business with the header. In other
+// words, the header doesn't go in the page cache. Instead, I allocate a
+// permanent page for it. The database will fairly consistently modify the
+// header anyway.
+//
+// The notion of the header is sort of scattered throughout the database
+// implementation code right now.
+//
+// I say treat it as an edge case in terms of pages because it will _always_ be
+// modified as an edge case anyway. It's after all different from any other
+// page in the database.
+//
+// I should not expunge the header from memory, basically. "Expunge", I like
+// that word.
 typedef struct database database;
 struct database
 {
 	// TODO(ariel) Include read and write locks of some sort? What are some other
 	// ways to synchronize access to DB?
 	s16 FileFormatVersion;
+	s32 TotalPageCountInFile;
+
+	// NOTE(ariel) The database does not dedicate a root node to items of feeds
+	// because it only accesses those items from a feed.
 	btree_node FeedsRoot;
 	btree_node TagsRoot;
 	page_cache PageCache;
+	u8 Header[DB_PAGE_SIZE];
 };
 #endif
 

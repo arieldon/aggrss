@@ -58,52 +58,21 @@ s32Deserialize(u8 *Address)
  * ---
  */
 
-static s32
-AllocatePage(page_cache *PageCache)
+static inline void
+UpdateMostRecentlyUsedPage(page_cache *PageCache, s32 PageNumber)
 {
-	s32 FreePage = PageCache->FirstFreePage;
-	PageCache->FirstFreePage = PageCache->Pages[FreePage].NextFreePageInCache;
-	PageCache->PageCountInMemory += 1;
-	AssertAlways(FreePage > -1);
-	return FreePage;
-}
-
-static void
-FreePage(page_cache *PageCache, s32 PageNumberInCache)
-{
-	PageCache->Pages[PageNumberInCache].NextFreePageInCache = PageCache->FirstFreePage;
-	PageCache->FirstFreePage = PageNumberInCache;
-	PageCache->PageCountInMemory -= 1;
-}
-
-static void
-FreeAllPages(page_cache *PageCache)
-{
-	PageCache->FirstFreePage = 0;
-	for(s32 Index = 0; Index < DB_PAGE_COUNT_IN_CACHE - 1; Index += 1)
-	{
-		PageCache->Pages[Index].NextFreePageInCache = Index + 1;
-	}
-	PageCache->Pages[DB_PAGE_COUNT_IN_CACHE - 1].NextFreePageInCache = -1;
-}
-
-static s32
-ReadPageFromDisk(page_cache *PageCache, s32 PageNumberInFile)
-{
-	s32 PageNumberInCache = AllocatePage(PageCache);
-	s32 Offset = PageCache->PageSize * PageNumberInFile;
-	PageCache->Pages[PageNumberInCache].PageNumberInFile = PageNumberInFile;
-	ssize BytesReadCount = pread(
-		PageCache->DatabaseFileDescriptor, PageCache->Pages[PageNumberInCache].Data,
-		PageCache->PageSize, Offset);
-	AssertAlways(BytesReadCount == PageCache->PageSize); // TODO(ariel) How can I make this more resilient?
-	return PageNumberInCache;
+	PageCache->Pages[PageCache->MostRecentlyUsedPageNumber].MoreRecentlyUsedPage = PageNumber;
+	PageCache->Pages[PageNumber].MoreRecentlyUsedPage = -1;
+	PageCache->MostRecentlyUsedPageNumber = PageNumber;
 }
 
 static void
 WritePageToDisk(page_cache *PageCache, s32 PageNumberInCache)
 {
-	s32 Offset = PageCache->PageSize * PageCache->Pages[PageNumberInCache].PageNumberInFile;
+	s32 PageNumberInFile = PageCache->CacheToFilePageNumberMap[PageNumberInCache];
+	AssertAlways(PageNumberInFile > -1);
+
+	s32 Offset = PageCache->PageSize * PageNumberInFile;
 	ssize BytesWrittenCount = pwrite(
 		PageCache->DatabaseFileDescriptor, PageCache->Pages[PageNumberInCache].Data,
 		PageCache->PageSize, Offset);
@@ -112,20 +81,69 @@ WritePageToDisk(page_cache *PageCache, s32 PageNumberInCache)
 	// TODO(ariel) How does Linux VFS implement fsync() for ext4?
 	s32 SyncStatus = fsync(PageCache->DatabaseFileDescriptor);
 	AssertAlways(SyncStatus == 0);
+
+	PageCache->Pages[PageNumberInCache].Dirty = false;
+	UpdateMostRecentlyUsedPage(PageCache, PageNumberInCache);
+}
+
+static s32
+AllocatePage(page_cache *PageCache)
+{
+	s32 PageNumber = PageCache->LeastRecentlyUsedPageNumber;
+	PageCache->LeastRecentlyUsedPageNumber = PageCache->Pages[PageNumber].MoreRecentlyUsedPage;
+
+	UpdateMostRecentlyUsedPage(PageCache, PageNumber);
+
+	// TODO(ariel) Flush more than one page at a time. Reference Chapter 8 The
+	// Disk Block Cache in Practical File System Design for more details.
+	if(PageCache->Pages[PageNumber].Dirty)
+	{
+		WritePageToDisk(PageCache, PageNumber);
+		memset(PageCache->Pages[PageNumber].Data, 0, PageCache->PageSize);
+		PageCache->Pages[PageNumber].Dirty = false;
+		PageCache->CacheToFilePageNumberMap[PageNumber] = -1;
+	}
+
+	PageCache->PageCountInMemory += 1;
+	AssertAlways(PageNumber > -1);
+	return PageNumber;
+}
+
+static s32
+ReadPageFromDisk(page_cache *PageCache, s32 PageNumberInFile)
+{
+	s32 PageNumberInCache = AllocatePage(PageCache);
+	s32 Offset = PageCache->PageSize * PageNumberInFile;
+	PageCache->CacheToFilePageNumberMap[PageNumberInCache] = PageNumberInFile;
+	ssize BytesReadCount = pread(
+		PageCache->DatabaseFileDescriptor, PageCache->Pages[PageNumberInCache].Data,
+		PageCache->PageSize, Offset);
+	AssertAlways(BytesReadCount == PageCache->PageSize); // TODO(ariel) How can I make this more resilient?
+	return PageNumberInCache;
 }
 
 static void
-FlushAndFreePage(page_cache *PageCache, s32 PageNumberInCache)
+InitializePages(page_cache *PageCache)
 {
-	WritePageToDisk(PageCache, PageNumberInCache);
-	FreePage(PageCache, PageNumberInCache);
+	PageCache->LeastRecentlyUsedPageNumber = 0;
+	PageCache->MostRecentlyUsedPageNumber = DB_PAGE_COUNT_IN_CACHE - 1;
+
+	for(s32 Index = PageCache->LeastRecentlyUsedPageNumber; Index < PageCache->MostRecentlyUsedPageNumber; Index += 1)
+	{
+		PageCache->Pages[Index].MoreRecentlyUsedPage = Index + 1;
+		PageCache->Pages[Index].Dirty = false;
+		memset(PageCache->Pages[Index].Data, 0, DB_PAGE_SIZE);
+	}
+
+	for(s32 Index = PageCache->LeastRecentlyUsedPageNumber; Index < PageCache->MostRecentlyUsedPageNumber; Index += 1)
+	{
+		PageCache->CacheToFilePageNumberMap[Index] = -1;
+	}
 }
 
 
 /* ---
  * B+Tree
- *
- * TODO(ariel) Create some sort of FlushAndFree() equivalent for nodes?
  * ---
  */
 
@@ -201,8 +219,8 @@ InitializeNewNode(Database *DB, node_type NodeType)
 		Assert(!"unreachable");
 	}
 
-	DB->PageCache.Pages[DatabaseNode.PageNumberInCache].PageNumberInFile = DB->PageCache.TotalPageCountInFile;
-	DB->PageCache.TotalPageCountInFile += 1;
+	DB->PageCache.CacheToFilePageNumberMap[DatabaseNode.PageNumberInCache] = DB->TotalPageCountInFile;
+	DB->TotalPageCountInFile += 1;
 
 	WriteNodeToDisk(DB, DatabaseNode);
 	return DatabaseNode;
@@ -222,7 +240,6 @@ db_init(Database **db)
 	enum { HEADER_PAGE_NUMBER_IN_FILE = 0 };
 
 	static char HeaderMagicSequence[] = "aggrss db format";
-	static u8 Header[DB_HEADER_SIZE];
 	static database DB;
 
 	// TODO(ariel) Use environment variables XDG to get this path to respect
@@ -235,29 +252,29 @@ db_init(Database **db)
 #undef DATABASE_FILE_PATH
 
 	// NOTE(ariel) Initialize free list for page cache.
-	FreeAllPages(&DB.PageCache);
+	InitializePages(&DB.PageCache);
 
-	ssize BytesReadCount = read(DB.PageCache.DatabaseFileDescriptor, Header, DB_HEADER_SIZE);
+	ssize BytesReadCount = read(DB.PageCache.DatabaseFileDescriptor, DB.Header, DB_HEADER_SIZE);
 	if(BytesReadCount == DB_HEADER_SIZE)
 	{
-		b32 HeaderIsConsistent = memcmp(Header, HeaderMagicSequence, sizeof(HeaderMagicSequence)) == 0;
+		b32 HeaderIsConsistent = memcmp(DB.Header, HeaderMagicSequence, sizeof(HeaderMagicSequence)) == 0;
 		AssertAlways(HeaderIsConsistent);
 
-		DB.FileFormatVersion = s16Deserialize(&Header[16]);
-		DB.PageCache.PageSize = s16Deserialize(&Header[18]); Assert(DB.PageCache.PageSize == DB_PAGE_SIZE);
-		DB.PageCache.TotalPageCountInFile = s32Deserialize(&Header[20]);
-		s32 FeedsRootPageNumberInFile = s32Deserialize(&Header[24]); Assert(FeedsRootPageNumberInFile == 1);
-		s32 TagsRootPageNumberInFile = s32Deserialize(&Header[28]); Assert(TagsRootPageNumberInFile == 2);
+		DB.FileFormatVersion = s16Deserialize(&DB.Header[16]);
+		DB.PageCache.PageSize = s16Deserialize(&DB.Header[18]); Assert(DB.PageCache.PageSize == DB_PAGE_SIZE);
+		DB.TotalPageCountInFile = s32Deserialize(&DB.Header[20]);
+		s32 FeedsRootPageNumberInFile = s32Deserialize(&DB.Header[24]); Assert(FeedsRootPageNumberInFile == 1);
+		s32 TagsRootPageNumberInFile = s32Deserialize(&DB.Header[28]); Assert(TagsRootPageNumberInFile == 2);
 
 		// NOTE(ariel) Use this as another check for consistency.
 		u8 RemainingBytesShouldBeZero = 0;
 		for(s32 Index = 32; Index < DB_HEADER_SIZE; Index += 1)
 		{
-			RemainingBytesShouldBeZero |= Header[Index];
+			RemainingBytesShouldBeZero |= DB.Header[Index];
 		}
 		AssertAlways(RemainingBytesShouldBeZero == 0);
 
-		ReadPageFromDisk(&DB.PageCache, HEADER_PAGE_NUMBER_IN_FILE);
+		// ReadPageFromDisk(&DB.PageCache, HEADER_PAGE_NUMBER_IN_FILE);
 		DB.FeedsRoot = ReadNodeFromDisk(&DB, FeedsRootPageNumberInFile);
 		DB.TagsRoot = ReadNodeFromDisk(&DB, TagsRootPageNumberInFile);
 	}
@@ -266,24 +283,24 @@ db_init(Database **db)
 		// TODO(ariel) Store head (or root) of free list?
 		DB.FileFormatVersion = 0;
 		DB.PageCache.PageSize = DB_PAGE_SIZE; // TODO(ariel) Query this value dynamically from the system.
-		DB.PageCache.TotalPageCountInFile = 1; // NOTE(ariel) Count this header page.
+		DB.TotalPageCountInFile = 1; // NOTE(ariel) Count this header page.
 
 		s32 HeaderPageNumberInCache = AllocatePage(&DB.PageCache); Assert(HeaderPageNumberInCache == 0);
 		DB.FeedsRoot = InitializeNewNode(&DB, DB_NODE_TYPE_LEAF); Assert(DB.FeedsRoot.PageNumberInCache == 1);
 		DB.TagsRoot = InitializeNewNode(&DB, DB_NODE_TYPE_LEAF); Assert(DB.TagsRoot.PageNumberInCache == 2);
 
-		memcpy(Header, HeaderMagicSequence, sizeof(HeaderMagicSequence));
-		s16Serialize(&Header[16], DB.FileFormatVersion);
-		s16Serialize(&Header[18], DB.PageCache.PageSize);
-		s32Serialize(&Header[20], DB.PageCache.TotalPageCountInFile);
-		s32Serialize(&Header[24], DB.PageCache.Pages[DB.FeedsRoot.PageNumberInCache].PageNumberInFile);
-		s32Serialize(&Header[28], DB.PageCache.Pages[DB.TagsRoot.PageNumberInCache].PageNumberInFile);
-		memset(&Header[32], 0, DB_PAGE_SIZE - 32);
+		memcpy(DB.Header, HeaderMagicSequence, sizeof(HeaderMagicSequence));
+		s16Serialize(&DB.Header[16], DB.FileFormatVersion);
+		s16Serialize(&DB.Header[18], DB.PageCache.PageSize);
+		s32Serialize(&DB.Header[20], DB.TotalPageCountInFile);
+		s32Serialize(&DB.Header[24], DB.PageCache.CacheToFilePageNumberMap[DB.FeedsRoot.PageNumberInCache]);
+		s32Serialize(&DB.Header[28], DB.PageCache.CacheToFilePageNumberMap[DB.TagsRoot.PageNumberInCache]);
+		memset(&DB.Header[32], 0, DB_PAGE_SIZE - 32);
 
-		memcpy(DB.PageCache.Pages[HeaderPageNumberInCache].Data, Header, DB_HEADER_SIZE);
-		WritePageToDisk(&DB.PageCache, HeaderPageNumberInCache);
+		// memcpy(DB.PageCache.Pages[HeaderPageNumberInCache].Data, DB.Header, DB_HEADER_SIZE);
+		// WritePageToDisk(&DB.PageCache, HeaderPageNumberInCache);
 
-		AssertAlways(DB.PageCache.TotalPageCountInFile == 3);
+		AssertAlways(DB.TotalPageCountInFile == 3);
 	}
 	else
 	{
