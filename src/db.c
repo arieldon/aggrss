@@ -365,19 +365,23 @@ db_mark_all_read(Database *db, String feed_link)
 static b32
 db_filter_feeds_by_tag(Database *db, String *feed_link, String *feed_title, String_List tags)
 {
+	return false;
 }
 
 static b32
 db_iterate_feeds(Database *db, String *feed_link, String *feed_title)
 {
+	return false;
 }
 
 static b32
 db_iterate_items(Database *db, String feed_link, DB_Item *item)
 {
+	return false;
 }
 
 static b32
 db_iterate_tags(Database *db, String *tag)
 {
+	return false;
 }
