@@ -35,9 +35,6 @@ struct page_cache
 	s32 PageCountInMemory;
 	s16 PageSize;
 
-	// TODO(ariel) Build a pool allocator on top of an arena dedicated to this
-	// task, i.e. dedicated to the database.
-	// Arena *arena;
 	s32 LeastRecentlyUsedPageNumber; // NOTE(ariel) Treat this as first page of list.
 	s32 MostRecentlyUsedPageNumber; // NOTE(ariel) Treat this as last page of list.
 	s32 CacheToFilePageNumberMap[DB_PAGE_COUNT_IN_CACHE];
@@ -63,6 +60,9 @@ struct btree_node
 	// place?
 	// TODO(ariel) Do I need to include some sort of free list in the node
 	// itself?
+
+	// NOTE(ariel) Index to page in list of pages maintained in file on disk.
+	s32 PageNumberInFile;
 
 	// NOTE(ariel) Index to page in list of pages maintained by page cache.
 	s32 PageNumberInCache;
@@ -91,36 +91,11 @@ struct btree_node
 	node_type Type;
 };
 
-typedef struct feed_cell feed_cell;
-struct feed_cell
-{
-	u64 ID;
-	String Link;
-	String Title;
-};
-
-typedef struct tag_cell tag_cell;
-struct tag_cell
-{
-};
-
-// TODO(ariel) What if I didn't do any silly business with the header. In other
-// words, the header doesn't go in the page cache. Instead, I allocate a
-// permanent page for it. The database will fairly consistently modify the
-// header anyway.
-//
-// The notion of the header is sort of scattered throughout the database
-// implementation code right now.
-//
-// I say treat it as an edge case in terms of pages because it will _always_ be
-// modified as an edge case anyway. It's after all different from any other
-// page in the database.
-//
-// I should not expunge the header from memory, basically. "Expunge", I like
-// that word.
 typedef struct database database;
 struct database
 {
+	Arena arena;
+
 	// TODO(ariel) Include read and write locks of some sort? What are some other
 	// ways to synchronize access to DB?
 	s16 FileFormatVersion;
@@ -135,12 +110,21 @@ struct database
 };
 #endif
 
-typedef struct DB_Item DB_Item;
-struct DB_Item
+typedef union DB_Item DB_Item;
+union DB_Item
 {
-	String link;
-	String title;
-	b32 unread;
+	struct
+	{
+		String link;
+		String title;
+		b32 unread;
+	};
+	struct
+	{
+		String Link;
+		String Title;
+		b32 Unread;
+	};
 };
 
 static void db_init(Database **db);

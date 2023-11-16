@@ -1,4 +1,26 @@
 /* ---
+ * Hash
+ * ---
+ */
+
+static u32
+DBHash(String Value)
+{
+	// NOTE(ariel) DBHash() uses 32-bit FNV-1a.
+#define HASH_OFFSET 2166136261
+#define HASH_PRIME 16777619
+	u32 Hash = HASH_OFFSET;
+	for (s32 Index = 0; Index < Value.len; Index += 1)
+	{
+		Hash = (Hash ^ Value.str[Index]) * HASH_PRIME;
+	}
+	return Hash;
+#undef HASH_PRIME
+#undef HASH_OFFSET
+}
+
+
+/* ---
  * Serialization & Deserialization
  * ---
  */
@@ -12,17 +34,32 @@ s8Serialize(u8 *Address, u8 Value)
 static void
 s16Serialize(u8 *Address, s16 Value)
 {
+#if 0
 	Address[0] = (u8)(Value >> 0x00);
 	Address[1] = (u8)(Value >> 0x08);
+#else
+	memcpy(Address, &Value, sizeof(Value));
+#endif
 }
 
 static void
 s32Serialize(u8 *Address, s32 Value)
 {
+#if 0
 	Address[0] = (u8)(Value >> 0x00);
 	Address[1] = (u8)(Value >> 0x08);
 	Address[2] = (u8)(Value >> 0x10);
 	Address[3] = (u8)(Value >> 0x18);
+#else
+	memcpy(Address, &Value, sizeof(Value));
+#endif
+}
+
+static void
+StringSerialize(u8 *Address, String Value)
+{
+	s32Serialize(Address, Value.len);
+	memcpy(Address + sizeof(s32), Value.str, Value.len);
 }
 
 static s8
@@ -36,8 +73,12 @@ static s16
 s16Deserialize(u8 *Address)
 {
 	s16 Value = 0;
+#if 0
 	Value |= (s16)(Address[0] << 0x00);
 	Value |= (s16)(Address[1] << 0x08);
+#else
+	memcpy(&Value, Address, sizeof(Value));
+#endif
 	return Value;
 }
 
@@ -45,10 +86,23 @@ static s32
 s32Deserialize(u8 *Address)
 {
 	s32 Value = 0;
-	Value |= (s32)(Address[0] << 0x00);
-	Value |= (s32)(Address[1] << 0x08);
-	Value |= (s32)(Address[2] << 0x10);
-	Value |= (s32)(Address[3] << 0x18);
+#if 0
+	Value |= (s32)Address[0] << 0x00;
+	Value |= (s32)Address[1] << 0x08;
+	Value |= (s32)Address[2] << 0x10;
+	Value |= (s32)Address[3] << 0x18;
+#else
+	memcpy(&Value, Address, sizeof(Value));
+#endif
+	return Value;
+}
+
+static String
+StringDeserialize(u8 *Address)
+{
+	String Value = {0};
+	Value.len = s32Deserialize(Address);
+	Value.str = (char *)Address + sizeof(s32);
 	return Value;
 }
 
@@ -112,13 +166,30 @@ AllocatePage(page_cache *PageCache)
 static s32
 ReadPageFromDisk(page_cache *PageCache, s32 PageNumberInFile)
 {
-	s32 PageNumberInCache = AllocatePage(PageCache);
-	s32 Offset = PageCache->PageSize * PageNumberInFile;
-	PageCache->CacheToFilePageNumberMap[PageNumberInCache] = PageNumberInFile;
-	ssize BytesReadCount = pread(
-		PageCache->DatabaseFileDescriptor, PageCache->Pages[PageNumberInCache].Data,
-		PageCache->PageSize, Offset);
-	AssertAlways(BytesReadCount == PageCache->PageSize); // TODO(ariel) How can I make this more resilient?
+	s32 PageNumberInCache = -1;
+
+	// TODO(ariel) If number of pages in caches increases drastically, consider
+	// using a hash table instead of a plain array for this map.
+	for(s32 Index = 0; Index < DB_PAGE_COUNT_IN_CACHE; Index += 1)
+	{
+		if(PageNumberInFile == PageCache->CacheToFilePageNumberMap[Index])
+		{
+			PageNumberInCache = Index;
+			break;
+		}
+	}
+
+	if(PageNumberInCache == -1)
+	{
+		PageNumberInCache = AllocatePage(PageCache);
+		s32 Offset = PageCache->PageSize * PageNumberInFile;
+		PageCache->CacheToFilePageNumberMap[PageNumberInCache] = PageNumberInFile;
+		ssize BytesReadCount = pread(
+			PageCache->DatabaseFileDescriptor, PageCache->Pages[PageNumberInCache].Data,
+			PageCache->PageSize, Offset);
+		AssertAlways(BytesReadCount == PageCache->PageSize); // TODO(ariel) How can I make this more resilient?
+	}
+
 	return PageNumberInCache;
 }
 
@@ -150,8 +221,8 @@ InitializePages(page_cache *PageCache)
 enum
 {
 	// NOTE(ariel) Internal nodes must allocate space for `RightPageNumber`.
-	DB_OFFSET_TO_CELLS_FOR_INTERNAL_NODES = 12,
-	DB_OFFSET_TO_CELLS_FOR_LEAF_NODES = 8,
+	DB_OFFSET_TO_CELL_POSITIONS_FOR_INTERNAL_NODES = 12,
+	DB_OFFSET_TO_CELL_POSITIONS_FOR_LEAF_NODES = 8,
 };
 
 static btree_node
@@ -159,6 +230,7 @@ ReadNodeFromDisk(Database *DB, s32 PageNumberInFile)
 {
 	btree_node DatabaseNode;
 
+	DatabaseNode.PageNumberInFile = PageNumberInFile;
 	DatabaseNode.PageNumberInCache = ReadPageFromDisk(&DB->PageCache, PageNumberInFile);
 	page *Page = &DB->PageCache.Pages[DatabaseNode.PageNumberInCache];
 
@@ -173,57 +245,304 @@ ReadNodeFromDisk(Database *DB, s32 PageNumberInFile)
 }
 
 static void
-WriteNodeToDisk(Database *DB, btree_node DatabaseNode)
+WriteNodeToDisk(Database *DB, btree_node *DatabaseNode)
 {
-	page *Page = &DB->PageCache.Pages[DatabaseNode.PageNumberInCache];
+	page *Page = &DB->PageCache.Pages[DatabaseNode->PageNumberInCache];
 
-	s8Serialize(&Page->Data[0], DatabaseNode.Type);
-	s16Serialize(&Page->Data[1], DatabaseNode.OffsetToFirstFreeBlock);
-	s16Serialize(&Page->Data[3], DatabaseNode.CellCount);
-	s16Serialize(&Page->Data[5], DatabaseNode.OffsetToCells);
-	s8Serialize(&Page->Data[7], DatabaseNode.FragmentedBytesCount);
-	if(DatabaseNode.Type == DB_NODE_TYPE_INTERNAL)
+	s8Serialize(&Page->Data[0], DatabaseNode->Type);
+	s16Serialize(&Page->Data[1], DatabaseNode->OffsetToFirstFreeBlock);
+	s16Serialize(&Page->Data[3], DatabaseNode->CellCount);
+	s16Serialize(&Page->Data[5], DatabaseNode->OffsetToCells);
+	s8Serialize(&Page->Data[7], DatabaseNode->FragmentedBytesCount);
+	if(DatabaseNode->Type == DB_NODE_TYPE_INTERNAL)
 	{
-		Assert(DatabaseNode.RightPageNumber != -1);
-		s32Serialize(&Page->Data[8], DatabaseNode.RightPageNumber);
+		Assert(DatabaseNode->RightPageNumber != -1);
+		s32Serialize(&Page->Data[8], DatabaseNode->RightPageNumber);
 	}
 	else
 	{
-		Assert(DatabaseNode.RightPageNumber == -1);
+		Assert(DatabaseNode->RightPageNumber == -1);
 	}
 
-	WritePageToDisk(&DB->PageCache, DatabaseNode.PageNumberInCache);
+	WritePageToDisk(&DB->PageCache, DatabaseNode->PageNumberInCache);
 }
+
+enum { DB_LAST_FREE_BLOCK = 0 };
 
 static btree_node
 InitializeNewNode(Database *DB, node_type NodeType)
 {
 	btree_node DatabaseNode;
+	DatabaseNode.PageNumberInFile = DB->TotalPageCountInFile;
 	DatabaseNode.PageNumberInCache = AllocatePage(&DB->PageCache);
+	DatabaseNode.OffsetToFirstFreeBlock = DB->PageCache.PageSize - 4;
 	DatabaseNode.CellCount = 0;
+	DatabaseNode.FragmentedBytesCount = 0;
 	DatabaseNode.OffsetToCells = DB->PageCache.PageSize;
 	DatabaseNode.Type = NodeType;
 
+	s16 AvailableSpace = DB->PageCache.PageSize;
 	if(NodeType == DB_NODE_TYPE_INTERNAL)
 	{
 		DatabaseNode.RightPageNumber = 0;
-		DatabaseNode.OffsetToFirstFreeBlock = DB_OFFSET_TO_CELLS_FOR_INTERNAL_NODES;
+		AvailableSpace -= DB_OFFSET_TO_CELL_POSITIONS_FOR_INTERNAL_NODES;
 	}
 	else if(NodeType == DB_NODE_TYPE_LEAF)
 	{
 		DatabaseNode.RightPageNumber = -1;
-		DatabaseNode.OffsetToFirstFreeBlock = DB_OFFSET_TO_CELLS_FOR_LEAF_NODES;
+		AvailableSpace -= DB_OFFSET_TO_CELL_POSITIONS_FOR_LEAF_NODES;
 	}
 	else
 	{
 		Assert(!"unreachable");
 	}
 
-	DB->PageCache.CacheToFilePageNumberMap[DatabaseNode.PageNumberInCache] = DB->TotalPageCountInFile;
+	// NOTE(ariel) Together these two fields form the header of free list in
+	// page.
+	page *Page = &DB->PageCache.Pages[DatabaseNode.PageNumberInCache];
+	u8 *NextFreeBlock = &Page->Data[DatabaseNode.OffsetToFirstFreeBlock + 0];
+	u8 *FreeBlockSize = &Page->Data[DatabaseNode.OffsetToFirstFreeBlock + 2];
+	s16Serialize(NextFreeBlock, DB_LAST_FREE_BLOCK);
+	s16Serialize(FreeBlockSize, AvailableSpace);
+
+	DB->PageCache.CacheToFilePageNumberMap[DatabaseNode.PageNumberInCache] = DatabaseNode.PageNumberInFile;
 	DB->TotalPageCountInFile += 1;
 
-	WriteNodeToDisk(DB, DatabaseNode);
+	WriteNodeToDisk(DB, &DatabaseNode);
 	return DatabaseNode;
+}
+
+static s32
+InitializeNewItemPage(Database *DB)
+{
+	s32 PageNumberInFile = DB->TotalPageCountInFile;
+	DB->TotalPageCountInFile += 1;
+	return PageNumberInFile;
+}
+
+enum { DB_CELL_OFFSET_SLOT = sizeof(u16) };
+
+typedef struct feed_cell feed_cell;
+struct feed_cell
+{
+	u32 ID;
+	union
+	{
+		struct // NOTE(ariel) Leaf nodes store links and titles.
+		{
+			String Link;
+			String Title;
+			s32 ItemsPage;
+		};
+		struct // NOTE(ariel) Internal nodes store pointers to children.
+		{
+			s32 ChildPage;
+		};
+	};
+};
+
+typedef struct tag_cell tag_cell;
+struct tag_cell
+{
+};
+
+static feed_cell
+ParseFeedCell(Database *DB, btree_node DatabaseNode, s32 CellNumber)
+{
+	feed_cell Cell = {0};
+
+	// NOTE(ariel) Confirm absence of funny business in cache. It's highly
+	// unlikely the cache purges this page from memory in so little time.
+	AssertAlways(DatabaseNode.PageNumberInFile == DB->PageCache.CacheToFilePageNumberMap[DatabaseNode.PageNumberInCache]);
+
+	AssertAlways(CellNumber < DatabaseNode.CellCount);
+	page *Page = &DB->PageCache.Pages[DatabaseNode.PageNumberInCache];
+
+	s32 OffsetToCellPositions =
+		DatabaseNode.Type == DB_NODE_TYPE_INTERNAL
+		? DB_OFFSET_TO_CELL_POSITIONS_FOR_INTERNAL_NODES
+		: DB_OFFSET_TO_CELL_POSITIONS_FOR_LEAF_NODES;
+	u8 *CellPositions = &Page->Data[OffsetToCellPositions];
+	s16 CellPosition = s16Deserialize(CellPositions + 2*CellNumber); Assert(CellPosition > 0);
+	u8 *RawCell = &Page->Data[CellPosition];
+
+	// TODO(ariel) Move into function FeedCellDeserialize();
+	Cell.ID = s32Deserialize(RawCell);
+	if(DatabaseNode.Type == DB_NODE_TYPE_INTERNAL)
+	{
+		s16 ChildPagePosition = CellPosition + sizeof(Cell.ID);
+		AssertAlways(ChildPagePosition < DB->PageCache.PageSize);
+		u8 *ChildPage = &Page->Data[ChildPagePosition];
+		Cell.ChildPage = s32Deserialize(ChildPage);
+	}
+	else if(DatabaseNode.Type == DB_NODE_TYPE_LEAF)
+	{
+		s16 LinkPosition = CellPosition + sizeof(Cell.ID);
+		AssertAlways(LinkPosition < DB->PageCache.PageSize);
+		u8 *Link = &Page->Data[LinkPosition];
+		Cell.Link = StringDeserialize(Link);
+
+		s16 TitlePosition = LinkPosition + sizeof(Cell.Link.len) + Cell.Link.len;
+		AssertAlways(TitlePosition < DB->PageCache.PageSize);
+		u8 *Title = &Page->Data[TitlePosition];
+		Cell.Title = StringDeserialize(Title);
+
+		s32 ItemsPagePosition = TitlePosition + sizeof(Cell.Title.len) + Cell.Title.len;
+		AssertAlways(ItemsPagePosition < DB->PageCache.PageSize);
+		u8 *ItemsPage = &Page->Data[ItemsPagePosition];
+		Cell.ItemsPage = s32Deserialize(ItemsPage);
+	}
+	else
+	{
+		Assert(!"unreachable");
+	}
+
+	return Cell;
+}
+
+typedef struct search_result search_result;
+struct search_result
+{
+	b32 Found;
+	s32 CellNumber;
+	btree_node *StackTraceToNode;
+	btree_node Node;
+};
+
+static search_result
+SearchForFeed(Database *DB, feed_cell Cell)
+{
+	search_result Result = {0};
+
+	s32 PageNumber = DB->PageCache.CacheToFilePageNumberMap[DB->FeedsRoot.PageNumberInCache];
+	for(;;)
+	{
+		btree_node DatabaseNode = ReadNodeFromDisk(DB, PageNumber);
+
+		feed_cell CellOnDisk = {0};
+		for(; Result.CellNumber < DatabaseNode.CellCount; Result.CellNumber += 1)
+		{
+			CellOnDisk = ParseFeedCell(DB, DatabaseNode, Result.CellNumber);
+			if(Cell.ID <= CellOnDisk.ID)
+			{
+				break;
+			}
+		}
+
+		if(DatabaseNode.Type == DB_NODE_TYPE_INTERNAL)
+		{
+			PageNumber = CellOnDisk.ChildPage;
+		}
+		else if(DatabaseNode.Type == DB_NODE_TYPE_LEAF)
+		{
+			Result.Found = CellOnDisk.ID == Cell.ID;
+			Result.Node = DatabaseNode;
+			break;
+		}
+		else
+		{
+			Assert(!"unreachable");
+		}
+
+		// TODO(ariel) Push node onto path.
+		;
+	}
+
+	return Result;
+}
+
+static btree_node
+SearchForTag(btree_node *Root, tag_cell Cell)
+{
+}
+
+static void
+SerializeFreeBlockHeader(u8 *Address, s16 NextFreeBlockPosition, s16 BlockSize)
+{
+	s16Serialize(Address, NextFreeBlockPosition);
+	s16Serialize(Address + 2, BlockSize);
+}
+
+static void
+InsertFeed(Database *DB, btree_node *DatabaseNode, feed_cell Cell)
+{
+	// FIXME(ariel) Confirm the node still maps to the correct page on disk.
+	// There should be a gaurantee about this of some sort. Pull a page into the
+	// cache if the page cache already flushed it.
+	AssertAlways(DatabaseNode->PageNumberInFile == DB->PageCache.CacheToFilePageNumberMap[DatabaseNode->PageNumberInCache]);
+	page *Page = &DB->PageCache.Pages[DatabaseNode->PageNumberInCache];
+
+	// FIXME(ariel) Calculate conditionally based on type of cell.
+	s32 RequiredSpace =
+		(s32)DB_CELL_OFFSET_SLOT +
+		(s32)sizeof(Cell.ID) +
+		(s32)sizeof(Cell.Link.len) + Cell.Link.len +
+		(s32)sizeof(Cell.Title.len) + Cell.Title.len +
+		(s32)sizeof(Cell.ItemsPage);
+	Assert(RequiredSpace <= UINT16_MAX);
+#if 0
+	s32 RemainingSpace = 0;
+	b32 RootIsFull = RequiredSpace > RemainingSpace;
+	if(RootIsFull)
+	{
+		// FIXME(ariel) Assume root is not full at first.
+		;
+	}
+#endif
+
+	// TODO(ariel) Only insert inside root node for now.
+	// u8 *NextFreeBlockPositionAddress = &Page->Data[DatabaseNode->OffsetToFirstFreeBlock];
+	u8 *FreeBlockSizeAddress = &Page->Data[DatabaseNode->OffsetToFirstFreeBlock + sizeof(u16)];
+	// FIXME(ariel) Assume first block provides enough space for now.
+	// s16 NextBlockPosition = s16Deserialize(NextFreeBlockPosition);
+	s16 BlockSize = s16Deserialize(FreeBlockSizeAddress);
+	Assert(BlockSize >= RequiredSpace);
+
+	u8 *EndOfFreeBlockSizeAddress = FreeBlockSizeAddress + 1;
+	u8 *CellStart = EndOfFreeBlockSizeAddress - RequiredSpace;
+	u8 *CellID = CellStart;
+	u8 *CellLink = CellID + sizeof(Cell.ID);
+	u8 *CellTitle = CellLink + sizeof(Cell.Link.len) + Cell.Link.len;
+	u8 *CellItemsPage = CellTitle + sizeof(Cell.Title.len) + Cell.Title.len; AssertAlways(CellItemsPage - Page->Data >= 0);
+	s32Serialize(CellID, Cell.ID);
+	StringSerialize(CellLink, Cell.Link);
+	StringSerialize(CellTitle, Cell.Title);
+	s32Serialize(CellItemsPage, Cell.ItemsPage);
+
+	s16 RemainingBlockSize = BlockSize - (s16)RequiredSpace;
+	SerializeFreeBlockHeader(CellStart - 4, DB_LAST_FREE_BLOCK, RemainingBlockSize);
+	DatabaseNode->OffsetToFirstFreeBlock = CellStart - 4 - Page->Data;
+
+	// NOTE(ariel) Serialize new cell offset.
+	s32 OffsetToCellPositions = DatabaseNode->Type == DB_NODE_TYPE_INTERNAL
+		? DB_OFFSET_TO_CELL_POSITIONS_FOR_INTERNAL_NODES
+		: DB_OFFSET_TO_CELL_POSITIONS_FOR_LEAF_NODES;
+	u8 *CellPositions = &Page->Data[OffsetToCellPositions];
+
+	// NOTE(ariel) `CellPositions` default to last slot in array of cell
+	// positions.
+	s32 CellNumber = 0;
+	u8 *CellPosition = CellPositions + 2*DatabaseNode->CellCount;
+	while(CellNumber < DatabaseNode->CellCount)
+	{
+		u8 *CellOffset = CellPositions + 2*CellNumber;
+		s16 CellForComparisonOffset = s16Deserialize(CellOffset);
+		u32 CellIDForComparison = s32Deserialize(&Page->Data[CellForComparisonOffset]);
+		if(Cell.ID < CellIDForComparison)
+		{
+			Assert(CellPosition > CellPositions + 2*CellNumber);
+			CellPosition = CellPositions + 2*CellNumber;
+			break;
+		}
+		CellNumber += 1;
+	}
+	ssize BytesToMoveCount = 2*(DatabaseNode->CellCount - CellNumber); Assert(BytesToMoveCount <= 2*DatabaseNode->CellCount);
+	memmove(CellPositions + 2*(CellNumber+1), CellPositions + 2*CellNumber, BytesToMoveCount);
+	u16 CellOffset = CellStart - Page->Data; Assert(CellOffset > 0);
+	s16Serialize(CellPosition, CellOffset);
+
+	DatabaseNode->CellCount += 1;
+	WriteNodeToDisk(DB, DatabaseNode);
 }
 
 
@@ -232,6 +551,21 @@ InitializeNewNode(Database *DB, node_type NodeType)
  * ---
  */
 
+static char HeaderMagicSequence[] = "aggrss db format";
+
+static void
+WriteHeader(Database *DB)
+{
+	memcpy(DB->Header, HeaderMagicSequence, sizeof(HeaderMagicSequence));
+	s16Serialize(&DB->Header[16], DB->FileFormatVersion);
+	s16Serialize(&DB->Header[18], DB->PageCache.PageSize);
+	s32Serialize(&DB->Header[20], DB->TotalPageCountInFile);
+	s32Serialize(&DB->Header[24], DB->PageCache.CacheToFilePageNumberMap[DB->FeedsRoot.PageNumberInCache]);
+	s32Serialize(&DB->Header[28], DB->PageCache.CacheToFilePageNumberMap[DB->TagsRoot.PageNumberInCache]);
+	memset(&DB->Header[32], 0, DB->PageCache.PageSize - 32);
+	write(DB->PageCache.DatabaseFileDescriptor, DB->Header, DB_HEADER_SIZE);
+}
+
 // TODO(ariel) Update interface of initialization procedure. Match the SQLite
 // version for now though.
 static void
@@ -239,8 +573,9 @@ db_init(Database **db)
 {
 	enum { HEADER_PAGE_NUMBER_IN_FILE = 0 };
 
-	static char HeaderMagicSequence[] = "aggrss db format";
 	static database DB;
+
+	arena_init(&DB.arena);
 
 	// TODO(ariel) Use environment variables XDG to get this path to respect
 	// user's existing configuration.
@@ -274,7 +609,6 @@ db_init(Database **db)
 		}
 		AssertAlways(RemainingBytesShouldBeZero == 0);
 
-		// ReadPageFromDisk(&DB.PageCache, HEADER_PAGE_NUMBER_IN_FILE);
 		DB.FeedsRoot = ReadNodeFromDisk(&DB, FeedsRootPageNumberInFile);
 		DB.TagsRoot = ReadNodeFromDisk(&DB, TagsRootPageNumberInFile);
 	}
@@ -283,23 +617,12 @@ db_init(Database **db)
 		// TODO(ariel) Store head (or root) of free list?
 		DB.FileFormatVersion = 0;
 		DB.PageCache.PageSize = DB_PAGE_SIZE; // TODO(ariel) Query this value dynamically from the system.
-		DB.TotalPageCountInFile = 1; // NOTE(ariel) Count this header page.
+		DB.TotalPageCountInFile = 1; // NOTE(ariel) Count header as page.
 
-		s32 HeaderPageNumberInCache = AllocatePage(&DB.PageCache); Assert(HeaderPageNumberInCache == 0);
-		DB.FeedsRoot = InitializeNewNode(&DB, DB_NODE_TYPE_LEAF); Assert(DB.FeedsRoot.PageNumberInCache == 1);
-		DB.TagsRoot = InitializeNewNode(&DB, DB_NODE_TYPE_LEAF); Assert(DB.TagsRoot.PageNumberInCache == 2);
+		DB.FeedsRoot = InitializeNewNode(&DB, DB_NODE_TYPE_LEAF); Assert(DB.FeedsRoot.PageNumberInCache == 0);
+		DB.TagsRoot = InitializeNewNode(&DB, DB_NODE_TYPE_LEAF); Assert(DB.TagsRoot.PageNumberInCache == 1);
 
-		memcpy(DB.Header, HeaderMagicSequence, sizeof(HeaderMagicSequence));
-		s16Serialize(&DB.Header[16], DB.FileFormatVersion);
-		s16Serialize(&DB.Header[18], DB.PageCache.PageSize);
-		s32Serialize(&DB.Header[20], DB.TotalPageCountInFile);
-		s32Serialize(&DB.Header[24], DB.PageCache.CacheToFilePageNumberMap[DB.FeedsRoot.PageNumberInCache]);
-		s32Serialize(&DB.Header[28], DB.PageCache.CacheToFilePageNumberMap[DB.TagsRoot.PageNumberInCache]);
-		memset(&DB.Header[32], 0, DB_PAGE_SIZE - 32);
-
-		// memcpy(DB.PageCache.Pages[HeaderPageNumberInCache].Data, DB.Header, DB_HEADER_SIZE);
-		// WritePageToDisk(&DB.PageCache, HeaderPageNumberInCache);
-
+		WriteHeader(&DB);
 		AssertAlways(DB.TotalPageCountInFile == 3);
 	}
 	else
@@ -311,35 +634,145 @@ db_init(Database **db)
 }
 
 static void
-db_free(Database *db)
+db_free(Database *DB)
 {
-	// TODO(ariel) Flush to disk?
-	close(db->PageCache.DatabaseFileDescriptor);
+	WriteHeader(DB);
+#if 0 // TODO(ariel) Flush pages?
+	for(s32 PageNumber = 0; PageNumber < DB_PAGE_COUNT_IN_CACHE; PageNumber += 1)
+	{
+		WritePageToDisk(&DB->PageCache, PageNumber);
+	}
+#endif
+	close(DB->PageCache.DatabaseFileDescriptor);
 }
 
 static void
-db_add_feed(Database *db, String feed_link, String feed_title)
+db_add_feed(Database *DB, String FeedLink, String FeedTitle)
 {
+	feed_cell Cell;
+	Cell.ID = DBHash(FeedLink);
+	Cell.Link = FeedLink;
+	Cell.Title = FeedTitle;
+	Cell.ItemsPage = -1;
+
+	Arena_Checkpoint Checkpoint = arena_checkpoint_set(&DB->arena);
+	{
+		// NOTE(ariel) Silently ignore duplicates -- no unique constraint.
+		search_result Result = SearchForFeed(DB, Cell);
+		if(!Result.Found)
+		{
+			// FIXME(ariel) No stack trace of the path to the node this way.
+			btree_node *Leaf = &Result.Node;
+			AssertAlways(Leaf->Type == DB_NODE_TYPE_LEAF);
+			Cell.ItemsPage = InitializeNewItemPage(DB);
+			InsertFeed(DB, Leaf, Cell);
+		}
+	}
+	arena_checkpoint_restore(Checkpoint);
 }
 
 static void
-db_add_or_update_feed(Database *db, String feed_link, String feed_title)
+db_add_or_update_feed(Database *DB, String FeedLink, String FeedTitle)
 {
 }
 
-static inline void
-get_content_from_node(RSS_Tree_Node *item_node, String term, String default_value, String *value)
+enum
 {
+	DB_ITEM_PAGE_NEXT_PAGE = 0,
+	DB_ITEM_PAGE_STRING_SLOT = 2,
+};
+
+static inline String
+GetContentFromNode(RSS_Tree_Node *ItemNode, String TagName, String DefaultValue)
+{
+	String Result = DefaultValue;
+
+	RSS_Tree_Node *RSSNode = find_item_child_node(ItemNode, TagName);
+	if(RSSNode)
+	{
+		Result = RSSNode->content;
+	}
+
+	return Result;
 }
 
-static u64
-get_unix_timestamp(String feed_link, String date_time)
+static inline String
+GetDateFromNode(RSS_Tree_Node *ItemNode)
 {
+	String Result = {0};
+	Result = GetContentFromNode(ItemNode, string_literal("pubDate"), Result);
+	Result = GetContentFromNode(ItemNode, string_literal("updated"), Result);
+	return Result;
+}
+
+static inline u64
+GetUnixTimestamp(String FeedLink, String DateTime)
+{
+	Timestamp Result = parse_date_time(DateTime);
+	if (Result.error.str)
+	{
+		fprintf(stderr, "[DB ERROR] failed to parse date %.*s for %.*s: %.*s\n",
+			DateTime.len, DateTime.str,
+			FeedLink.len, FeedLink.str,
+			Result.error.len, Result.error.str);
+	}
+	assert(Result.unix_format < UINT32_MAX);
+	return Result.unix_format;
+}
+
+static inline s32
+GetStringSize(String Value)
+{
+	s32 TotalSize = sizeof(Value.len) + Value.len;
+	return TotalSize;
 }
 
 static void
-db_add_item(Database *db, String feed_link, RSS_Tree_Node *item_node)
+db_add_item(Database *DB, String FeedLink, RSS_Tree_Node *ItemNode)
 {
+	feed_cell Cell =
+	{
+		.ID = DBHash(FeedLink),
+		.Link = FeedLink,
+	};
+	search_result SearchResult = SearchForFeed(DB, Cell);
+
+	AssertAlways(SearchResult.Found);
+	Cell = ParseFeedCell(DB, SearchResult.Node, SearchResult.CellNumber);
+
+	s32 PageNumberInCache = ReadPageFromDisk(&DB->PageCache, Cell.ItemsPage);
+	page *Page = &DB->PageCache.Pages[PageNumberInCache];
+
+	// FIXME(ariel) Traverse pages too.
+	s16 NextPage = s16Deserialize(&Page->Data[DB_ITEM_PAGE_NEXT_PAGE]);
+	s16 FirstUnusedByte = s16Deserialize(&Page->Data[DB_ITEM_PAGE_STRING_SLOT]);
+	{
+		String Link = find_link(ItemNode);
+		String Title = GetContentFromNode(ItemNode, string_literal("title"), string_literal(""));
+		u64 Date = GetUnixTimestamp(FeedLink, GetDateFromNode(ItemNode));
+		b32 Unread = true;
+
+		s32 ItemSize =
+			GetStringSize(Link) +
+			GetStringSize(Title) +
+			sizeof(Date) +
+			sizeof(Unread);
+		s32 StartingPosition = FirstUnusedByte - ItemSize;
+		AssertAlways(StartingPosition > 4);
+
+		s32 LinkPosition = StartingPosition;
+		s32 TitlePosition = LinkPosition + GetStringSize(Link);
+		s32 DatePosition = TitlePosition + GetStringSize(Title);
+		s32 UnreadPosition = DatePosition + sizeof(Date);
+		StringSerialize(&Page->Data[LinkPosition], Link);
+		StringSerialize(&Page->Data[TitlePosition], Title);
+		s32Serialize(&Page->Data[DatePosition], Date);
+		s32Serialize(&Page->Data[UnreadPosition], Unread);
+
+		FirstUnusedByte = StartingPosition - 1;
+	}
+	s16Serialize(&Page->Data[DB_ITEM_PAGE_NEXT_PAGE], NextPage);
+	s16Serialize(&Page->Data[DB_ITEM_PAGE_STRING_SLOT], FirstUnusedByte);
 }
 
 static void
@@ -363,20 +796,60 @@ db_mark_all_read(Database *db, String feed_link)
 }
 
 static b32
-db_filter_feeds_by_tag(Database *db, String *feed_link, String *feed_title, String_List tags)
+db_filter_feeds_by_tag(Database *DB, String *FeedLink, String *FeedTitle, String_List Tags)
 {
-	return false;
+	return db_iterate_feeds(DB, FeedLink, FeedTitle);
 }
 
 static b32
-db_iterate_feeds(Database *db, String *feed_link, String *feed_title)
+db_iterate_feeds(Database *DB, String *FeedLink, String *FeedTitle)
 {
-	return false;
+	static feed_cell Cell;
+	static s32 CellNumber;
+	static s32 PageNumber;
+
+	b32 FeedExists = false;
+	PageNumber = DB->PageCache.CacheToFilePageNumberMap[DB->FeedsRoot.PageNumberInCache];
+	for(;;)
+	{
+		btree_node DatabaseNode = ReadNodeFromDisk(DB, PageNumber);
+
+		if(DatabaseNode.Type == DB_NODE_TYPE_INTERNAL)
+		{
+			// TODO(ariel) Recurse down to leaf nodes when root isn't a leaf itself.
+			Assert(!"unimplemented");
+		}
+		else if(DatabaseNode.Type == DB_NODE_TYPE_LEAF)
+		{
+			if(CellNumber < DatabaseNode.CellCount)
+			{
+				Cell = ParseFeedCell(DB, DatabaseNode, CellNumber);
+				CellNumber += 1;
+
+				FeedExists = true;
+				*FeedLink = Cell.Link;
+				*FeedTitle = Cell.Title;
+				break;
+			}
+			else
+			{
+				CellNumber = 0;
+				break;
+			}
+		}
+		else
+		{
+			Assert(!"unreachable");
+		}
+	}
+
+	return FeedExists;
 }
 
 static b32
-db_iterate_items(Database *db, String feed_link, DB_Item *item)
+db_iterate_items(Database *DB, String FeedLink, DB_Item *Item)
 {
+	// TODO(ariel) Retrieve page of items associated with feed.
 	return false;
 }
 
