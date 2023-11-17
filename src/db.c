@@ -28,31 +28,23 @@ DBHash(String Value)
 static void
 s8Serialize(u8 *Address, u8 Value)
 {
-	Address[0] = Value;
+	*Address = Value;
 }
 
 static void
 s16Serialize(u8 *Address, s16 Value)
 {
-#if 0
-	Address[0] = (u8)(Value >> 0x00);
-	Address[1] = (u8)(Value >> 0x08);
-#else
-	memcpy(Address, &Value, sizeof(Value));
-#endif
+	Address[0] = Value >> 0x00;
+	Address[1] = Value >> 0x08;
 }
 
 static void
 s32Serialize(u8 *Address, s32 Value)
 {
-#if 0
-	Address[0] = (u8)(Value >> 0x00);
-	Address[1] = (u8)(Value >> 0x08);
-	Address[2] = (u8)(Value >> 0x10);
-	Address[3] = (u8)(Value >> 0x18);
-#else
-	memcpy(Address, &Value, sizeof(Value));
-#endif
+	Address[0] = Value >> 0x00;
+	Address[1] = Value >> 0x08;
+	Address[2] = Value >> 0x10;
+	Address[3] = Value >> 0x18;
 }
 
 static void
@@ -72,28 +64,22 @@ s8Deserialize(u8 *Address)
 static s16
 s16Deserialize(u8 *Address)
 {
-	s16 Value = 0;
-#if 0
-	Value |= (s16)(Address[0] << 0x00);
-	Value |= (s16)(Address[1] << 0x08);
-#else
-	memcpy(&Value, Address, sizeof(Value));
-#endif
+	u32 Intermediate = 0;
+	Intermediate |= (u32)Address[0] << 0x00;
+	Intermediate |= (u32)Address[1] << 0x08;
+	s16 Value = Intermediate;
 	return Value;
 }
 
 static s32
 s32Deserialize(u8 *Address)
 {
-	s32 Value = 0;
-#if 0
-	Value |= (s32)Address[0] << 0x00;
-	Value |= (s32)Address[1] << 0x08;
-	Value |= (s32)Address[2] << 0x10;
-	Value |= (s32)Address[3] << 0x18;
-#else
-	memcpy(&Value, Address, sizeof(Value));
-#endif
+	u64 Intermediate = 0;
+	Intermediate |= ((u64)Address[0] << 0x00);
+	Intermediate |= ((u64)Address[1] << 0x08);
+	Intermediate |= ((u64)Address[2] << 0x10);
+	Intermediate |= ((u64)Address[3] << 0x18);
+	s32 Value = Intermediate;
 	return Value;
 }
 
