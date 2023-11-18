@@ -118,8 +118,8 @@ WritePageToDisk(page_cache *PageCache, s32 PageNumberInCache)
 		PageCache->PageSize, Offset);
 	AssertAlways(BytesWrittenCount == PageCache->PageSize);
 
-	// TODO(ariel) How does Linux VFS implement fsync() for ext4?
-	s32 SyncStatus = fsync(PageCache->DatabaseFileDescriptor);
+	// TODO(ariel) How does Linux VFS implement fdatasync() for ext4?
+	s32 SyncStatus = fdatasync(PageCache->DatabaseFileDescriptor);
 	AssertAlways(SyncStatus == 0);
 
 	PageCache->Pages[PageNumberInCache].Dirty = false;
