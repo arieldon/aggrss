@@ -48,6 +48,7 @@ struct String
 
 #define MEM_ZERO(addr, size)  memset((addr), 0, (size))
 #define MEM_ZERO_STRUCT(addr) MEM_ZERO((addr), sizeof(*(addr)))
+#define ZeroStruct(Address) (memset(Address, 0, sizeof(*Address)))
 
 // TODO(ariel) Remove old definition of assert().
 #ifdef DEBUG

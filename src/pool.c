@@ -1,127 +1,74 @@
-enum { N_PAGES = 4 };
-
 static void
-init_pool(Pool *pool)
+InitializePool(pool *Pool)
 {
-	assert(pool->page_size);
-	assert(pool->slot_size);
-	assert(pool->slot_size >= sizeof(Slot));
-	assert(pool->page_size > pool->slot_size);
-	assert(pool->page_size % pool->slot_size == 0);
+	Assert(Pool->SlotSize);
+	Assert(Pool->Capacity > Pool->SlotSize);
+	Assert(Pool->Capacity % Pool->SlotSize == 0);
+	Assert(Pool->Buffer);
 
-	pool->total_size = N_PAGES * pool->page_size;
-	u8 *buffer = mmap(NULL, pool->total_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (buffer == MAP_FAILED)
+	Pool->NextFreeSlot = NULL;
+	ssize SlotsCount = Pool->Capacity / Pool->SlotSize;
+	for(ssize Index = 1; Index < SlotsCount; Index += 1)
 	{
-		abort();
+		pool_slot *Slot = (pool_slot *)&Pool->Buffer[Index * Pool->SlotSize];
+		Slot->Next = Pool->NextFreeSlot;
+		Pool->NextFreeSlot = Slot;
 	}
-	if (mprotect(buffer, pool->page_size, PROT_READ | PROT_WRITE) == -1)
-	{
-		abort();
-	}
-
-	pool->buffer = buffer;
-	pool->capacity = pool->page_size;
-
-	// NOTE(ariel) Free all slots by default.
-	usize n_slots = pool->page_size / pool->slot_size;
-	for (usize i = 0; i < n_slots; ++i)
-	{
-		Slot *slot = (Slot *)&pool->buffer[i * pool->slot_size];
-		slot->next = pool->first_free_slot;
-		pool->first_free_slot = slot;
-	}
-
-#ifdef DEBUG
-	{
-		usize count = 0;
-		for (Slot *slot = pool->first_free_slot; slot; slot = slot->next)
-		{
-			++count;
-		}
-		assert(count == n_slots);
-	}
-#endif
-
-	pthread_mutex_init(&pool->big_lock, 0);
 }
 
 static void *
-get_slot(Pool *pool)
+AllocatePoolSlot(pool *Pool)
 {
-	void *slot_address = 0;
+	// NOTE(ariel) Return first slot as dummy buffer if out of memory.
+	void *SlotAddress = Pool->Buffer;
 
-	pthread_mutex_lock(&pool->big_lock);
+	for(;;)
 	{
-		if (!pool->first_free_slot)
+		pool_slot *FreeSlot = Pool->NextFreeSlot;
+		pool_slot *NextSlot = FreeSlot->Next;
+		if(!FreeSlot)
 		{
-			usize previous_capacity = pool->capacity;
-
-			pool->capacity += pool->page_size;
-			if (pool->capacity > pool->total_size)
-			{
-				abort();
-			}
-			if (mprotect(pool->buffer, pool->capacity, PROT_READ | PROT_WRITE) == -1)
-			{
-				abort();
-			}
-
-			// NOTE(ariel) Push new slots onto free list.
-			u8 *pool_end = pool->buffer + pool->capacity;
-			for (
-				u8 *offset = pool->buffer + previous_capacity;
-				offset < pool_end;
-				offset += pool->slot_size)
-			{
-				Slot *slot = (Slot *)offset;
-				slot->next = pool->first_free_slot;
-				pool->first_free_slot = slot;
-			}
+			break; // NOTE(ariel) Return first slot.
 		}
-
-		Slot *slot = pool->first_free_slot;
-		pool->first_free_slot = slot->next;
-		slot_address = slot;
-	}
-	pthread_mutex_unlock(&pool->big_lock);
-
-	assert(slot_address);
-	MEM_ZERO(slot_address, pool->slot_size);
-	return slot_address;
-}
-
-static void
-return_slot(Pool *pool, void *slot_address)
-{
-	pthread_mutex_lock(&pool->big_lock);
-	{
-		Slot *slot = slot_address;
-
-		void *pool_end = pool->buffer + pool->capacity;
-		if (slot_address > pool_end || slot_address < (void *)pool->buffer)
+		if(atomic_compare_exchange_weak(&Pool->NextFreeSlot, &FreeSlot, NextSlot))
 		{
-			abort();
-		}
-
-		slot->next = pool->first_free_slot;
-		pool->first_free_slot = slot;
-	}
-	pthread_mutex_unlock(&pool->big_lock);
-}
-
-static void
-free_pool(Pool *pool)
-{
-	for (;;)
-	{
-		b32 success = pthread_mutex_trylock(&pool->big_lock) == 0;
-		if (success)
-		{
-			pthread_mutex_unlock(&pool->big_lock);
-			pthread_mutex_destroy(&pool->big_lock);
+			SlotAddress = (u8 *)FreeSlot;
 			break;
 		}
 	}
-	munmap(pool->buffer, pool->capacity);
+
+#ifdef DEBUG
+	if(SlotAddress == Pool->Buffer)
+	{
+		// TODO(ariel) Add additional debug metadata to pool for log in case of
+		// error.
+		fprintf(stderr, "pool (%p) out of memory\n", Pool);
+	}
+#endif
+	memset(SlotAddress, 0, Pool->SlotSize);
+	return SlotAddress;
+}
+
+static void
+ReleasePoolSlot(pool *Pool, void *SlotAddress)
+{
+	pool_slot *NewFreeSlot = SlotAddress;
+
+	void *LastSlot = Pool->Buffer + Pool->SlotSize*(Pool->Capacity/Pool->SlotSize - 1);
+	if(SlotAddress >= (void *)Pool->Buffer && SlotAddress <= (void *)LastSlot)
+	{
+		for(;;)
+		{
+			pool_slot *OldFirstFreeSlot = Pool->NextFreeSlot;
+			NewFreeSlot->Next = OldFirstFreeSlot;
+			if(atomic_compare_exchange_weak(&Pool->NextFreeSlot, &OldFirstFreeSlot, NewFreeSlot))
+			{
+				break;
+			}
+		}
+	}
+	else
+	{
+		Assert(!"unreachable");
+	}
 }
