@@ -1,27 +1,24 @@
 #ifndef POOL_H
 #define POOL_H
 
-typedef struct Slot Slot;
-struct Slot
+typedef struct pool_slot pool_slot;
+struct pool_slot
 {
-	Slot *next;
+	pool_slot *Next;
 };
 
-typedef struct Pool Pool;
-struct Pool
+typedef struct pool pool;
+struct pool
 {
-	u8 *buffer;
-	usize capacity;
-	usize page_size;
-	usize slot_size;
-	usize total_size;
-	Slot *first_free_slot;
-	pthread_mutex_t big_lock;
+	pool_slot *_Atomic NextFreeSlot; // NOTE(ariel) Store an atomic pointer.
+
+	ssize SlotSize;
+	ssize Capacity;
+	u8 *Buffer;
 };
 
-static void init_pool(Pool *pool);
-static void *get_slot(Pool *pool);
-static void return_slot(Pool *pool, void *slot_address);
-static void free_pool(Pool *pool);
+static void InitializePool(pool *Pool);
+static void *AllocatePoolSlot(pool *Pool); // FIXME(ariel) Does the compiler generate different assembly if this is a u8 *?
+static void ReleasePoolSlot(pool *Pool, void *SlotAddress);
 
 #endif
