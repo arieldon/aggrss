@@ -100,23 +100,21 @@ typedef struct message_stack message_stack;
 struct message_stack
 {
 	String_Node *_Atomic FirstMessage;
+	pthread_mutex_t TableLock;
+	String_Table Table;
 };
-global message_stack MessageStack;
+global message_stack MessageStack = { .TableLock = PTHREAD_MUTEX_INITIALIZER };
 
 static void
 PushMessage(String Message)
 {
-	// TODO(ariel) Move these variables into `message_stack`.
-	local_persist String_Table Table;
-	local_persist pthread_mutex_t TableLock = PTHREAD_MUTEX_INITIALIZER;
-
 	String_Node *NewMessage = AllocatePoolSlot(&MessagePool);
 
-	pthread_mutex_lock(&TableLock);
+	pthread_mutex_lock(&MessageStack.TableLock);
 	{
-		NewMessage->string = intern(&Table, Message);
+		NewMessage->string = intern(&MessageStack.Table, Message);
 	}
-	pthread_mutex_unlock(&TableLock);
+	pthread_mutex_unlock(&MessageStack.TableLock);
 
 	for(;;)
 	{
