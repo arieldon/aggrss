@@ -188,7 +188,7 @@ db_add_item(sqlite3 *db, String feed_link, RSS_Tree_Node *item_node)
 	String date = {0};
 	get_content_from_node(item_node, string_literal("pubDate"), date, &date);
 	get_content_from_node(item_node, string_literal("updated"), date, &date);
-	s64 unix_timestamp = get_unix_timestamp(feed_link, date);
+	s64 unix_timestamp = date.str ? get_unix_timestamp(feed_link, date) : 0;
 
 	// NOTE(ariel) 1 in the VALUES(...) expression below indicates the item
 	// remains unread.
