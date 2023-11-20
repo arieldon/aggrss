@@ -79,4 +79,15 @@ struct String
 #	define breakpoint() __asm__("int $3")
 #endif
 
+// NOTE(ariel) Use functions to read/write generation count to top 16-bits of
+// pointer to reduce chance of ABA race condtions in CAS loops. Assume machine
+// uses 64-bit pointers.
+enum
+{
+	GENERATION_OFFSET = 0x30,
+	GENERATION_MASK = 0xffffull << GENERATION_OFFSET,
+};
+static uintptr GetGeneration(void *Pointer) { return ((uintptr)Pointer & GENERATION_MASK) >> GENERATION_OFFSET; }
+static void *GetAddress(void *Pointer) { return (void *)((uintptr)Pointer & ~GENERATION_MASK); }
+
 #endif

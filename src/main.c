@@ -118,6 +118,8 @@ PushMessage(String Message)
 
 	for(;;)
 	{
+		// NOTE(ariel) This stack doesn't stricly require generation counts because
+		// the program only pushes onto it. It never pops.
 		String_Node *OldFirstMessage = MessageStack.FirstMessage;
 		NewMessage->next = OldFirstMessage;
 		if(atomic_compare_exchange_weak(&MessageStack.FirstMessage, &OldFirstMessage, NewMessage))
@@ -461,11 +463,11 @@ process_frame(void)
 
 	if (ui_header(string_literal("Messages"), 0))
 	{
-		String_Node *message = atomic_load(&MessageStack.FirstMessage);
-		while (message)
+		String_Node *Message = GetAddress(MessageStack.FirstMessage);
+		while(Message)
 		{
-			ui_text(message->string);
-			message = message->next;
+			ui_text(Message->string);
+			Message = Message->next;
 		}
 	}
 
