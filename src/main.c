@@ -277,68 +277,6 @@ EnqueueLinkToParse(String Link)
 	AddTaskToQueue(&TaskQueue, ParseFeed, LinkToQuery);
 }
 
-// NOTE(ariel) Most if not all URLs in the database are less than 64 characters
-// in length. Default to the short statically allocated buffer to avoid dynamic
-// allocations if possible, prioritizing the common case as a result.
-global String feed_to_tag;
-global char short_feed_to_tag_buffer[64];
-
-static inline void
-free_feed_to_tag(void)
-{
-	if (feed_to_tag.str != short_feed_to_tag_buffer)
-	{
-		free(feed_to_tag.str);
-	}
-	feed_to_tag.str = 0;
-	feed_to_tag.len = 0;
-}
-
-static void
-set_feed_to_tag(String feed_link)
-{
-	if (feed_to_tag.str)
-	{
-		free_feed_to_tag();
-	}
-
-	feed_to_tag.len = feed_link.len;
-	if (feed_to_tag.len <= (s32)sizeof(short_feed_to_tag_buffer))
-	{
-		feed_to_tag.str = short_feed_to_tag_buffer;
-	}
-	else
-	{
-		feed_to_tag.str = calloc(feed_to_tag.len, sizeof(char));
-	}
-	memcpy(feed_to_tag.str, feed_link.str, feed_link.len);
-}
-
-static void
-tag_feed(void)
-{
-	local_persist char tag_name_input[1024];
-	local_persist Buffer tag_name =
-	{
-		.data.str = tag_name_input,
-		.cap = sizeof(tag_name_input),
-	};
-
-	assert(feed_to_tag.str);
-	switch (ui_prompt(string_literal("Tag Name"), &tag_name))
-	{
-		case UI_PROMPT_SUBMIT:
-		{
-			db_tag_feed(db, tag_name.data, feed_to_tag);
-			free_feed_to_tag();
-		} break;
-		case UI_PROMPT_CANCEL:
-		{
-			free_feed_to_tag();
-		} break;
-	}
-}
-
 static void
 process_frame(void)
 {
@@ -369,25 +307,11 @@ process_frame(void)
 		}
 	}
 
-	String_List tags = {0};
-	if (ui_header(string_literal("Tags"), 0))
-	{
-		String tag = {0};
-		while (db_iterate_tags(db, &tag))
-		{
-			if (ui_toggle(tag))
-			{
-				String tagdup = string_duplicate(&g_arena, tag);
-				string_list_push_string(&g_arena, &tags, tagdup);
-			}
-		}
-	}
-
 	ui_separator();
 
 	String feed_link = {0};
 	String feed_title = {0};
-	while (db_filter_feeds_by_tag(db, &feed_link, &feed_title, tags))
+	while (db_iterate_feeds(db, &feed_link, &feed_title))
 	{
 		String display_name = feed_title.len ? feed_title : feed_link;
 		s32 header_state = ui_header(display_name, UI_HEADER_SHOW_X_BUTTON);
@@ -423,7 +347,6 @@ process_frame(void)
 			{
 				static_string_literal("Mark All as Read"),
 				static_string_literal("Reload"),
-				static_string_literal("Tag"),
 				static_string_literal("Delete"),
 			};
 
@@ -444,19 +367,10 @@ process_frame(void)
 				} break;
 				case 2:
 				{
-					set_feed_to_tag(feed_link);
-				} break;
-				case 3:
-				{
 					db_del_feed(db, feed_link);
 				} break;
 			}
 		}
-	}
-
-	if (feed_to_tag.str)
-	{
-		tag_feed();
 	}
 
 	ui_separator();
