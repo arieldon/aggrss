@@ -22,15 +22,25 @@ AllocatePoolSlot(pool *Pool)
 	// NOTE(ariel) Return first slot as dummy buffer if out of memory.
 	void *SlotAddress = Pool->Buffer;
 
+	// NOTE(ariel) Exploit four-level paging by assigning top 16 bits to
+	// generation count that reduces chance of ABA race condition to practically
+	// implausible -- though still theoretically possible. It's highly unlikely
+	// that other threads execute (2**16 + 1) iterations of this loop before this
+	// thread pushes its changes to the stack.
 	for(;;)
 	{
-		pool_slot *FreeSlot = Pool->NextFreeSlot;
-		pool_slot *NextSlot = FreeSlot->Next;
+		pool_slot *FreeSlotWithGeneration = Pool->NextFreeSlot;
+		pool_slot *FreeSlot = GetAddress(FreeSlotWithGeneration);
 		if(!FreeSlot)
 		{
-			break; // NOTE(ariel) Return first slot.
+			break; // NOTE(ariel) Return first slot since out of memory.
 		}
-		if(atomic_compare_exchange_weak(&Pool->NextFreeSlot, &FreeSlot, NextSlot))
+
+		uintptr OldGeneration = GetGeneration(FreeSlotWithGeneration);
+		uintptr NewGeneration = OldGeneration + 1;
+		pool_slot *NextSlot = (pool_slot *)((uintptr)FreeSlot->Next | (NewGeneration << GENERATION_OFFSET));
+
+		if(atomic_compare_exchange_weak(&Pool->NextFreeSlot, &FreeSlotWithGeneration, NextSlot))
 		{
 			SlotAddress = (u8 *)FreeSlot;
 			break;
@@ -60,7 +70,12 @@ ReleasePoolSlot(pool *Pool, void *SlotAddress)
 		for(;;)
 		{
 			pool_slot *OldFirstFreeSlot = Pool->NextFreeSlot;
-			NewFreeSlot->Next = OldFirstFreeSlot;
+			NewFreeSlot->Next = GetAddress(OldFirstFreeSlot);
+
+			uintptr OldGeneration = GetGeneration(OldFirstFreeSlot);
+			uintptr NewGeneration = OldGeneration + 1;
+			NewFreeSlot = (pool_slot *)((uintptr)NewFreeSlot | (NewGeneration << GENERATION_OFFSET));
+
 			if(atomic_compare_exchange_weak(&Pool->NextFreeSlot, &OldFirstFreeSlot, NewFreeSlot))
 			{
 				break;
