@@ -19,10 +19,6 @@
 #include FT_FREETYPE_H
 #include <curl/curl.h>
 
-#ifdef USE_SQLITE
-#include <sqlite3.h>
-#endif
-
 #include "SDL.h"
 #include "SDL_opengl.h"
 
@@ -46,11 +42,7 @@
 #include "date_time.c"
 #include "str.c"
 #include "rss.c"
-#ifdef USE_SQLITE
-#include "db_sqlite.c"
-#else
 #include "db.c"
-#endif
 #include "err.c"
 #include "font.c"
 #include "linalg.c"
@@ -67,8 +59,6 @@ global u32 delta_ms = 1000 / FPS;
 global Arena g_arena;
 global pool LinkPool;
 global pool MessagePool;
-
-global Database *db;
 
 global char mouse_button_map[] =
 {
@@ -237,11 +227,8 @@ ParseFeed(s32 ThreadID, void *Data)
 		// NOTE(ariel) Feeds don't necessarily need to be filled; that is, empty
 		// feeds are valid.
 		Feed->first_item = find_item_node(&Thread->ScratchArena, Feed->root);
-		db_add_or_update_feed(db, Link, Feed->feed_title->content);
-		for (RSS_Tree_Node *Item = Feed->first_item; Item; Item = Item->next_sibling)
-		{
-			db_add_item(db, Link, Item);
-		}
+		DB_UpdateFeedTitle(Link, Feed->feed_title->content);
+		DB_AddItems(Link, Feed->first_item);
 
 		String Strings[] = { string_literal("successfully parsed "), Feed->feed_title->content };
 		String FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
@@ -293,52 +280,55 @@ process_frame(void)
 	submit_new_feed |= ui_button(string_literal("Add Feed"));
 	if (submit_new_feed)
 	{
-		db_add_feed(db, new_feed.data, string_literal(""));
+		DB_AddFeed(new_feed.data);
 		new_feed.data.len = 0;
 	}
 
+	db_feed_list Feeds = DB_GetAllFeeds();
+
 	if (ui_button(string_literal("Reload All Feeds")))
 	{
-		String feed_link = {0};
-		String feed_title = {0};
-		while (db_iterate_feeds(db, &feed_link, &feed_title))
+		db_feed *Feed = Feeds.First;
+		while(Feed)
 		{
-			EnqueueLinkToParse(feed_link);
+			EnqueueLinkToParse(Feed->Link);
+			Feed = Feed->Next;
 		}
 	}
 
 	ui_separator();
 
-	String feed_link = {0};
-	String feed_title = {0};
-	while (db_iterate_feeds(db, &feed_link, &feed_title))
+	db_feed *Feed = Feeds.First;
+	while(Feed)
 	{
-		String display_name = feed_title.len ? feed_title : feed_link;
-		s32 header_state = ui_header(display_name, UI_HEADER_SHOW_X_BUTTON);
+		String DisplayName = Feed->Title.len ? Feed->Title : Feed->Link;
+		s32 header_state = ui_header(DisplayName, UI_HEADER_SHOW_X_BUTTON);
 		if (ui_header_deleted(header_state))
 		{
-			db_del_feed(db, feed_link);
+			DB_DeleteFeed(Feed->Link);
 		}
 		if (ui_header_expanded(header_state))
 		{
-			DB_Item item = {0};
-			while (db_iterate_items(db, feed_link, &item))
+			db_item_list Items = DB_GetAllFeedItems(Feed->Link);
+			db_item *Item = Items.First;
+			while(Item)
 			{
-				if (ui_link(item.title, item.unread))
+				if(ui_link(Item->Title, Item->Unread))
 				{
-					if (item.link.len > 0)
+					if(Item->Link.len > 0)
 					{
 						pid_t pid = fork();
 						if (pid == 0)
 						{
-							char *terminated_link = string_terminate(&g_arena, item.link);
+							char *terminated_link = string_terminate(&g_arena, Item->Link);
 							char *args[] = { "xdg-open", terminated_link, 0 };
 							execvp("xdg-open", args);
 							exit(1);
 						}
-						db_mark_item_read(db, item.link);
+						DB_MarkItemRead(Feed->Link, Item->Link);
 					}
 				}
+				Item = Item->Next;
 			}
 		}
 		if (ui_header_optionized(header_state))
@@ -359,18 +349,20 @@ process_frame(void)
 			{
 				case 0:
 				{
-					db_mark_all_read(db, feed_link);
+					DB_MarkAllFeedItemsRead(Feed->Link);
 				} break;
 				case 1:
 				{
-					EnqueueLinkToParse(feed_link);
+					EnqueueLinkToParse(Feed->Link);
 				} break;
 				case 2:
 				{
-					db_del_feed(db, feed_link);
+					DB_DeleteFeed(Feed->Link);
 				} break;
 			}
 		}
+
+		Feed = Feed->Next;
 	}
 
 	ui_separator();
@@ -392,6 +384,8 @@ int
 main(void)
 {
 	arena_init(&g_arena);
+
+	DB_Open();
 
 	// TODO(ariel) Set these sizes dynamically if there are more than 64 feeds in
 	// database?
@@ -422,7 +416,6 @@ main(void)
 	SDL_Init(SDL_INIT_VIDEO);
 	r_init(&g_arena);
 	ui_init();
-	db_init(&db);
 
 	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
 	for (;;)
@@ -496,6 +489,6 @@ exit:
 		curl_easy_cleanup(Info->CurlHandle);
 	}
 	curl_global_cleanup();
-	db_free(db);
+	DB_Close();
 	return 0;
 }

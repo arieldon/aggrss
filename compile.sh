@@ -16,7 +16,6 @@ then
 fi
 LIBRARIES="-pthread -lm"
 LIBRARIES="$LIBRARIES `curl-config --cflags --libs`"
-LIBRARIES="$LIBRARIES `pkg-config --cflags --libs sqlite3`"
 LIBRARIES="$LIBRARIES `pkg-config --cflags --libs freetype2`"
 LIBRARIES="$LIBRARIES `sdl2-config --cflags --static-libs` -lGL"
 REQUIRED_MACROS="-DCONFIG_DIRECTORY_PATH=\"$HOME/.config/$BIN\""

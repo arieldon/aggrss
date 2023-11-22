@@ -1,71 +1,58 @@
 #ifndef DB_H
 #define DB_H
 
-#ifdef USE_SQLITE
-#define Database sqlite3
-#else
-
-// TODO(ariel) After completeting transition match case of this variable name
-// to others.
-#define Database database
-
 enum
 {
 	DB_HEADER_SIZE = 0x80,
-	DB_PAGE_SIZE = 0x1000, // TODO(ariel) Query this value dynamically from the system.
-	DB_PAGE_COUNT_IN_CACHE = 0x40,
+	DB_PAGE_SIZE = 0x1000,
+	DB_PAGE_COUNT_IN_CACHE = 0x20,
 };
 
-// TODO(ariel) I think I will need locks here?
-typedef struct page page;
-struct page
+typedef struct db_page db_page;
+struct db_page
 {
-	s32 MoreRecentlyUsedPage; // NOTE(ariel) Maintain an internal free list of pages.
-	b32 Dirty;
 	u8 Data[DB_PAGE_SIZE];
 };
 
-typedef struct page_cache page_cache;
-struct page_cache
+typedef struct db_page_cache db_page_cache;
+struct db_page_cache
 {
 	// NOTE(ariel) Use standard Unix file IO because I don't want to deal with
 	// buffered C file IO. Maybe this is a bad decision.
-	int DatabaseFileDescriptor;
-
-	s32 PageCountInMemory;
+	int FileDescriptor;
 	s16 PageSize;
 
-	s32 LeastRecentlyUsedPageNumber; // NOTE(ariel) Treat this as first page of list.
-	s32 MostRecentlyUsedPageNumber; // NOTE(ariel) Treat this as last page of list.
+	// NOTE(ariel) Byte clear if page clear. Byte set if page in use.
+	// TODO(ariel) Try a different encoding scheme actually. Let the page be
+	// negative if its in use. Then positive pages are more recently used. This
+	// way we gain both benefits of maintaining this list separately but also the
+	// LRU nature that allows us to keep more "useful" pages in cache.
+	s8 WriteLock[DB_PAGE_COUNT_IN_CACHE];
 	s32 CacheToFilePageNumberMap[DB_PAGE_COUNT_IN_CACHE];
-	page Pages[DB_PAGE_COUNT_IN_CACHE];
+	db_page Pages[DB_PAGE_COUNT_IN_CACHE];
 };
 
-typedef enum node_type node_type;
-enum node_type
+typedef enum db_node_type db_node_type;
+enum db_node_type
 {
 	DB_NODE_TYPE_INTERNAL = 0,
 	DB_NODE_TYPE_LEAF = 1,
 } __attribute__((packed));
-StaticAssert(sizeof(node_type) == 1);
+StaticAssert(sizeof(db_node_type) == 1);
 
 // NOTE(ariel) SQLite's file format heavily inspires the version of this data
 // structure both in memory and on disk [0].
 // [0] https://www.sqlite.org/fileformat.html
-typedef struct btree_node btree_node;
-struct btree_node
+typedef struct db_btree_node db_btree_node;
+struct db_btree_node
 {
-	// TODO(ariel) Include some sort of dirty bit? How do I know when to flush a
-	// node and clear it from the pool to allow new nodes/pages to take its
-	// place?
-	// TODO(ariel) Do I need to include some sort of free list in the node
-	// itself?
-
-	// NOTE(ariel) Index to page in list of pages maintained in file on disk.
-	s32 PageNumberInFile;
-
 	// NOTE(ariel) Index to page in list of pages maintained by page cache.
 	s32 PageNumberInCache;
+
+
+	/* NOTE(ariel) The database tracks fields above only in memory. */
+	/* NOTE(ariel) The database serializes fields below to pages on disk. */
+
 
 	// NOTE(arie) Store index of page in file to which to traverse if search
 	// query larger than all keys on page. Only internal nodes, i.e. not leaf
@@ -83,12 +70,35 @@ struct btree_node
 	// in page.
 	s8 FragmentedBytesCount;
 
-	// NOTE(ariel) Store index to byte where cells start. In other words, store
-	// an offset to the cell with the lowest address on the page.
-	s16 OffsetToCells;
-
 	// NOTE(ariel) Indicate B+Tree page type.
-	node_type Type;
+	db_node_type Type;
+};
+
+typedef struct db_feed_cell db_feed_cell;
+struct db_feed_cell
+{
+	u32 ID;
+	union
+	{
+		struct // NOTE(ariel) Leaf nodes store links and titles.
+		{
+			String Link;
+			String Title;
+			s32 ItemsPage;
+		};
+		struct // NOTE(ariel) Internal nodes store pointers to children.
+		{
+			s32 ChildPage;
+		};
+	};
+};
+
+typedef struct db_item_cell db_item_cell;
+struct db_item_cell
+{
+	String Link;
+	String Title;
+	b32 Unread;
 };
 
 typedef struct database database;
@@ -96,55 +106,62 @@ struct database
 {
 	Arena arena;
 
-	// TODO(ariel) Include read and write locks of some sort? What are some other
-	// ways to synchronize access to DB?
 	s16 FileFormatVersion;
 	s32 TotalPageCountInFile;
 
 	// NOTE(ariel) The database does not dedicate a root node to items of feeds
 	// because it only accesses those items from a feed.
-	btree_node FeedsRoot;
-	btree_node TagsRoot;
-	page_cache PageCache;
+	db_page_cache PageCache;
 	u8 Header[DB_PAGE_SIZE];
 };
-#endif
 
-typedef union DB_Item DB_Item;
-union DB_Item
+static void DB_Open(void);
+static void DB_Close(void);
+
+// NOTE(ariel) These procedures write to the datbase. Only the main thread may
+// call these.
+static void DB_AddFeed(String FeedLink);
+static void DB_AddItems(String FeedLink, RSS_Tree_Node *ItemNode);
+static void DB_DeleteFeed(String FeedLink);
+
+// NOTE(ariel) These procedure updates already written fields in the database.
+static void DB_UpdateFeedTitle(String FeedLink, String FeedTitle);
+static void DB_MarkItemRead(String FeedLink, String ItemLink);
+static void DB_MarkAllFeedItemsRead(String FeedLink);
+
+typedef struct db_feed db_feed;
+struct db_feed
 {
-	struct
-	{
-		String link;
-		String title;
-		b32 unread;
-	};
-	struct
-	{
-		String Link;
-		String Title;
-		b32 Unread;
-	};
+	db_feed *Next;
+	String Link;
+	String Title;
 };
 
-static void db_init(Database **db);
-static void db_free(Database *db);
+typedef struct db_item db_item;
+struct db_item
+{
+	db_item *Next;
+	String Link;
+	String Title;
+	b32 Unread;
+};
 
-static void db_add_feed(Database *db, String feed_link, String feed_title);
-static void db_add_or_update_feed(Database *db, String feed_link, String feed_title);
-static void db_add_item(Database *db, String feed_link, RSS_Tree_Node *item_node);
-static void db_tag_feed(Database *db, String tag, String feed_title);
+typedef struct db_feed_list db_feed_list;
+struct db_feed_list
+{
+	db_feed *First;
+	db_feed *Last;
+};
 
-static void db_del_feed(Database *db, String feed_link);
+typedef struct db_item_list db_item_list;
+struct db_item_list
+{
+	db_item *First;
+	db_item *Last;
+};
 
-static void db_mark_item_read(Database *db, String item_link);
-static void db_mark_all_read(Database *db, String feed_link);
-
-// NOTE(ariel) The following functions assume one and only one thread calls
-// them until exhaustion.
-static b32 db_filter_feeds_by_tag(Database *db, String *feed_link, String *feed_title, String_List tags);
-static b32 db_iterate_feeds(Database *db, String *feed_link, String *feed_title);
-static b32 db_iterate_items(Database *db, String feed_link, DB_Item *item);
-static b32 db_iterate_tags(Database *db, String *tag);
+// NOTE(ariel) These procedures strictly read from the database.
+static db_feed_list DB_GetAllFeeds(void);
+static db_item_list DB_GetAllFeedItems(String FeedLink);
 
 #endif
