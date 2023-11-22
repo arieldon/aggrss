@@ -20,6 +20,7 @@ typedef size_t usize;
 typedef ssize_t ssize;
 typedef uintptr_t uintptr;
 typedef intptr_t sintptr;
+typedef s8 b8;
 typedef s32 b32;
 typedef float f32;
 typedef double f64;
