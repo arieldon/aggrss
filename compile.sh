@@ -4,15 +4,15 @@ set -eux
 
 BIN="aggrss"
 
-COMPILER="gcc"
+COMPILER="clang"
 CFLAGS="-std=c11 -D_DEFAULT_SOURCE"
-WARNINGS="-Wall -Wextra -Wshadow -Wconversion -Wdouble-promotion -Wformat -Wno-sign-conversion -Wno-unused-function"
+WARNINGS="-Wall -Wextra -Wshadow -Wformat -Wdouble-promotion -Wno-sign-conversion -Wno-unused-function -Wno-unused-parameter"
 if [ "$COMPILER" = "clang" ]
 then
 	WARNINGS="$WARNINGS -Wreturn-stack-address"
 elif [ "$COMPILER" = "gcc" ]
 then
-	WARNINGS="$WARNINGS -Wreturn-local-addr -Wrestrict -Wnull-dereference -Wjump-misses-init "
+	WARNINGS="$WARNINGS -Wconversion -Wreturn-local-addr -Wrestrict -Wnull-dereference -Wjump-misses-init"
 fi
 LIBRARIES="-pthread -lm"
 LIBRARIES="$LIBRARIES `curl-config --cflags --libs`"
