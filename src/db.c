@@ -248,6 +248,68 @@ DB_WriteChunkHeaderToNode(db_btree_node *Node, db_chunk_header Header)
 	}
 }
 
+static void
+DB_UpdateFreeChunkListAfterInsertion(db_btree_node *Node, db_chunk_header UsedChunk, s16 UsedBytesCount)
+{
+	// NOTE(ariel) Update chunk position and number of free bytes.
+	{
+		s16 MinimumCellSize = Node->Type == DB_NODE_TYPE_INTERNAL ? 8 : 16;
+		s16 RemainingBytesCount = UsedChunk.BytesCount - UsedBytesCount;
+		db_chunk_header PreviousChunk = DB_ReadChunkHeaderFromNode(Node, UsedChunk.PreviousChunkPosition);
+
+		if(RemainingBytesCount >= MinimumCellSize)
+		{
+			// TODO(ariel) Notate `2*sizeof(s16)` equals size of free chunk header on
+			// disk.
+			s16 CellPosition = UsedChunk.Position + 2*sizeof(s16) - UsedBytesCount;
+			db_chunk_header UpdatedChunk =
+			{
+				.Position = (CellPosition-1) - 2*sizeof(s16),
+				.NextChunkPosition = UsedChunk.NextChunkPosition,
+				.BytesCount = RemainingBytesCount,
+			};
+			DB_WriteChunkHeaderToNode(Node, UpdatedChunk);
+			PreviousChunk.NextChunkPosition = UpdatedChunk.Position;
+		}
+		else
+		{
+			// TODO(ariel) Defragment node if this value reaches some threshold.
+			// SQLite places this threshold at 60 bytes.
+			Node->FragmentedBytesCount += RemainingBytesCount;
+			PreviousChunk.NextChunkPosition = UsedChunk.NextChunkPosition;
+		}
+
+		DB_WriteChunkHeaderToNode(Node, PreviousChunk);
+	}
+
+	// NOTE(ariel) Find free chunk header that contains bytes bordering list of
+	// cell position entries and reduce its size by size of new cell position
+	// entry.
+	{
+		s16 CellPositionEntriesBase = Node->Type == DB_NODE_TYPE_INTERNAL
+			? DB_PAGE_INTERNAL_CELL_POSITIONS
+			: DB_PAGE_LEAF_CELL_POSITIONS;
+		s16 FreeSpaceStart = CellPositionEntriesBase + sizeof(s16)*Node->CellCount;
+
+		db_chunk_header Chunk = DB_ReadChunkHeaderFromNode(Node, Node->OffsetToFirstFreeBlock);
+		while(Chunk.BytesCount)
+		{
+			// NOTE(ariel) There may not exist a chunk that borders cell position
+			// entries because a cell might sit there.
+			if(Chunk.Position - Chunk.BytesCount < FreeSpaceStart)
+			{
+				Chunk.BytesCount -= sizeof(s16);
+				DB_WriteChunkHeaderToNode(Node, Chunk);
+				break;
+			}
+			Chunk = DB_ReadChunkHeaderFromNode(Node, Chunk.NextChunkPosition);
+		}
+	}
+
+	// TODO(ariel) Merge bordering chunks.
+	;
+}
+
 static db_chunk_header
 DB_FindChunkBigEnough(db_btree_node *Node, db_feed_cell Cell)
 {
@@ -570,33 +632,6 @@ DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeCh
 		StringSerialize(CellTitle, Cell.Title);
 		s32Serialize(CellItemsPage, Cell.ItemsPage);
 
-		// NOTE(ariel) Update free list in page.
-		s16 RemainingBytesCount = FreeChunk.BytesCount - RequiredBytesCount;
-		if(RemainingBytesCount > 4)
-		{
-			s16 Offset = (CellPosition-1) - 2*sizeof(s16);
-			db_chunk_header UpdatedChunk =
-			{
-				.Position = Offset,
-				.NextChunkPosition = FreeChunk.NextChunkPosition,
-				.BytesCount = RemainingBytesCount,
-			};
-			DB_WriteChunkHeaderToNode(Node, UpdatedChunk);
-
-			db_chunk_header PreviousChunk = DB_ReadChunkHeaderFromNode(Node, FreeChunk.PreviousChunkPosition);
-			PreviousChunk.NextChunkPosition = Offset;
-			DB_WriteChunkHeaderToNode(Node, PreviousChunk, PreviousChunk.Position);
-		}
-		else
-		{
-			// TODO(ariel) Defragment node if this value reaches some threshold.
-			Node->FragmentedBytesCount += RemainingBytesCount;
-
-			db_chunk_header PreviousChunk = DB_ReadChunkHeaderFromNode(Node, FreeChunk.PreviousChunkPosition);
-			PreviousChunk.NextChunkPosition = FreeChunk.NextChunkPosition;
-			DB_WriteChunkHeaderToNode(Node, PreviousChunk, PreviousChunk.Position);
-		}
-
 		// NOTE(ariel) Serialize cell entry position.
 		u8 *CellPositionEntry = CellPositionEntries + 2*CellEntryIndex;
 		u8 *NextCellPositionEntry = CellPositionEntries + 2*(CellEntryIndex+1);
@@ -606,6 +641,8 @@ DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeCh
 
 		Node->CellCount += 1;
 		Assert(CellEntryIndex < Node->CellCount);
+
+		DB_UpdateFreeChunkListAfterInsertion(Node, FreeChunk, RequiredBytesCount);
 	}
 }
 
