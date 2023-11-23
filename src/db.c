@@ -222,8 +222,9 @@ DB_ReadChunkHeaderFromNode(db_btree_node *Node, s16 HeaderPosition)
 	
 	if(HeaderPosition != DB_TERMINATING_CHUNK)
 	{
-		Assert(HeaderPosition > (Node->Type == DB_NODE_TYPE_INTERNAL ? 12 : 8));
+		Assert(HeaderPosition > (Node->Type == DB_NODE_TYPE_INTERNAL ? DB_PAGE_INTERNAL_CELL_POSITIONS : DB_PAGE_LEAF_CELL_POSITIONS));
 		db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
+		Result.Position = HeaderPosition;
 		Result.NextChunkPosition = s16Deserialize(&Page->Data[HeaderPosition + 0]);
 		Result.BytesCount = s16Deserialize(&Page->Data[HeaderPosition + 2]);
 	}
@@ -232,14 +233,14 @@ DB_ReadChunkHeaderFromNode(db_btree_node *Node, s16 HeaderPosition)
 }
 
 static void
-DB_WriteChunkHeaderToNode(db_btree_node *Node, db_chunk_header Header, s16 HeaderPosition)
+DB_WriteChunkHeaderToNode(db_btree_node *Node, db_chunk_header Header)
 {
-	if(HeaderPosition != DB_TERMINATING_CHUNK)
+	if(Header.Position != DB_TERMINATING_CHUNK)
 	{
-		Assert(HeaderPosition > (Node->Type == DB_NODE_TYPE_INTERNAL ? 12 : 8));
+		Assert(Header.Position > (Node->Type == DB_NODE_TYPE_INTERNAL ? DB_PAGE_INTERNAL_CELL_POSITIONS : DB_PAGE_LEAF_CELL_POSITIONS));
 		db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
-		s16Serialize(&Page->Data[HeaderPosition + 0], Header.NextChunkPosition);
-		s16Serialize(&Page->Data[HeaderPosition + 2], Header.BytesCount);
+		s16Serialize(&Page->Data[Header.Position + 0], Header.NextChunkPosition);
+		s16Serialize(&Page->Data[Header.Position + 2], Header.BytesCount);
 	}
 	else
 	{
@@ -350,10 +351,11 @@ DB_InitializeNewNode(db_node_type NodeType)
 
 	db_chunk_header ChunkHeader =
 	{
+		.Position = Node.OffsetToFirstFreeBlock,
 		.NextChunkPosition = DB_TERMINATING_CHUNK,
 		.BytesCount = AvailableBytes,
 	};
-	DB_WriteChunkHeaderToNode(&Node, ChunkHeader, Node.OffsetToFirstFreeBlock);
+	DB_WriteChunkHeaderToNode(&Node, ChunkHeader);
 
 	DB.PageCache.CacheToFilePageNumberMap[Node.PageNumberInCache] = DB.TotalPageCountInFile;
 	DB.TotalPageCountInFile += 1;
@@ -575,10 +577,11 @@ DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeCh
 			s16 Offset = (CellPosition-1) - 2*sizeof(s16);
 			db_chunk_header UpdatedChunk =
 			{
+				.Position = Offset,
 				.NextChunkPosition = FreeChunk.NextChunkPosition,
 				.BytesCount = RemainingBytesCount,
 			};
-			DB_WriteChunkHeaderToNode(Node, UpdatedChunk, Offset);
+			DB_WriteChunkHeaderToNode(Node, UpdatedChunk);
 
 			db_chunk_header PreviousChunk = DB_ReadChunkHeaderFromNode(Node, FreeChunk.PreviousChunkPosition);
 			PreviousChunk.NextChunkPosition = Offset;
