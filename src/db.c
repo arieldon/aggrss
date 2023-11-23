@@ -493,7 +493,7 @@ DB_WriteHeader(void)
 	s32Serialize(&DB.Header[20], DB.TotalPageCountInFile);
 	s32Serialize(&DB.Header[24], DB_ROOT_PAGE_IN_FILE);
 	memset(&DB.Header[28], 0, DB.PageCache.PageSize - 28);
-	write(DB.PageCache.FileDescriptor, DB.Header, DB_HEADER_SIZE);
+	pwrite(DB.PageCache.FileDescriptor, DB.Header, DB_HEADER_SIZE, 0);
 }
 
 static void
