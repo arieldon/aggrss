@@ -177,10 +177,9 @@ enum
 	DB_ROOT_PAGE_IN_FILE = 1,
 };
 
-// NOTE(ariel) Indicate first and last chunk in free list of chunks in page.
 enum
 {
-	DB_TERMINATING_CHUNK = 0,
+	DB_CHUNK_TERMINATOR = 0, // NOTE(ariel) Indicate first and last chunk in free list of chunks in page.
 	DB_CHUNK_SIZE_ON_DISK = 2*sizeof(s16),
 };
 
@@ -224,7 +223,7 @@ DB_ReadChunkHeaderFromNode(db_btree_node *Node, s16 HeaderPosition)
 {
 	db_chunk_header Result = {0};
 	
-	if(HeaderPosition != DB_TERMINATING_CHUNK)
+	if(HeaderPosition != DB_CHUNK_TERMINATOR)
 	{
 		Assert(HeaderPosition > (Node->Type == DB_NODE_TYPE_INTERNAL ? DB_PAGE_INTERNAL_CELL_POSITIONS : DB_PAGE_LEAF_CELL_POSITIONS));
 		db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
@@ -239,7 +238,7 @@ DB_ReadChunkHeaderFromNode(db_btree_node *Node, s16 HeaderPosition)
 static void
 DB_WriteChunkHeaderToNode(db_btree_node *Node, db_chunk_header Header)
 {
-	if(Header.Position != DB_TERMINATING_CHUNK)
+	if(Header.Position != DB_CHUNK_TERMINATOR)
 	{
 		Assert(Header.Position > (Node->Type == DB_NODE_TYPE_INTERNAL ? DB_PAGE_INTERNAL_CELL_POSITIONS : DB_PAGE_LEAF_CELL_POSITIONS));
 		db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
@@ -317,12 +316,12 @@ DB_FindChunkBigEnough(db_btree_node *Node, db_feed_cell Cell)
 {
 	db_chunk_header Result = {0};
 
-	s16 PreviousChunkPosition = DB_TERMINATING_CHUNK;
+	s16 PreviousChunkPosition = DB_CHUNK_TERMINATOR;
 	s16 ChunkPosition = Node->OffsetToFirstFreeBlock;
 	s16 RequiredBytesCount = Node->Type == DB_NODE_TYPE_INTERNAL
 		? DB_GetInternalNodeSize(Cell)
 		: DB_GetLeafNodeSize(Cell);
-	while(ChunkPosition != DB_TERMINATING_CHUNK)
+	while(ChunkPosition != DB_CHUNK_TERMINATOR)
 	{
 		db_chunk_header Header = DB_ReadChunkHeaderFromNode(Node, ChunkPosition);
 
@@ -416,7 +415,7 @@ DB_InitializeNewNode(db_node_type NodeType)
 	db_chunk_header ChunkHeader =
 	{
 		.Position = Node.OffsetToFirstFreeBlock,
-		.NextChunkPosition = DB_TERMINATING_CHUNK,
+		.NextChunkPosition = DB_CHUNK_TERMINATOR,
 		.BytesCount = AvailableBytes,
 	};
 	DB_WriteChunkHeaderToNode(&Node, ChunkHeader);
