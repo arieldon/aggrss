@@ -194,7 +194,7 @@ struct db_chunk_header
 };
 
 static inline ssize
-DB_GetFeedSize(db_feed_cell Cell)
+DB_GetLeafNodeSize(db_feed_cell Cell)
 {
 	ssize Result =
 		sizeof(Cell.ID) +
@@ -202,6 +202,14 @@ DB_GetFeedSize(db_feed_cell Cell)
 		sizeof(Cell.Title.len) + Cell.Title.len +
 		sizeof(Cell.ItemsPage);
 	Assert(Result < DB_PAGE_SIZE);
+	return Result;
+}
+
+static inline ssize
+DB_GetInternalNodeSize(db_feed_cell Cell)
+{
+	enum { INTERNAL_CELL_SIZE = sizeof(Cell.ID) + sizeof(Cell.ChildPage) }; StaticAssert(INTERNAL_CELL_SIZE == 8);
+	ssize Result = INTERNAL_CELL_SIZE;
 	return Result;
 }
 
@@ -246,7 +254,9 @@ DB_FindChunkBigEnough(db_btree_node *Node, db_feed_cell Cell)
 
 	s16 PreviousChunkPosition = DB_TERMINATING_CHUNK;
 	s16 ChunkPosition = Node->OffsetToFirstFreeBlock;
-	s16 RequiredBytesCount = DB_GetFeedSize(Cell);
+	s16 RequiredBytesCount = Node->Type == DB_NODE_TYPE_INTERNAL
+		? DB_GetInternalNodeSize(Cell)
+		: DB_GetLeafNodeSize(Cell);
 	while(ChunkPosition != DB_TERMINATING_CHUNK)
 	{
 		db_chunk_header Header = DB_ReadChunkHeaderFromNode(Node, ChunkPosition);
@@ -261,8 +271,12 @@ DB_FindChunkBigEnough(db_btree_node *Node, db_feed_cell Cell)
 		ChunkPosition = Header.NextChunkPosition;
 	}
 
-	Result.Position = ChunkPosition;
-	Result.PreviousChunkPosition = PreviousChunkPosition;
+	if(Result.BytesCount)
+	{
+		Result.Position = ChunkPosition;
+		Result.PreviousChunkPosition = PreviousChunkPosition;
+	}
+
 	return Result;
 }
 
@@ -535,7 +549,7 @@ DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeCh
 
 	if(Unique)
 	{
-		s16 RequiredBytesCount = DB_GetFeedSize(Cell);
+		s16 RequiredBytesCount = DB_GetLeafNodeSize(Cell);
 		s16 CellPosition = FreeChunk.Position + 2*sizeof(s16) - RequiredBytesCount;
 		Assert(RequiredBytesCount <= FreeChunk.BytesCount);
 		Assert(CellPosition > DB_PAGE_LEAF_CELL_POSITIONS + 2*Node->CellCount);
