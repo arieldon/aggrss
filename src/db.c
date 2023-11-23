@@ -178,7 +178,11 @@ enum
 };
 
 // NOTE(ariel) Indicate first and last chunk in free list of chunks in page.
-enum { DB_TERMINATING_CHUNK = 0 };
+enum
+{
+	DB_TERMINATING_CHUNK = 0,
+	DB_CHUNK_SIZE_ON_DISK = 2*sizeof(s16),
+};
 
 typedef struct db_chunk_header db_chunk_header;
 struct db_chunk_header
@@ -259,12 +263,10 @@ DB_UpdateFreeChunkListAfterInsertion(db_btree_node *Node, db_chunk_header UsedCh
 
 		if(RemainingBytesCount >= MinimumCellSize)
 		{
-			// TODO(ariel) Notate `2*sizeof(s16)` equals size of free chunk header on
-			// disk.
-			s16 CellPosition = UsedChunk.Position + 2*sizeof(s16) - UsedBytesCount;
+			s16 CellPosition = UsedChunk.Position + DB_CHUNK_SIZE_ON_DISK - UsedBytesCount;
 			db_chunk_header UpdatedChunk =
 			{
-				.Position = (CellPosition-1) - 2*sizeof(s16),
+				.Position = (CellPosition-1) - DB_CHUNK_SIZE_ON_DISK,
 				.NextChunkPosition = UsedChunk.NextChunkPosition,
 				.BytesCount = RemainingBytesCount,
 			};
@@ -391,7 +393,7 @@ DB_InitializeNewNode(db_node_type NodeType)
 	db_btree_node Node =
 	{
 		.PageNumberInCache = DB_AllocatePage(),
-		.OffsetToFirstFreeBlock = DB.PageCache.PageSize - 4,
+		.OffsetToFirstFreeBlock = DB.PageCache.PageSize - DB_CHUNK_SIZE_ON_DISK,
 		.Type = NodeType,
 	};
 
@@ -614,7 +616,7 @@ DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeCh
 	if(Unique)
 	{
 		s16 RequiredBytesCount = DB_GetLeafNodeSize(Cell);
-		s16 CellPosition = FreeChunk.Position + 2*sizeof(s16) - RequiredBytesCount;
+		s16 CellPosition = FreeChunk.Position + DB_CHUNK_SIZE_ON_DISK - RequiredBytesCount;
 		Assert(RequiredBytesCount <= FreeChunk.BytesCount);
 		Assert(CellPosition > DB_PAGE_LEAF_CELL_POSITIONS + 2*Node->CellCount);
 		Assert(CellPosition < DB_PAGE_SIZE);
