@@ -269,19 +269,19 @@ process_frame(void)
 {
 	ui_begin();
 
-	local_persist char new_feed_input[1024];
-	local_persist Buffer new_feed =
+	local_persist char NewFeedInput[1024];
+	local_persist Buffer NewFeed =
 	{
-		.data.str = new_feed_input,
-		.cap = sizeof(new_feed_input),
+		.data.str = NewFeedInput,
+		.cap = sizeof(NewFeedInput),
 	};
-	b32 submit_new_feed = false;
-	submit_new_feed |= ui_textbox(&new_feed, string_literal("URL of Feed"));
-	submit_new_feed |= ui_button(string_literal("Add Feed"));
-	if (submit_new_feed)
+	b32 SubmitNewFeed = false;
+	SubmitNewFeed |= ui_textbox(&NewFeed, string_literal("URL of Feed"));
+	SubmitNewFeed |= ui_button(string_literal("Add Feed"));
+	if (SubmitNewFeed && NewFeed.data.len > 0)
 	{
-		DB_AddFeed(new_feed.data);
-		new_feed.data.len = 0;
+		DB_AddFeed(NewFeed.data);
+		NewFeed.data.len = 0;
 	}
 
 	db_feed_list Feeds = DB_GetAllFeeds();
