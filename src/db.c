@@ -356,7 +356,7 @@ DB_ReadNodeFromDisk(s32 PageNumberInFile)
 	Node.OffsetToFirstFreeBlock = s16Deserialize(&Page->Data[DB_PAGE_OFFSET_TO_FIRST_FREE_BLOCK]);
 	Node.CellCount = s16Deserialize(&Page->Data[DB_PAGE_CELL_COUNT]);
 	Node.FragmentedBytesCount = s8Deserialize(&Page->Data[DB_PAGE_FRAGMENTED_BYTES_COUNT]);
-	Node.RightPageNumber = Node.Type == DB_NODE_TYPE_INTERNAL ? s32Deserialize(&Page->Data[DB_PAGE_RIGHT_PAGE_NUMBER]) : -1;
+	Node.RightPageNumber = Node.Type == DB_NODE_TYPE_INTERNAL ? s32Deserialize(&Page->Data[DB_PAGE_RIGHT_PAGE_NUMBER]) : 0;
 
 	return Node;
 }
@@ -375,12 +375,12 @@ DB_WriteNodeToDisk(db_btree_node *Node)
 	s8Serialize(&Page->Data[DB_PAGE_FRAGMENTED_BYTES_COUNT], Node->FragmentedBytesCount);
 	if(Node->Type == DB_NODE_TYPE_INTERNAL)
 	{
-		Assert(Node->RightPageNumber != -1);
+		Assert(Node->RightPageNumber);
 		s32Serialize(&Page->Data[DB_PAGE_RIGHT_PAGE_NUMBER], Node->RightPageNumber);
 	}
 	else
 	{
-		Assert(Node->RightPageNumber == -1);
+		Assert(!Node->RightPageNumber);
 	}
 
 	DB_WritePageToDisk(Node->PageNumberInCache);
@@ -399,12 +399,10 @@ DB_InitializeNewNode(db_node_type NodeType)
 	s16 AvailableBytes = DB.PageCache.PageSize;
 	if(NodeType == DB_NODE_TYPE_INTERNAL)
 	{
-		Node.RightPageNumber = 0;
 		AvailableBytes -= DB_PAGE_INTERNAL_CELL_POSITIONS;
 	}
 	else if(NodeType == DB_NODE_TYPE_LEAF)
 	{
-		Node.RightPageNumber = -1;
 		AvailableBytes -= DB_PAGE_LEAF_CELL_POSITIONS;
 	}
 	else
@@ -826,7 +824,7 @@ DB_AddFeedIntoNode(db_btree_node *Node, db_feed_cell CellToInsert, db_chunk_head
 
 			if(Unique)
 			{
-				s32 ChildPage = -1;
+				s32 ChildPage = 0;
 				if(CellEntryIndex == Node->CellCount)
 				{
 					ChildPage = Node->RightPageNumber;
@@ -836,7 +834,7 @@ DB_AddFeedIntoNode(db_btree_node *Node, db_feed_cell CellToInsert, db_chunk_head
 					db_feed_cell SelectedCell = DB_ReadFeedCell(Node, CellEntryIndex);
 					ChildPage = SelectedCell.ChildPage;
 				}
-				Assert(ChildPage >= 1);
+				Assert(ChildPage >= 2);
 				Assert(ChildPage <= DB.TotalPageCountInFile);
 
 				db_btree_node ChildNode = DB_ReadNodeFromDisk(ChildPage);
