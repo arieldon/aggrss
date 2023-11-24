@@ -579,11 +579,6 @@ DBHash(String Value)
 }
 
 static void
-DB_SplitNodes(void)
-{
-}
-
-static void
 DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeChunk)
 {
 	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
@@ -640,19 +635,232 @@ DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeCh
 }
 
 static void
-DB_AddFeedIntoNode(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeChunk)
+DB_InsertInternalCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeChunk)
+{
+	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
+
+	// NOTE(ariel) Find sorted cell entry position.
+	b32 Unique = true;
+	s32 CellEntryIndex = 0;
+	u8 *CellPositionEntries = &Page->Data[DB_PAGE_LEAF_CELL_POSITIONS];
+	while(CellEntryIndex < Node->CellCount)
+	{
+		s16 ExistingCellPosition = s16Deserialize(CellPositionEntries + 2*CellEntryIndex);
+		u32 ExistingCellID = s32Deserialize(&Page->Data[ExistingCellPosition]);
+		if(Cell.ID <= ExistingCellID)
+		{
+			Unique = Cell.ID != ExistingCellID;
+			break;
+		}
+		CellEntryIndex += 1;
+	}
+
+	if(Unique)
+	{
+		s16 RequiredBytesCount = DB_GetInternalNodeSize(Cell);
+		s16 CellPosition = FreeChunk.Position + DB_CHUNK_SIZE_ON_DISK - RequiredBytesCount;
+		Assert(RequiredBytesCount <= FreeChunk.BytesCount);
+		Assert(CellPosition > DB_PAGE_LEAF_CELL_POSITIONS + 2*Node->CellCount);
+		Assert(CellPosition < DB_PAGE_SIZE);
+
+		// NOTE(ariel) Serialize cell.
+		u8 *CellID = &Page->Data[CellPosition];
+		u8 *CellChildPage = CellID + sizeof(Cell.ID);
+		s32Serialize(CellID, Cell.ID);
+		s32Serialize(CellChildPage, Cell.ChildPage);
+
+		// NOTE(ariel) Serialize cell entry position.
+		u8 *CellPositionEntry = CellPositionEntries + 2*CellEntryIndex;
+		u8 *NextCellPositionEntry = CellPositionEntries + 2*(CellEntryIndex+1);
+		ssize BytesToMoveCount = 2*(Node->CellCount - CellEntryIndex);
+		memmove(NextCellPositionEntry, CellPositionEntry, BytesToMoveCount);
+		s16Serialize(CellPositionEntry, CellPosition);
+
+		Node->CellCount += 1;
+		Assert(CellEntryIndex < Node->CellCount);
+
+		DB_UpdateFreeChunkListAfterInsertion(Node, FreeChunk, RequiredBytesCount);
+	}
+	else
+	{
+		// NOTE(ariel) There's no way for the user to manually insert cells into
+		// internal nodes, so if this procedure encounters a duplicate, there's a
+		// bug.
+		Assert(!"unreachable");
+	}
+}
+
+static void
+DB_DeleteCell(db_btree_node *Node, s32 CellIndex)
+{
+	Assert(CellIndex < Node->CellCount);
+
+	s16 CellSize = 0;
+	u8 *CellPositionEntries = 0;
+	db_feed_cell CellToDelete = DB_ReadFeedCell(Node, CellIndex);
+	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
+	if(Node->Type == DB_NODE_TYPE_INTERNAL)
+	{
+		CellSize = DB_GetInternalNodeSize(CellToDelete);
+		CellPositionEntries = &Page->Data[DB_PAGE_INTERNAL_CELL_POSITIONS];
+	}
+	else if(Node->Type == DB_NODE_TYPE_LEAF)
+	{
+		CellSize = DB_GetLeafNodeSize(CellToDelete);
+		CellPositionEntries = &Page->Data[DB_PAGE_LEAF_CELL_POSITIONS];
+	}
+	else
+	{
+		Assert(!"unreachable");
+	}
+
+	u8 *CellPositionEntry = CellPositionEntries + 2*CellIndex;
+	u8 *NextCellPositionEntry = CellPositionEntries + 2*(CellIndex+1);
+	s16 CellPosition = s16Deserialize(CellPositionEntry);
+	ssize BytesToMoveCount = 2*(Node->CellCount - CellIndex);
+	memmove(CellPositionEntry, NextCellPositionEntry, BytesToMoveCount);
+
+	db_chunk_header FreeChunk =
+	{
+		.Position = CellPosition + CellSize - DB_CHUNK_SIZE_ON_DISK,
+		.NextChunkPosition = Node->OffsetToFirstFreeBlock,
+		.BytesCount = CellSize,
+	};
+	DB_WriteChunkHeaderToNode(Node, FreeChunk);
+	Node->OffsetToFirstFreeBlock = FreeChunk.Position;
+
+	Node->CellCount -= 1;
+}
+
+static void
+DB_TransferFeedCell(db_btree_node *Destination, db_btree_node *Source, s32 CellIndex)
+{
+	Assert(Destination->Type == Source->Type);
+
+	db_feed_cell Cell = DB_ReadFeedCell(Source, CellIndex);
+	db_chunk_header FreeChunk = DB_FindChunkBigEnough(Destination, Cell);
+	switch(Source->Type)
+	{
+		case DB_NODE_TYPE_INTERNAL:
+		{
+			DB_InsertInternalCell(Destination, Cell, FreeChunk);
+			break;
+		}
+		case DB_NODE_TYPE_LEAF:
+		{
+			// NOTE(ariel) Space guaranteed in context in which DB_SplitNode() calls
+			// this function since sibling node newly allocated.
+			Assert(FreeChunk.BytesCount > 0);
+			DB_InsertLeafCell(Destination, Cell, FreeChunk);
+			break;
+		}
+		default: Assert(!"unreachable");
+	}
+
+	DB_DeleteCell(Source, CellIndex);
+}
+
+static void
+DB_SplitNode(s32 ParentPageNumberInFile, s32 PageNumberInFileToSplit)
+{
+#ifdef DEBUG
+	DB.SplitCount += 1;
+#endif
+
+	db_btree_node ParentNode = DB_ReadNodeFromDisk(ParentPageNumberInFile);
+	db_btree_node NodeToSplit = DB_ReadNodeFromDisk(PageNumberInFileToSplit);
+	db_btree_node NewSiblingNode = DB_InitializeNewNode(NodeToSplit.Type);
+
+	s32 MedianCellIndex = NodeToSplit.CellCount / 2;
+	db_feed_cell MedianCell = DB_ReadFeedCell(&NodeToSplit, MedianCellIndex);
+
+	for(
+		// NOTE(ariel) Include median cell itself if and only if leaf node.
+		s32 CellIndex = MedianCellIndex - (NodeToSplit.Type == DB_NODE_TYPE_INTERNAL);
+		CellIndex >= 0;
+		CellIndex -= 1)
+	{
+		DB_TransferFeedCell(&NewSiblingNode, &NodeToSplit, CellIndex);
+	}
+
+	// NOTE(ariel) Parent node must update its references to cells that move from
+	// the original node to its new sibling. `ParentCell` acts as a fork in the
+	// search path that divides it into two.
+	db_feed_cell ParentCell =
+	{
+		.ID = MedianCell.ID,
+		.ChildPage = DB.PageCache.CacheToFilePageNumberMap[NewSiblingNode.PageNumberInCache],
+	};
+	db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&ParentNode, ParentCell);
+	DB_InsertInternalCell(&ParentNode, ParentCell, ChunkHeader);
+
+	// NOTE(ariel) Write insertions before deletions to disk.
+	DB_WriteNodeToDisk(&NewSiblingNode);
+	DB_WriteNodeToDisk(&ParentNode);
+	DB_WriteNodeToDisk(&NodeToSplit);
+}
+
+static void
+DB_AddFeedIntoNode(db_btree_node *Node, db_feed_cell CellToInsert, db_chunk_header FreeChunk)
 {
 	switch(Node->Type)
 	{
 		case DB_NODE_TYPE_INTERNAL:
 		{
-			// TODO(ariel) Recursively search tree to find leaf node in which to
-			// insert.
+			db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
+
+			b32 Unique = true;
+			s32 CellEntryIndex = 0;
+			u8 *CellPositionEntries = &Page->Data[DB_PAGE_INTERNAL_CELL_POSITIONS];
+			while(CellEntryIndex < Node->CellCount)
+			{
+				s16 ExistingCellPosition = s16Deserialize(CellPositionEntries + 2*CellEntryIndex);
+				u32 ExistingCellID = s32Deserialize(&Page->Data[ExistingCellPosition]);
+				if(CellToInsert.ID <= ExistingCellID)
+				{
+					Unique = CellToInsert.ID != ExistingCellID;
+					break;
+				}
+				CellEntryIndex += 1;
+			}
+
+			if(Unique)
+			{
+				s32 ChildPage = -1;
+				if(CellEntryIndex == Node->CellCount)
+				{
+					ChildPage = Node->RightPageNumber;
+				}
+				else
+				{
+					db_feed_cell SelectedCell = DB_ReadFeedCell(Node, CellEntryIndex);
+					ChildPage = SelectedCell.ChildPage;
+				}
+				Assert(ChildPage >= 1);
+				Assert(ChildPage <= DB.TotalPageCountInFile);
+
+				db_btree_node ChildNode = DB_ReadNodeFromDisk(ChildPage);
+				db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&ChildNode, CellToInsert);
+				if(!ChunkHeader.BytesCount)
+				{
+					s32 ParentPageNumberInFile = DB.PageCache.CacheToFilePageNumberMap[Node->PageNumberInCache];
+					DB_SplitNode(ParentPageNumberInFile, ChildPage);
+
+					ChildNode = DB_ReadNodeFromDisk(ChildPage); // NOTE(ariel) Refresh node.
+					ChunkHeader = DB_FindChunkBigEnough(&ChildNode, CellToInsert);
+					Assert(ChunkHeader.BytesCount);
+
+					*Node = DB_ReadNodeFromDisk(DB.PageCache.CacheToFilePageNumberMap[Node->PageNumberInCache]);
+				}
+
+				DB_AddFeedIntoNode(&ChildNode, CellToInsert, ChunkHeader);
+			}
+
 			break;
 		}
 		case DB_NODE_TYPE_LEAF:
 		{
-			DB_InsertLeafCell(Node, Cell, FreeChunk);
+			DB_InsertLeafCell(Node, CellToInsert, FreeChunk);
 			DB_WriteNodeToDisk(Node);
 			break;
 		}
@@ -679,16 +887,50 @@ DB_AddFeed(String FeedLink)
 	};
 	db_btree_node Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
 
-	// TODO(ariel) Split root if it doesn't contain enough space for this cell.
 	db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&Root, Cell);
 	if(ChunkHeader.BytesCount == 0)
 	{
-		fprintf(stderr, "TODO(ariel) implement splits and internal nodes since root at capacity\n");
-		return;
+		db_btree_node RootCopy = DB_InitializeNewNode(Root.Type);
+
+		s32 RootCopyPageNumberInFile = DB.PageCache.CacheToFilePageNumberMap[RootCopy.PageNumberInCache];
+		db_page *RootCopyPage = &DB.PageCache.Pages[RootCopyPageNumberInFile];
+		db_page *RootPage = &DB.PageCache.Pages[DB_ROOT_PAGE_IN_FILE];
+		memcpy(RootCopyPage->Data, RootPage->Data, DB_PAGE_SIZE);
+
+		// NOTE(ariel) This call reads from cache -- not disk -- in reality, and it
+		// synchronizes data structure in memory to newly written contents of page.
+		RootCopy = DB_ReadNodeFromDisk(RootCopyPageNumberInFile);
+
+		// NOTE(ariel) Write copy to disk before clearing root.
+		DB_WriteNodeToDisk(&RootCopy);
+
+		// NOTE(ariel) Clear root.
+		{
+			memset(RootPage->Data, 0, DB_PAGE_SIZE);
+
+			Root.RightPageNumber = RootCopyPageNumberInFile;
+			Root.OffsetToFirstFreeBlock = DB_PAGE_SIZE - DB_CHUNK_SIZE_ON_DISK;
+			Root.CellCount = 0;
+			Root.FragmentedBytesCount = 0;
+			Root.Type = DB_NODE_TYPE_INTERNAL;
+
+			db_chunk_header RootChunkHeader =
+			{
+				.Position = Root.OffsetToFirstFreeBlock,
+				.NextChunkPosition = DB_CHUNK_TERMINATOR,
+				// TODO(ariel) Should I consider that one cell position entry slot is
+				// essentially occupied too since it's necessary for an insertion?
+				.BytesCount = DB_PAGE_SIZE - DB_PAGE_INTERNAL_CELL_POSITIONS,
+			};
+			DB_WriteChunkHeaderToNode(&Root, RootChunkHeader);
+
+			DB_WriteNodeToDisk(&Root);
+		}
+
+		DB_SplitNode(DB_ROOT_PAGE_IN_FILE, RootCopyPageNumberInFile);
 	}
 
 	DB_AddFeedIntoNode(&Root, Cell, ChunkHeader);
-
 	DB_EndTransaction();
 }
 

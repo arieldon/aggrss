@@ -109,6 +109,10 @@ struct database
 	s16 FileFormatVersion;
 	s32 TotalPageCountInFile;
 
+#ifdef DEBUG
+	s32 SplitCount;
+#endif
+
 	// NOTE(ariel) The database does not dedicate a root node to items of feeds
 	// because it only accesses those items from a feed.
 	db_page_cache PageCache;
