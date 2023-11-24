@@ -459,14 +459,6 @@ DB_ReadFeedCell(db_btree_node *Node, s32 CellIndex)
 		Assert(LinkPosition < DB_PAGE_SIZE);
 		Assert(TitlePosition < DB_PAGE_SIZE);
 		Assert(ItemPagePosition < DB_PAGE_SIZE);
-
-		// NOTE(ariel) Clear title in memory if only padding for title upon update
-		// exists in database.
-		if(Result.Title.len == 32 && !Result.Title.str[0])
-		{
-			Result.Title.str = 0;
-			Result.Title.len = 0;
-		}
 	}
 	else
 	{
@@ -739,7 +731,13 @@ DB_GetAllFeeds(void)
 		db_feed *Feed = arena_alloc(&DB.arena, sizeof(db_feed_cell));
 		Feed->Next = 0;
 		Feed->Link = Cell.Link;
-		Feed->Title = Cell.Title;
+		if(Cell.Title.str[0])
+		{
+			// NOTE(ariel) Clear title in memory if only padding currently exists
+			// in database. This case occurs when user first adds some link or if
+			// this link remains untitled.
+			Feed->Title = Cell.Title;
+		}
 
 		if(!List.First)
 		{
