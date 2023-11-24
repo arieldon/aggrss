@@ -723,33 +723,36 @@ DB_GetAllFeeds(void)
 	db_feed_list List = {0};
 
 	// TODO(ariel) Recurse from internal nodes to leaf nodes.
-	db_btree_node Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE); Assert(Root.Type == DB_NODE_TYPE_LEAF);
-	for(s32 CellIndex = 0; CellIndex < Root.CellCount; CellIndex += 1)
+	db_btree_node Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
+	if(Root.Type == DB_NODE_TYPE_LEAF)
 	{
-		db_feed_cell Cell = DB_ReadFeedCell(&Root, CellIndex);
+		for(s32 CellIndex = 0; CellIndex < Root.CellCount; CellIndex += 1)
+		{
+			db_feed_cell Cell = DB_ReadFeedCell(&Root, CellIndex);
 
-		db_feed *Feed = arena_alloc(&DB.arena, sizeof(db_feed_cell));
-		Feed->Next = 0;
-		Feed->Link = Cell.Link;
-		if(Cell.Title.str[0])
-		{
-			// NOTE(ariel) Clear title in memory if only padding currently exists
-			// in database. This case occurs when user first adds some link or if
-			// this link remains untitled.
-			Feed->Title = Cell.Title;
-		}
+			db_feed *Feed = arena_alloc(&DB.arena, sizeof(db_feed_cell));
+			Feed->Next = 0;
+			Feed->Link = Cell.Link;
+			if(Cell.Title.str[0])
+			{
+				// NOTE(ariel) Clear title in memory if only padding currently exists
+				// in database. This case occurs when user first adds some link or if
+				// this link remains untitled.
+				Feed->Title = Cell.Title;
+			}
 
-		if(!List.First)
-		{
-			List.First = Feed;
-		}
-		else if(!List.Last)
-		{
-			List.First->Next = List.Last = Feed;
-		}
-		else
-		{
-			List.Last = List.Last->Next = Feed;
+			if(!List.First)
+			{
+				List.First = Feed;
+			}
+			else if(!List.Last)
+			{
+				List.First->Next = List.Last = Feed;
+			}
+			else
+			{
+				List.Last = List.Last->Next = Feed;
+			}
 		}
 	}
 
