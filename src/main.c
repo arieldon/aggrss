@@ -284,7 +284,7 @@ process_frame(void)
 		NewFeed.data.len = 0;
 	}
 
-	db_feed_list Feeds = DB_GetAllFeeds();
+	db_feed_list Feeds = DB_GetAllFeeds(&g_arena);
 
 	if (ui_button(string_literal("Reload All Feeds")))
 	{

@@ -958,44 +958,86 @@ DB_MarkAllFeedItemsRead(String FeedLink)
 }
 
 static db_feed_list
-DB_GetAllFeeds(void)
+DB_GetAllFeeds(Arena *PersistentArena)
 {
 	db_feed_list List = {0};
+	Arena_Checkpoint Checkpoint = arena_checkpoint_set(&DB.arena);
 
-	// TODO(ariel) Recurse from internal nodes to leaf nodes.
-	db_btree_node Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
-	if(Root.Type == DB_NODE_TYPE_LEAF)
+	typedef struct node node;
+	struct node
 	{
-		for(s32 CellIndex = 0; CellIndex < Root.CellCount; CellIndex += 1)
+		node *Next;
+		s32 PageNumber;
+	};
+
+	node *Root = arena_alloc(&DB.arena, sizeof(node));
+	Root->Next = 0;
+	Root->PageNumber = DB_ROOT_PAGE_IN_FILE;
+
+	node *InternalNodeStack = Root;
+	while(InternalNodeStack)
+	{
+		node *StackNode = InternalNodeStack;
+		InternalNodeStack = InternalNodeStack->Next;
+
+		db_btree_node Node = DB_ReadNodeFromDisk(StackNode->PageNumber);
+		switch(Node.Type)
 		{
-			db_feed_cell Cell = DB_ReadFeedCell(&Root, CellIndex);
+			case DB_NODE_TYPE_INTERNAL:
+			{
+				for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
+				{
+					db_feed_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+					node *NewStackNode = arena_alloc(&DB.arena, sizeof(node));
+					NewStackNode->PageNumber = Cell.ChildPage;
+					NewStackNode->Next = InternalNodeStack;
+					InternalNodeStack = NewStackNode;
+				}
 
-			db_feed *Feed = arena_alloc(&DB.arena, sizeof(db_feed_cell));
-			Feed->Next = 0;
-			Feed->Link = Cell.Link;
-			if(Cell.Title.str[0])
-			{
-				// NOTE(ariel) Clear title in memory if only padding currently exists
-				// in database. This case occurs when user first adds some link or if
-				// this link remains untitled.
-				Feed->Title = Cell.Title;
-			}
+				node *NewStackNode = arena_alloc(&DB.arena, sizeof(node));
+				NewStackNode->PageNumber = Node.RightPageNumber;
+				NewStackNode->Next = InternalNodeStack;
+				InternalNodeStack = NewStackNode;
 
-			if(!List.First)
-			{
-				List.First = Feed;
+				break;
 			}
-			else if(!List.Last)
+			case DB_NODE_TYPE_LEAF:
 			{
-				List.First->Next = List.Last = Feed;
+				for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
+				{
+					db_feed_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+
+					db_feed *Feed = arena_alloc(PersistentArena, sizeof(db_feed_cell));
+					Feed->Next = 0;
+					Feed->Link = Cell.Link;
+					if(Cell.Title.str[0])
+					{
+						// NOTE(ariel) Clear title in memory if only padding currently exists
+						// in database. This case occurs when user first adds some link or if
+						// this link remains untitled.
+						Feed->Title = Cell.Title;
+					}
+
+					if(!List.First)
+					{
+						List.First = Feed;
+					}
+					else if(!List.Last)
+					{
+						List.First->Next = List.Last = Feed;
+					}
+					else
+					{
+						List.Last = List.Last->Next = Feed;
+					}
+				}
+				break;
 			}
-			else
-			{
-				List.Last = List.Last->Next = Feed;
-			}
+			default: Assert(!"unreachable");
 		}
 	}
 
+	arena_checkpoint_restore(Checkpoint);
 	return List;
 }
 

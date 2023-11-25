@@ -165,7 +165,7 @@ struct db_item_list
 };
 
 // NOTE(ariel) These procedures strictly read from the database.
-static db_feed_list DB_GetAllFeeds(void);
+static db_feed_list DB_GetAllFeeds(Arena *PersistentArena);
 static db_item_list DB_GetAllFeedItems(String FeedLink);
 
 #endif
