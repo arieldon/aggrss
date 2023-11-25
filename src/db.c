@@ -640,7 +640,7 @@ DB_InsertInternalCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header Fr
 	// NOTE(ariel) Find sorted cell entry position.
 	b32 Unique = true;
 	s32 CellEntryIndex = 0;
-	u8 *CellPositionEntries = &Page->Data[DB_PAGE_LEAF_CELL_POSITIONS];
+	u8 *CellPositionEntries = &Page->Data[DB_PAGE_INTERNAL_CELL_POSITIONS];
 	while(CellEntryIndex < Node->CellCount)
 	{
 		s16 ExistingCellPosition = s16Deserialize(CellPositionEntries + 2*CellEntryIndex);
@@ -658,7 +658,7 @@ DB_InsertInternalCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header Fr
 		s16 RequiredBytesCount = DB_GetInternalNodeSize(Cell);
 		s16 CellPosition = FreeChunk.Position + DB_CHUNK_SIZE_ON_DISK - RequiredBytesCount;
 		Assert(RequiredBytesCount <= FreeChunk.BytesCount);
-		Assert(CellPosition > DB_PAGE_LEAF_CELL_POSITIONS + 2*Node->CellCount);
+		Assert(CellPosition > DB_PAGE_INTERNAL_CELL_POSITIONS + 2*Node->CellCount);
 		Assert(CellPosition < DB_PAGE_SIZE);
 
 		// NOTE(ariel) Serialize cell.
