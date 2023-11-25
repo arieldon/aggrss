@@ -175,6 +175,8 @@ enum
 	DB_PAGE_LEAF_CELL_POSITIONS = 6,
 
 	DB_ROOT_PAGE_IN_FILE = 1,
+
+	DB_CELL_POSITION_ENTRY_SIZE = sizeof(s16),
 };
 
 enum
@@ -290,7 +292,7 @@ DB_UpdateFreeChunkListAfterInsertion(db_btree_node *Node, db_chunk_header UsedCh
 		s16 CellPositionEntriesBase = Node->Type == DB_NODE_TYPE_INTERNAL
 			? DB_PAGE_INTERNAL_CELL_POSITIONS
 			: DB_PAGE_LEAF_CELL_POSITIONS;
-		s16 FreeSpaceStart = CellPositionEntriesBase + sizeof(s16)*Node->CellCount;
+		s16 FreeSpaceStart = CellPositionEntriesBase + DB_CELL_POSITION_ENTRY_SIZE*Node->CellCount;
 
 		db_chunk_header Chunk = DB_ReadChunkHeaderFromNode(Node, Node->OffsetToFirstFreeBlock);
 		while(Chunk.BytesCount)
@@ -299,7 +301,7 @@ DB_UpdateFreeChunkListAfterInsertion(db_btree_node *Node, db_chunk_header UsedCh
 			// entries because a cell might sit there.
 			if(Chunk.Position - Chunk.BytesCount < FreeSpaceStart)
 			{
-				Chunk.BytesCount -= sizeof(s16);
+				Chunk.BytesCount -= DB_CELL_POSITION_ENTRY_SIZE;
 				DB_WriteChunkHeaderToNode(Node, Chunk);
 				break;
 			}
@@ -435,8 +437,9 @@ DB_ReadFeedCell(db_btree_node *Node, s32 CellIndex)
 	s16 OffsetToCellPositionEntries = Node->Type == DB_NODE_TYPE_INTERNAL
 		? DB_PAGE_INTERNAL_CELL_POSITIONS
 		: DB_PAGE_LEAF_CELL_POSITIONS;
-	s16 OffsetToCellPositionEntry = OffsetToCellPositionEntries + 2*CellIndex;
+	s16 OffsetToCellPositionEntry = OffsetToCellPositionEntries + DB_CELL_POSITION_ENTRY_SIZE*CellIndex;
 	s16 CellPosition = s16Deserialize(&Page->Data[OffsetToCellPositionEntry]);
+	Assert(CellPosition > OffsetToCellPositionEntries + DB_CELL_POSITION_ENTRY_SIZE*Node->CellCount);
 
 	Result.ID = s32Deserialize(&Page->Data[CellPosition]);
 	if(Node->Type == DB_NODE_TYPE_INTERNAL)
@@ -715,7 +718,7 @@ DB_DeleteCell(db_btree_node *Node, s32 CellIndex)
 	u8 *CellPositionEntry = CellPositionEntries + 2*CellIndex;
 	u8 *NextCellPositionEntry = CellPositionEntries + 2*(CellIndex+1);
 	s16 CellPosition = s16Deserialize(CellPositionEntry);
-	ssize BytesToMoveCount = 2*(Node->CellCount - CellIndex);
+	ssize BytesToMoveCount = DB_CELL_POSITION_ENTRY_SIZE*(Node->CellCount - CellIndex);
 	memmove(CellPositionEntry, NextCellPositionEntry, BytesToMoveCount);
 
 	db_chunk_header FreeChunk =
