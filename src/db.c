@@ -926,6 +926,7 @@ DB_AddFeed(String FeedLink)
 		}
 
 		DB_SplitNode(DB_ROOT_PAGE_IN_FILE, RootCopyPageNumberInFile);
+		Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
 	}
 
 	DB_AddFeedIntoNode(&Root, Cell, ChunkHeader);
