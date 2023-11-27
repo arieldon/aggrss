@@ -228,7 +228,7 @@ ParseFeed(s32 ThreadID, void *Data)
 		// feeds are valid.
 		Feed->first_item = find_item_node(&Thread->ScratchArena, Feed->root);
 		DB_UpdateFeedTitle(Link, Feed->feed_title->content);
-		DB_AddItems(Link, Feed->first_item);
+		DB_AddItems(&Thread->ScratchArena, Link, Feed->first_item);
 
 		String Strings[] = { string_literal("successfully parsed "), Feed->feed_title->content };
 		String FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
@@ -309,7 +309,7 @@ process_frame(void)
 		}
 		if (ui_header_expanded(header_state))
 		{
-			db_item_list Items = DB_GetAllFeedItems(Feed->Link);
+			db_item_list Items = DB_GetAllFeedItems(&g_arena, Feed->Link);
 			db_item *Item = Items.First;
 			while(Item)
 			{

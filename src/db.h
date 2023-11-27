@@ -97,14 +97,6 @@ struct db_cell
 	};
 };
 
-typedef struct db_item_cell db_item_cell;
-struct db_item_cell
-{
-	String Link;
-	String Title;
-	b32 Unread;
-};
-
 typedef struct database database;
 struct database
 {
@@ -129,7 +121,7 @@ static void DB_Close(void);
 // NOTE(ariel) These procedures write to the datbase. Only the main thread may
 // call these.
 static void DB_AddFeed(String FeedLink);
-static void DB_AddItems(String FeedLink, RSS_Tree_Node *ItemNode);
+static void DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item);
 static void DB_DeleteFeed(String FeedLink);
 
 // NOTE(ariel) These procedure updates already written fields in the database.
@@ -170,6 +162,6 @@ struct db_item_list
 
 // NOTE(ariel) These procedures strictly read from the database.
 static db_feed_list DB_GetAllFeeds(Arena *PersistentArena);
-static db_item_list DB_GetAllFeedItems(String FeedLink);
+static db_item_list DB_GetAllFeedItems(Arena *PersistentArena, String FeedLink);
 
 #endif

@@ -802,7 +802,7 @@ DB_SplitNode(s32 ParentPageNumberInFile, s32 PageNumberInFileToSplit)
 }
 
 static void
-DB_AddFeedIntoNode(db_btree_node *Node, db_feed_cell CellToInsert, db_chunk_header FreeChunk)
+DB_AddCellIntoNode(db_btree_node *Node, db_cell CellToInsert, db_chunk_header FreeChunk)
 {
 	switch(Node->Type)
 	{
@@ -854,7 +854,7 @@ DB_AddFeedIntoNode(db_btree_node *Node, db_feed_cell CellToInsert, db_chunk_head
 					*Node = DB_ReadNodeFromDisk(DB.PageCache.CacheToFilePageNumberMap[Node->PageNumberInCache]);
 				}
 
-				DB_AddFeedIntoNode(&ChildNode, CellToInsert, ChunkHeader);
+				DB_AddCellIntoNode(&ChildNode, CellToInsert, ChunkHeader);
 			}
 
 			break;
@@ -932,13 +932,168 @@ DB_AddFeed(String FeedLink)
 		Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
 	}
 
-	DB_AddFeedIntoNode(&Root, Cell, ChunkHeader);
+	DB_AddCellIntoNode(&Root, Cell, ChunkHeader);
 	DB_EndTransaction();
 }
 
-static void
-DB_AddItems(String FeedLink, RSS_Tree_Node *ItemNode)
+typedef struct db_search_result db_search_result;
+struct db_search_result
 {
+	b32 Found;
+	s32 CellIndex;
+	s32 PageNumber;
+	db_btree_node Node;
+};
+
+static db_search_result
+DB_FindFeed(String FeedLink)
+{
+	db_search_result Result = {0};
+
+	u32 ID = DB_Hash(FeedLink);
+	s32 PageNumber = DB_ROOT_PAGE_IN_FILE;
+	while(!Result.Found)
+	{
+		db_cell ExistingCell = {0};
+		db_btree_node Node = DB_ReadNodeFromDisk(PageNumber);
+
+		for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
+		{
+			ExistingCell = DB_ReadFeedCell(&Node, CellIndex);
+			if(ID <= ExistingCell.ID)
+			{
+				Result.CellIndex = CellIndex;
+				break;
+			}
+		}
+
+		switch(Node.Type)
+		{
+			case DB_NODE_TYPE_INTERNAL:
+			{
+				PageNumber = ID > ExistingCell.ID ? Node.RightPageNumber : ExistingCell.ChildPage;
+				break;
+			}
+			case DB_NODE_TYPE_LEAF:
+			{
+				if(ID == ExistingCell.ID)
+				{
+					Result.Found = true;
+					Result.PageNumber = PageNumber;
+					Result.Node = Node;
+				}
+				goto Exit;
+			}
+			default: Assert(!"unreachable");
+		}
+	}
+
+Exit:
+	return Result;
+}
+
+static void
+DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item)
+{
+	DB_BeginTransaction();
+	db_search_result SearchResult = DB_FindFeed(FeedLink);
+
+	if(SearchResult.Found) // TODO(ariel) Use ZII.
+	{
+		// FIXME(ariel) This is a hack since feed cells and item cells may not
+		// match in structure in the future.
+		db_cell Feed = DB_ReadFeedCell(&SearchResult.Node, SearchResult.CellIndex);
+
+		db_btree_node ItemsRoot = {0};
+		if(Feed.ItemsPage)
+		{
+			ItemsRoot = DB_ReadNodeFromDisk(Feed.ItemsPage);
+		}
+		else
+		{
+			// NOTE(ariel) Allocate page for items lazily.
+			ItemsRoot = DB_InitializeNewNode(DB_NODE_TYPE_LEAF);
+			Feed.ItemsPage = DB.PageCache.CacheToFilePageNumberMap[ItemsRoot.PageNumberInCache];
+			DB_UpdateCell();
+			DB_WriteNodeToDisk(&SearchResult.Node);
+		}
+
+		for(; Item; Item = Item->next_sibling)
+		{
+			String Link = find_link(Item);
+			String Title = {0};
+
+			RSS_Tree_Node *TitleNode = find_feed_title(ScratchArena, Item);
+			if(TitleNode) // TODO(ariel) Use ZII.
+			{
+				Title = TitleNode->content;
+			}
+
+			b32 LinkExists = Link.str && Link.len;
+			b32 TitleExists = Title.str && Title.len;
+			if(LinkExists && TitleExists)
+			{
+				db_cell Cell =
+				{
+					.ID = DB_Hash(Link),
+					.Link = Link,
+					.Title = Title,
+					.Unread = true,
+				};
+
+				// FIXME(ariel) When inserting, cell position entries can expand.
+				db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&ItemsRoot, Cell);
+				if(ChunkHeader.BytesCount == 0)
+				{
+					db_btree_node RootCopy = DB_InitializeNewNode(ItemsRoot.Type);
+
+					s32 RootCopyPageNumberInFile = DB.PageCache.CacheToFilePageNumberMap[RootCopy.PageNumberInCache];
+					db_page *RootCopyPage = &DB.PageCache.Pages[RootCopyPageNumberInFile];
+					db_page *RootPage = &DB.PageCache.Pages[DB_ROOT_PAGE_IN_FILE];
+					memcpy(RootCopyPage->Data, RootPage->Data, DB_PAGE_SIZE);
+
+					// NOTE(ariel) This call reads from cache -- not disk -- in reality, and it
+					// synchronizes data structure in memory to newly written contents of page.
+					RootCopy = DB_ReadNodeFromDisk(RootCopyPageNumberInFile);
+
+					// NOTE(ariel) Write copy to disk before clearing root.
+					DB_WriteNodeToDisk(&RootCopy);
+
+					// TODO(ariel) Split node allocation and node initializes into separate
+					// functions to be able to call initialize here?
+					// NOTE(ariel) Clear root.
+					{
+						memset(RootPage->Data, 0, DB_PAGE_SIZE);
+
+						ItemsRoot.RightPageNumber = RootCopyPageNumberInFile;
+						ItemsRoot.OffsetToFirstFreeBlock = DB_PAGE_SIZE - DB_CHUNK_SIZE_ON_DISK;
+						ItemsRoot.CellCount = 0;
+						ItemsRoot.FragmentedBytesCount = 0;
+						ItemsRoot.Type = DB_NODE_TYPE_INTERNAL;
+
+						db_chunk_header RootChunkHeader =
+						{
+							.Position = ItemsRoot.OffsetToFirstFreeBlock,
+							.NextChunkPosition = DB_CHUNK_TERMINATOR,
+							// TODO(ariel) Should I consider that one cell position entry slot is
+							// essentially occupied too since it's necessary for an insertion?
+							.BytesCount = DB_PAGE_SIZE - DB_PAGE_INTERNAL_CELL_POSITIONS,
+						};
+						DB_WriteChunkHeaderToNode(&ItemsRoot, RootChunkHeader);
+
+						DB_WriteNodeToDisk(&ItemsRoot);
+					}
+
+					DB_SplitNode(DB_ROOT_PAGE_IN_FILE, RootCopyPageNumberInFile);
+					ItemsRoot = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
+				}
+
+				DB_AddCellIntoNode(&ItemsRoot, Cell, ChunkHeader);
+			}
+		}
+	}
+
+	DB_EndTransaction();
 }
 
 static void
@@ -1046,8 +1201,93 @@ DB_GetAllFeeds(Arena *PersistentArena)
 }
 
 static db_item_list
-DB_GetAllFeedItems(String FeedLink)
+DB_GetAllFeedItems(Arena *PersistentArena, String FeedLink)
 {
 	db_item_list List = {0};
+	Arena_Checkpoint Checkpoint = arena_checkpoint_set(&DB.arena);
+
+	typedef struct node node;
+	struct node
+	{
+		node *Next;
+		s32 PageNumber;
+	};
+
+	db_search_result SearchResult = DB_FindFeed(FeedLink);
+	if(SearchResult.Found)
+	{
+		db_cell FeedCell = DB_ReadFeedCell(&SearchResult.Node, SearchResult.CellIndex);
+		if(FeedCell.ItemsPage)
+		{
+			node *Root = arena_alloc(&DB.arena, sizeof(node));
+			Root->Next = 0;
+			Root->PageNumber = FeedCell.ItemsPage;
+
+			node *InternalNodeStack = Root;
+			while(InternalNodeStack)
+			{
+				node *StackNode = InternalNodeStack;
+				InternalNodeStack = InternalNodeStack->Next;
+
+				db_btree_node Node = DB_ReadNodeFromDisk(StackNode->PageNumber);
+				switch(Node.Type)
+				{
+					case DB_NODE_TYPE_INTERNAL:
+					{
+						for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
+						{
+							db_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+							node *NewStackNode = arena_alloc(&DB.arena, sizeof(node));
+							NewStackNode->PageNumber = Cell.ChildPage;
+							NewStackNode->Next = InternalNodeStack;
+							InternalNodeStack = NewStackNode;
+						}
+
+						node *NewStackNode = arena_alloc(&DB.arena, sizeof(node));
+						NewStackNode->PageNumber = Node.RightPageNumber;
+						NewStackNode->Next = InternalNodeStack;
+						InternalNodeStack = NewStackNode;
+
+						break;
+					}
+					case DB_NODE_TYPE_LEAF:
+					{
+						for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
+						{
+							db_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+
+							db_item *Item = arena_alloc(PersistentArena, sizeof(db_cell));
+							Item->Next = 0;
+							Item->Link = Cell.Link;
+							if(Cell.Title.str[0])
+							{
+								// NOTE(ariel) Clear title in memory if only padding currently exists
+								// in database. This case occurs when user first adds some link or if
+								// this link remains untitled.
+								Item->Title = Cell.Title;
+							}
+
+							if(!List.First)
+							{
+								List.First = Item;
+							}
+							else if(!List.Last)
+							{
+								List.First->Next = List.Last = Item;
+							}
+							else
+							{
+								List.Last = List.Last->Next = Item;
+							}
+						}
+						break;
+					}
+					default: Assert(!"unreachable");
+				}
+			}
+		}
+	}
+
+	arena_checkpoint_restore(Checkpoint);
 	return List;
 }
