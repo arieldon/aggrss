@@ -563,7 +563,7 @@ DB_EndTransaction(void)
 
 // NOTE(ariel) This procedure uses 32-bit FNV-1a.
 static u32
-DBHash(String Value)
+DB_Hash(String Value)
 {
 	enum
 	{
@@ -881,7 +881,7 @@ DB_AddFeed(String FeedLink)
 	char BlankTitle[32] = {0}; // NOTE(ariel) Preallocate 32 bytes for title upon update.
 	db_cell Cell =
 	{
-		.ID = DBHash(FeedLink),
+		.ID = DB_Hash(FeedLink),
 		.Link = FeedLink,
 		.Title.str = BlankTitle,
 		.Title.len = sizeof(BlankTitle),
