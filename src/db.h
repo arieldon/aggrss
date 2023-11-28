@@ -74,8 +74,8 @@ struct db_btree_node
 	db_node_type Type;
 };
 
-typedef struct db_feed_cell db_feed_cell;
-struct db_feed_cell
+typedef struct db_cell db_cell;
+struct db_cell
 {
 	u32 ID;
 	union
@@ -84,7 +84,11 @@ struct db_feed_cell
 		{
 			String Link;
 			String Title;
-			s32 ItemsPage;
+			union
+			{
+				s32 ItemsPage; // NOTE(ariel) Feed cells store page number to items.
+				b32 Unread;    // NOTE(ariel) Item cells store (un)read attribute.
+			};
 		};
 		struct // NOTE(ariel) Internal nodes store pointers to children.
 		{

@@ -199,7 +199,7 @@ struct db_chunk_header
 };
 
 static inline ssize
-DB_GetLeafNodeSize(db_feed_cell Cell)
+DB_GetLeafNodeSize(db_cell Cell)
 {
 	ssize Result =
 		sizeof(Cell.ID) +
@@ -211,7 +211,7 @@ DB_GetLeafNodeSize(db_feed_cell Cell)
 }
 
 static inline ssize
-DB_GetInternalNodeSize(db_feed_cell Cell)
+DB_GetInternalNodeSize(db_cell Cell)
 {
 	enum { INTERNAL_CELL_SIZE = sizeof(Cell.ID) + sizeof(Cell.ChildPage) }; StaticAssert(INTERNAL_CELL_SIZE == 8);
 	ssize Result = INTERNAL_CELL_SIZE;
@@ -314,7 +314,7 @@ DB_UpdateFreeChunkListAfterInsertion(db_btree_node *Node, db_chunk_header UsedCh
 }
 
 static db_chunk_header
-DB_FindChunkBigEnough(db_btree_node *Node, db_feed_cell Cell)
+DB_FindChunkBigEnough(db_btree_node *Node, db_cell Cell)
 {
 	db_chunk_header Result = {0};
 
@@ -427,10 +427,10 @@ DB_InitializeNewNode(db_node_type NodeType)
 	return Node;
 }
 
-static db_feed_cell
+static db_cell
 DB_ReadFeedCell(db_btree_node *Node, s32 CellIndex)
 {
-	db_feed_cell Result = {0};
+	db_cell Result = {0};
 
 	Assert(CellIndex < Node->CellCount);
 	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
@@ -580,7 +580,7 @@ DBHash(String Value)
 }
 
 static void
-DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeChunk)
+DB_InsertLeafCell(db_btree_node *Node, db_cell Cell, db_chunk_header FreeChunk)
 {
 	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
 
@@ -636,7 +636,7 @@ DB_InsertLeafCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeCh
 }
 
 static void
-DB_InsertInternalCell(db_btree_node *Node, db_feed_cell Cell, db_chunk_header FreeChunk)
+DB_InsertInternalCell(db_btree_node *Node, db_cell Cell, db_chunk_header FreeChunk)
 {
 	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
 
@@ -698,7 +698,7 @@ DB_DeleteCell(db_btree_node *Node, s32 CellIndex)
 
 	s16 CellSize = 0;
 	u8 *CellPositionEntries = 0;
-	db_feed_cell CellToDelete = DB_ReadFeedCell(Node, CellIndex);
+	db_cell CellToDelete = DB_ReadFeedCell(Node, CellIndex);
 	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
 	if(Node->Type == DB_NODE_TYPE_INTERNAL)
 	{
@@ -738,7 +738,7 @@ DB_TransferFeedCell(db_btree_node *Destination, db_btree_node *Source, s32 CellI
 {
 	Assert(Destination->Type == Source->Type);
 
-	db_feed_cell Cell = DB_ReadFeedCell(Source, CellIndex);
+	db_cell Cell = DB_ReadFeedCell(Source, CellIndex);
 	db_chunk_header FreeChunk = DB_FindChunkBigEnough(Destination, Cell);
 	switch(Source->Type)
 	{
@@ -773,7 +773,7 @@ DB_SplitNode(s32 ParentPageNumberInFile, s32 PageNumberInFileToSplit)
 	db_btree_node NewSiblingNode = DB_InitializeNewNode(NodeToSplit.Type);
 
 	s32 MedianCellIndex = NodeToSplit.CellCount / 2;
-	db_feed_cell MedianCell = DB_ReadFeedCell(&NodeToSplit, MedianCellIndex);
+	db_cell MedianCell = DB_ReadFeedCell(&NodeToSplit, MedianCellIndex);
 
 	for(
 		// NOTE(ariel) Include median cell itself if and only if leaf node.
@@ -787,7 +787,7 @@ DB_SplitNode(s32 ParentPageNumberInFile, s32 PageNumberInFileToSplit)
 	// NOTE(ariel) Parent node must update its references to cells that move from
 	// the original node to its new sibling. `ParentCell` acts as a fork in the
 	// search path that divides it into two.
-	db_feed_cell ParentCell =
+	db_cell ParentCell =
 	{
 		.ID = MedianCell.ID,
 		.ChildPage = DB.PageCache.CacheToFilePageNumberMap[NewSiblingNode.PageNumberInCache],
@@ -834,7 +834,7 @@ DB_AddFeedIntoNode(db_btree_node *Node, db_feed_cell CellToInsert, db_chunk_head
 				}
 				else
 				{
-					db_feed_cell SelectedCell = DB_ReadFeedCell(Node, CellEntryIndex);
+					db_cell SelectedCell = DB_ReadFeedCell(Node, CellEntryIndex);
 					ChildPage = SelectedCell.ChildPage;
 				}
 				Assert(ChildPage >= 2);
@@ -879,7 +879,7 @@ DB_AddFeed(String FeedLink)
 	DB_BeginTransaction();
 
 	char BlankTitle[32] = {0}; // NOTE(ariel) Preallocate 32 bytes for title upon update.
-	db_feed_cell Cell =
+	db_cell Cell =
 	{
 		.ID = DBHash(FeedLink),
 		.Link = FeedLink,
@@ -991,7 +991,7 @@ DB_GetAllFeeds(Arena *PersistentArena)
 			{
 				for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
 				{
-					db_feed_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+					db_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
 					node *NewStackNode = arena_alloc(&DB.arena, sizeof(node));
 					NewStackNode->PageNumber = Cell.ChildPage;
 					NewStackNode->Next = InternalNodeStack;
@@ -1009,9 +1009,9 @@ DB_GetAllFeeds(Arena *PersistentArena)
 			{
 				for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
 				{
-					db_feed_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+					db_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
 
-					db_feed *Feed = arena_alloc(PersistentArena, sizeof(db_feed_cell));
+					db_feed *Feed = arena_alloc(PersistentArena, sizeof(db_cell));
 					Feed->Next = 0;
 					Feed->Link = Cell.Link;
 					if(Cell.Title.str[0])
