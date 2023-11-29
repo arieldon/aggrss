@@ -114,7 +114,7 @@ struct database
 	Arena arena;
 
 	s16 FileFormatVersion;
-	s32 TotalPageCountInFile;
+	_Atomic s32 TotalPageCountInFile;
 
 #ifdef DEBUG
 	s32 SplitCount;

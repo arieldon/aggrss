@@ -435,8 +435,7 @@ DB_InitializeNewNode(db_type NodeType)
 	};
 	DB_WriteChunkHeaderToNode(&Node, ChunkHeader);
 
-	DB.PageCache.CacheToFilePageNumberMap[Node.PageNumberInCache] = DB.TotalPageCountInFile;
-	DB.TotalPageCountInFile += 1;
+	DB.PageCache.CacheToFilePageNumberMap[Node.PageNumberInCache] = DB.TotalPageCountInFile++;
 
 	DB_WriteNodeToDisk(&Node);
 	return Node;
