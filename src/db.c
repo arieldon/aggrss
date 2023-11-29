@@ -179,6 +179,27 @@ enum
 	DB_CELL_POSITION_ENTRY_SIZE = sizeof(s16),
 };
 
+static inline db_type
+DB_GeneralizeNodeType(db_type Type)
+{
+	// NOTE(ariel) Generalize type to either internal or leaf without discerning
+	// types of leaf nodes.
+	db_type Result = Type & 1; Assert(Result == DB_TYPE_INTERNAL || Result == DB_TYPE_LEAF);
+	return Result;
+}
+
+static s16
+DB_GetCellPositionEntriesBase(db_type Type)
+{
+	static s16 CellPositionEntriesBase[DB_TYPE_COUNT] =
+	{
+		[DB_TYPE_INTERNAL] = DB_PAGE_INTERNAL_CELL_POSITIONS,
+		[DB_TYPE_LEAF] = DB_PAGE_LEAF_CELL_POSITIONS,
+	};
+	s16 Result = CellPositionEntriesBase[DB_GeneralizeNodeType(Type)];
+	return Result;
+}
+
 enum
 {
 	DB_CHUNK_TERMINATOR = 0, // NOTE(ariel) Indicate first and last chunk in free list of chunks in page.
@@ -199,27 +220,43 @@ struct db_chunk_header
 };
 
 static inline ssize
-DB_GetLeafNodeSize(db_cell Cell)
+DB_GetCellSize(db_type Type, db_cell Cell)
 {
-	ssize Result =
-		sizeof(Cell.ID) +
-		sizeof(Cell.Link.len) + Cell.Link.len +
-		sizeof(Cell.Title.len) + Cell.Title.len +
-		sizeof(Cell.ItemsPage);
-	Assert(Result < DB_PAGE_SIZE);
+	ssize Result = 0;
+
+	switch(Type)
+	{
+		case DB_TYPE_INTERNAL:
+		{
+			enum { INTERNAL_CELL_SIZE = sizeof(Cell.ID) + sizeof(Cell.Internal.ChildPage) };
+			StaticAssert(INTERNAL_CELL_SIZE == 8);
+			Result = INTERNAL_CELL_SIZE;
+			break;
+		}
+		case DB_TYPE_FEED_LEAF:
+		{
+			Result =
+				sizeof(Cell.ID) +
+				sizeof(Cell.Feed.Link.len) + Cell.Feed.Link.len +
+				sizeof(Cell.Feed.Title.len) + Cell.Feed.Title.len +
+				sizeof(Cell.Feed.ItemsPage);
+			break;
+		}
+		case DB_TYPE_ITEM_LEAF:
+		{
+			Result =
+				sizeof(Cell.ID) +
+				sizeof(Cell.Item.Link.len) + Cell.Item.Link.len +
+				sizeof(Cell.Item.Title.len) + Cell.Item.Title.len +
+				sizeof(Cell.Item.Unread);
+			break;
+		}
+		default: Assert(!"unreachable");
+	}
+
 	return Result;
 }
 
-static inline ssize
-DB_GetInternalNodeSize(db_cell Cell)
-{
-	enum { INTERNAL_CELL_SIZE = sizeof(Cell.ID) + sizeof(Cell.ChildPage) }; StaticAssert(INTERNAL_CELL_SIZE == 8);
-	ssize Result = INTERNAL_CELL_SIZE;
-	return Result;
-}
-
-// TODO(ariel) This read-write pair must use ZII to handle edge cases where
-// next and previous point to terminators.
 static db_chunk_header
 DB_ReadChunkHeaderFromNode(db_btree_node *Node, s16 HeaderPosition)
 {
@@ -227,7 +264,7 @@ DB_ReadChunkHeaderFromNode(db_btree_node *Node, s16 HeaderPosition)
 	
 	if(HeaderPosition != DB_CHUNK_TERMINATOR)
 	{
-		Assert(HeaderPosition > (Node->Type == DB_NODE_TYPE_INTERNAL ? DB_PAGE_INTERNAL_CELL_POSITIONS : DB_PAGE_LEAF_CELL_POSITIONS));
+		Assert(HeaderPosition > DB_GetCellPositionEntriesBase(Node->Type));
 		db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
 		Result.Position = HeaderPosition;
 		Result.NextChunkPosition = s16Deserialize(&Page->Data[HeaderPosition + 0]);
@@ -242,7 +279,7 @@ DB_WriteChunkHeaderToNode(db_btree_node *Node, db_chunk_header Header)
 {
 	if(Header.Position != DB_CHUNK_TERMINATOR)
 	{
-		Assert(Header.Position > (Node->Type == DB_NODE_TYPE_INTERNAL ? DB_PAGE_INTERNAL_CELL_POSITIONS : DB_PAGE_LEAF_CELL_POSITIONS));
+		Assert(Header.Position > DB_GetCellPositionEntriesBase(Node->Type));
 		db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
 		s16Serialize(&Page->Data[Header.Position + 0], Header.NextChunkPosition);
 		s16Serialize(&Page->Data[Header.Position + 2], Header.BytesCount);
@@ -258,7 +295,7 @@ DB_UpdateFreeChunkListAfterInsertion(db_btree_node *Node, db_chunk_header UsedCh
 {
 	// NOTE(ariel) Update chunk position and number of free bytes.
 	{
-		s16 MinimumCellSize = Node->Type == DB_NODE_TYPE_INTERNAL ? 8 : 16;
+		s16 MinimumCellSize = Node->Type == DB_TYPE_INTERNAL ? 8 : 16;
 		s16 RemainingBytesCount = UsedChunk.BytesCount - UsedBytesCount;
 		db_chunk_header PreviousChunk = DB_ReadChunkHeaderFromNode(Node, UsedChunk.PreviousChunkPosition);
 
@@ -289,9 +326,7 @@ DB_UpdateFreeChunkListAfterInsertion(db_btree_node *Node, db_chunk_header UsedCh
 	// cell position entries and reduce its size by size of new cell position
 	// entry.
 	{
-		s16 CellPositionEntriesBase = Node->Type == DB_NODE_TYPE_INTERNAL
-			? DB_PAGE_INTERNAL_CELL_POSITIONS
-			: DB_PAGE_LEAF_CELL_POSITIONS;
+		s16 CellPositionEntriesBase = DB_GetCellPositionEntriesBase(Node->Type);
 		s16 FreeSpaceStart = CellPositionEntriesBase + DB_CELL_POSITION_ENTRY_SIZE*Node->CellCount;
 
 		db_chunk_header Chunk = DB_ReadChunkHeaderFromNode(Node, Node->OffsetToFirstFreeBlock);
@@ -320,9 +355,7 @@ DB_FindChunkBigEnough(db_btree_node *Node, db_cell Cell)
 
 	s16 PreviousChunkPosition = DB_CHUNK_TERMINATOR;
 	s16 ChunkPosition = Node->OffsetToFirstFreeBlock;
-	s16 RequiredBytesCount = Node->Type == DB_NODE_TYPE_INTERNAL
-		? DB_GetInternalNodeSize(Cell)
-		: DB_GetLeafNodeSize(Cell);
+	s16 RequiredBytesCount = DB_GetCellSize(Node->Type, Cell);
 	while(ChunkPosition != DB_CHUNK_TERMINATOR)
 	{
 		db_chunk_header Header = DB_ReadChunkHeaderFromNode(Node, ChunkPosition);
@@ -354,11 +387,11 @@ DB_ReadNodeFromDisk(s32 PageNumberInFile)
 	Node.PageNumberInCache = DB_ReadPageFromDisk(PageNumberInFile);
 	db_page *Page = &DB.PageCache.Pages[Node.PageNumberInCache];
 
-	Node.Type = s8Deserialize(&Page->Data[DB_PAGE_TYPE]); AssertAlways(Node.Type == DB_NODE_TYPE_INTERNAL || Node.Type == DB_NODE_TYPE_LEAF);
+	Node.Type = s8Deserialize(&Page->Data[DB_PAGE_TYPE]);
 	Node.OffsetToFirstFreeBlock = s16Deserialize(&Page->Data[DB_PAGE_OFFSET_TO_FIRST_FREE_BLOCK]);
 	Node.CellCount = s16Deserialize(&Page->Data[DB_PAGE_CELL_COUNT]);
 	Node.FragmentedBytesCount = s8Deserialize(&Page->Data[DB_PAGE_FRAGMENTED_BYTES_COUNT]);
-	Node.RightPageNumber = Node.Type == DB_NODE_TYPE_INTERNAL ? s32Deserialize(&Page->Data[DB_PAGE_RIGHT_PAGE_NUMBER]) : 0;
+	Node.RightPageNumber = Node.Type == DB_TYPE_INTERNAL ? s32Deserialize(&Page->Data[DB_PAGE_RIGHT_PAGE_NUMBER]) : 0;
 
 	return Node;
 }
@@ -375,7 +408,7 @@ DB_WriteNodeToDisk(db_btree_node *Node)
 	s16Serialize(&Page->Data[DB_PAGE_OFFSET_TO_FIRST_FREE_BLOCK], Node->OffsetToFirstFreeBlock);
 	s16Serialize(&Page->Data[DB_PAGE_CELL_COUNT], Node->CellCount);
 	s8Serialize(&Page->Data[DB_PAGE_FRAGMENTED_BYTES_COUNT], Node->FragmentedBytesCount);
-	if(Node->Type == DB_NODE_TYPE_INTERNAL)
+	if(Node->Type == DB_TYPE_INTERNAL)
 	{
 		Assert(Node->RightPageNumber);
 		s32Serialize(&Page->Data[DB_PAGE_RIGHT_PAGE_NUMBER], Node->RightPageNumber);
@@ -389,7 +422,7 @@ DB_WriteNodeToDisk(db_btree_node *Node)
 }
 
 static db_btree_node
-DB_InitializeNewNode(db_node_type NodeType)
+DB_InitializeNewNode(db_type NodeType)
 {
 	db_btree_node Node =
 	{
@@ -398,25 +431,11 @@ DB_InitializeNewNode(db_node_type NodeType)
 		.Type = NodeType,
 	};
 
-	s16 AvailableBytes = DB.PageCache.PageSize;
-	if(NodeType == DB_NODE_TYPE_INTERNAL)
-	{
-		AvailableBytes -= DB_PAGE_INTERNAL_CELL_POSITIONS;
-	}
-	else if(NodeType == DB_NODE_TYPE_LEAF)
-	{
-		AvailableBytes -= DB_PAGE_LEAF_CELL_POSITIONS;
-	}
-	else
-	{
-		Assert(!"unreachable");
-	}
-
 	db_chunk_header ChunkHeader =
 	{
 		.Position = Node.OffsetToFirstFreeBlock,
 		.NextChunkPosition = DB_CHUNK_TERMINATOR,
-		.BytesCount = AvailableBytes,
+		.BytesCount = DB.PageCache.PageSize - DB_GetCellPositionEntriesBase(NodeType),
 	};
 	DB_WriteChunkHeaderToNode(&Node, ChunkHeader);
 
@@ -425,48 +444,6 @@ DB_InitializeNewNode(db_node_type NodeType)
 
 	DB_WriteNodeToDisk(&Node);
 	return Node;
-}
-
-static db_cell
-DB_ReadFeedCell(db_btree_node *Node, s32 CellIndex)
-{
-	db_cell Result = {0};
-
-	Assert(CellIndex < Node->CellCount);
-	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
-	s16 OffsetToCellPositionEntries = Node->Type == DB_NODE_TYPE_INTERNAL
-		? DB_PAGE_INTERNAL_CELL_POSITIONS
-		: DB_PAGE_LEAF_CELL_POSITIONS;
-	s16 OffsetToCellPositionEntry = OffsetToCellPositionEntries + DB_CELL_POSITION_ENTRY_SIZE*CellIndex;
-	s16 CellPosition = s16Deserialize(&Page->Data[OffsetToCellPositionEntry]);
-	Assert(CellPosition > OffsetToCellPositionEntries + DB_CELL_POSITION_ENTRY_SIZE*Node->CellCount);
-
-	Result.ID = s32Deserialize(&Page->Data[CellPosition]);
-	if(Node->Type == DB_NODE_TYPE_INTERNAL)
-	{
-		Result.ChildPage = s32Deserialize(&Page->Data[CellPosition + sizeof(Result.ID)]);
-	}
-	else if(Node->Type == DB_NODE_TYPE_LEAF)
-	{
-		s16 LinkPosition = CellPosition + sizeof(Result.ID);
-		Result.Link = StringDeserialize(&Page->Data[LinkPosition]);
-
-		s16 TitlePosition = LinkPosition + sizeof(Result.Link.len) + Result.Link.len;
-		Result.Title = StringDeserialize(&Page->Data[TitlePosition]);
-
-		s16 ItemPagePosition = TitlePosition + sizeof(Result.Title.len) + Result.Title.len;
-		Result.ItemsPage = s32Deserialize(&Page->Data[ItemPagePosition]);
-
-		Assert(LinkPosition < DB_PAGE_SIZE);
-		Assert(TitlePosition < DB_PAGE_SIZE);
-		Assert(ItemPagePosition < DB_PAGE_SIZE);
-	}
-	else
-	{
-		Assert(!"unreachable");
-	}
-
-	return Result;
 }
 
 
@@ -535,7 +512,7 @@ DB_Open(void)
 		DB.FileFormatVersion = 0;
 		DB.PageCache.PageSize = DB_PAGE_SIZE;
 		DB.TotalPageCountInFile = 1; // NOTE(ariel) Count header as page.
-		DB_InitializeNewNode(DB_NODE_TYPE_LEAF);
+		DB_InitializeNewNode(DB_TYPE_FEED_LEAF);
 		DB_WriteHeader();
 	}
 	else
@@ -580,7 +557,7 @@ DB_Hash(String Value)
 }
 
 static void
-DB_InsertLeafCell(db_btree_node *Node, db_cell Cell, db_chunk_header FreeChunk)
+DB_InsertCell(db_btree_node *Node, db_cell Cell, db_chunk_header FreeChunk)
 {
 	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
 
@@ -602,24 +579,45 @@ DB_InsertLeafCell(db_btree_node *Node, db_cell Cell, db_chunk_header FreeChunk)
 
 	if(Unique)
 	{
-		s16 RequiredBytesCount = DB_GetLeafNodeSize(Cell);
+		s16 RequiredBytesCount = DB_GetCellSize(Node->Type, Cell);
 		s16 CellPosition = FreeChunk.Position + DB_CHUNK_SIZE_ON_DISK - RequiredBytesCount;
 		Assert(RequiredBytesCount <= FreeChunk.BytesCount);
 		Assert(CellPosition > DB_PAGE_LEAF_CELL_POSITIONS + 2*Node->CellCount);
 		Assert(CellPosition < DB_PAGE_SIZE);
 
-		// TODO(ariel) Allocate a unique items page for a unique cell. :)
-		;
-
 		// NOTE(ariel) Serialize cell.
 		u8 *CellID = &Page->Data[CellPosition];
-		u8 *CellLink = CellID + sizeof(Cell.ID);
-		u8 *CellTitle = CellLink + sizeof(Cell.Link.len) + Cell.Link.len;
-		u8 *CellItemsPage = CellTitle + sizeof(Cell.Title.len) + Cell.Title.len;
 		s32Serialize(CellID, Cell.ID);
-		StringSerialize(CellLink, Cell.Link);
-		StringSerialize(CellTitle, Cell.Title);
-		s32Serialize(CellItemsPage, Cell.ItemsPage);
+		switch(Node->Type)
+		{
+			case DB_TYPE_INTERNAL:
+			{
+				u8 *CellChildPage = CellID + sizeof(Cell.ID);
+				s32Serialize(CellChildPage, Cell.Internal.ChildPage);
+				break;
+			}
+			case DB_TYPE_FEED_LEAF:
+			{
+				u8 *CellLink = CellID + sizeof(Cell.ID);
+				u8 *CellTitle = CellLink + sizeof(Cell.Feed.Link.len) + Cell.Feed.Link.len;
+				u8 *CellItemsPage = CellTitle + sizeof(Cell.Feed.Title.len) + Cell.Feed.Title.len;
+				StringSerialize(CellLink, Cell.Feed.Link);
+				StringSerialize(CellTitle, Cell.Feed.Title);
+				s32Serialize(CellItemsPage, Cell.Feed.ItemsPage);
+				break;
+			}
+			case DB_TYPE_ITEM_LEAF:
+			{
+				u8 *CellLink = CellID + sizeof(Cell.ID);
+				u8 *CellTitle = CellLink + sizeof(Cell.Item.Link.len) + Cell.Item.Link.len;
+				u8 *CellUnread = CellTitle + sizeof(Cell.Item.Title.len) + Cell.Item.Title.len;
+				StringSerialize(CellLink, Cell.Item.Link);
+				StringSerialize(CellTitle, Cell.Item.Title);
+				s8Serialize(CellUnread, Cell.Item.Unread);
+				break;
+			}
+			default: Assert(!"unreachable");
+		}
 
 		// NOTE(ariel) Serialize cell entry position.
 		u8 *CellPositionEntry = CellPositionEntries + 2*CellEntryIndex;
@@ -635,92 +633,78 @@ DB_InsertLeafCell(db_btree_node *Node, db_cell Cell, db_chunk_header FreeChunk)
 	}
 }
 
-static void
-DB_InsertInternalCell(db_btree_node *Node, db_cell Cell, db_chunk_header FreeChunk)
+static db_cell
+DB_GetCell(db_btree_node *Node, s32 CellIndex)
 {
-	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
+	db_cell Result = {0};
 
-	// NOTE(ariel) Find sorted cell entry position.
-	b32 Unique = true;
-	s32 CellEntryIndex = 0;
-	u8 *CellPositionEntries = &Page->Data[DB_PAGE_INTERNAL_CELL_POSITIONS];
-	while(CellEntryIndex < Node->CellCount)
+	Assert(CellIndex < Node->CellCount);
+	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
+	s16 CellPositionEntriesBase = DB_GetCellPositionEntriesBase(Node->Type);
+	s16 CellPositionEntry = CellPositionEntriesBase + DB_CELL_POSITION_ENTRY_SIZE*CellIndex;
+	s16 CellPosition = s16Deserialize(&Page->Data[CellPositionEntry]);
+	Assert(CellPosition > CellPositionEntriesBase + DB_CELL_POSITION_ENTRY_SIZE*Node->CellCount);
+	Assert(CellPosition < DB_PAGE_SIZE);
+
+	u8 *CellID = &Page->Data[CellPosition];
+	Result.ID = s32Deserialize(CellID);
+	switch(Node->Type)
 	{
-		s16 ExistingCellPosition = s16Deserialize(CellPositionEntries + 2*CellEntryIndex);
-		u32 ExistingCellID = s32Deserialize(&Page->Data[ExistingCellPosition]);
-		if(Cell.ID <= ExistingCellID)
+		case DB_TYPE_INTERNAL:
 		{
-			Unique = Cell.ID != ExistingCellID;
+			u8 *CellChildPage = CellID + sizeof(Result.ID);
+			Result.Internal.ChildPage = s32Deserialize(CellChildPage);
 			break;
 		}
-		CellEntryIndex += 1;
+		case DB_TYPE_FEED_LEAF:
+		{
+			u8 *CellLink = CellID + sizeof(Result.ID);
+			Result.Feed.Link = StringDeserialize(CellLink);
+
+			u8 *CellTitle = CellLink + sizeof(Result.Feed.Link.len) + Result.Feed.Link.len;
+			Result.Feed.Title = StringDeserialize(CellTitle);
+
+			u8 *CellItemsPage = CellTitle + sizeof(Result.Feed.Title.len) + Result.Feed.Title.len;
+			Result.Feed.ItemsPage = s32Deserialize(CellItemsPage);
+			break;
+		}
+		case DB_TYPE_ITEM_LEAF:
+		{
+			u8 *CellLink = CellID + sizeof(Result.ID);
+			Result.Item.Link = StringDeserialize(CellLink);
+
+			u8 *CellTitle = CellLink + sizeof(Result.Item.Link.len) + Result.Item.Link.len;
+			Result.Item.Title = StringDeserialize(CellTitle);
+
+			u8 *CellUnread = CellTitle + sizeof(Result.Item.Title.len) + Result.Item.Title.len;
+			Result.Item.Unread = s8Deserialize(CellUnread);
+			break;
+		}
+		default: Assert(!"unreachable");
 	}
 
-	if(Unique)
-	{
-		s16 RequiredBytesCount = DB_GetInternalNodeSize(Cell);
-		s16 CellPosition = FreeChunk.Position + DB_CHUNK_SIZE_ON_DISK - RequiredBytesCount;
-		Assert(RequiredBytesCount <= FreeChunk.BytesCount);
-		Assert(CellPosition > DB_PAGE_INTERNAL_CELL_POSITIONS + 2*Node->CellCount);
-		Assert(CellPosition < DB_PAGE_SIZE);
-
-		// NOTE(ariel) Serialize cell.
-		u8 *CellID = &Page->Data[CellPosition];
-		u8 *CellChildPage = CellID + sizeof(Cell.ID);
-		s32Serialize(CellID, Cell.ID);
-		s32Serialize(CellChildPage, Cell.ChildPage);
-
-		// NOTE(ariel) Serialize cell entry position.
-		u8 *CellPositionEntry = CellPositionEntries + 2*CellEntryIndex;
-		u8 *NextCellPositionEntry = CellPositionEntries + 2*(CellEntryIndex+1);
-		ssize BytesToMoveCount = 2*(Node->CellCount - CellEntryIndex);
-		memmove(NextCellPositionEntry, CellPositionEntry, BytesToMoveCount);
-		s16Serialize(CellPositionEntry, CellPosition);
-
-		Node->CellCount += 1;
-		Assert(CellEntryIndex < Node->CellCount);
-
-		DB_UpdateFreeChunkListAfterInsertion(Node, FreeChunk, RequiredBytesCount);
-	}
-	else
-	{
-		// NOTE(ariel) There's no way for the user to manually insert cells into
-		// internal nodes, so if this procedure encounters a duplicate, there's a
-		// bug.
-		Assert(!"unreachable");
-	}
+	Result.PositionInPage = CellPosition;
+	return Result;
 }
 
 static void
 DB_DeleteCell(db_btree_node *Node, s32 CellIndex)
 {
 	Assert(CellIndex < Node->CellCount);
-
-	s16 CellSize = 0;
-	u8 *CellPositionEntries = 0;
-	db_cell CellToDelete = DB_ReadFeedCell(Node, CellIndex);
 	db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
-	if(Node->Type == DB_NODE_TYPE_INTERNAL)
-	{
-		CellSize = DB_GetInternalNodeSize(CellToDelete);
-		CellPositionEntries = &Page->Data[DB_PAGE_INTERNAL_CELL_POSITIONS];
-	}
-	else if(Node->Type == DB_NODE_TYPE_LEAF)
-	{
-		CellSize = DB_GetLeafNodeSize(CellToDelete);
-		CellPositionEntries = &Page->Data[DB_PAGE_LEAF_CELL_POSITIONS];
-	}
-	else
-	{
-		Assert(!"unreachable");
-	}
 
+	db_cell CellToDelete = DB_GetCell(Node, CellIndex);
+	s16 CellSize = DB_GetCellSize(Node->Type, CellToDelete);
+
+	u8 *CellPositionEntries = &Page->Data[DB_GetCellPositionEntriesBase(Node->Type)];
 	u8 *CellPositionEntry = CellPositionEntries + 2*CellIndex;
 	u8 *NextCellPositionEntry = CellPositionEntries + 2*(CellIndex+1);
 	s16 CellPosition = s16Deserialize(CellPositionEntry);
 	ssize BytesToMoveCount = DB_CELL_POSITION_ENTRY_SIZE*(Node->CellCount - CellIndex);
 	memmove(CellPositionEntry, NextCellPositionEntry, BytesToMoveCount);
 
+	// TODO(ariel) Modify DB_UpdateFreeChunkListAfterInsertion() to also handle
+	// this functionality.
 	db_chunk_header FreeChunk =
 	{
 		.Position = CellPosition + CellSize - DB_CHUNK_SIZE_ON_DISK,
@@ -737,27 +721,9 @@ static void
 DB_TransferFeedCell(db_btree_node *Destination, db_btree_node *Source, s32 CellIndex)
 {
 	Assert(Destination->Type == Source->Type);
-
-	db_cell Cell = DB_ReadFeedCell(Source, CellIndex);
+	db_cell Cell = DB_GetCell(Source, CellIndex);
 	db_chunk_header FreeChunk = DB_FindChunkBigEnough(Destination, Cell);
-	switch(Source->Type)
-	{
-		case DB_NODE_TYPE_INTERNAL:
-		{
-			DB_InsertInternalCell(Destination, Cell, FreeChunk);
-			break;
-		}
-		case DB_NODE_TYPE_LEAF:
-		{
-			// NOTE(ariel) Space guaranteed in context in which DB_SplitNode() calls
-			// this function since sibling node newly allocated.
-			Assert(FreeChunk.BytesCount > 0);
-			DB_InsertLeafCell(Destination, Cell, FreeChunk);
-			break;
-		}
-		default: Assert(!"unreachable");
-	}
-
+	DB_InsertCell(Destination, Cell, FreeChunk);
 	DB_DeleteCell(Source, CellIndex);
 }
 
@@ -773,11 +739,11 @@ DB_SplitNode(s32 ParentPageNumberInFile, s32 PageNumberInFileToSplit)
 	db_btree_node NewSiblingNode = DB_InitializeNewNode(NodeToSplit.Type);
 
 	s32 MedianCellIndex = NodeToSplit.CellCount / 2;
-	db_cell MedianCell = DB_ReadFeedCell(&NodeToSplit, MedianCellIndex);
+	db_cell MedianCell = DB_GetCell(&NodeToSplit, MedianCellIndex);
 
 	for(
 		// NOTE(ariel) Include median cell itself if and only if leaf node.
-		s32 CellIndex = MedianCellIndex - (NodeToSplit.Type == DB_NODE_TYPE_INTERNAL);
+		s32 CellIndex = MedianCellIndex - (NodeToSplit.Type == DB_TYPE_INTERNAL);
 		CellIndex >= 0;
 		CellIndex -= 1)
 	{
@@ -790,10 +756,10 @@ DB_SplitNode(s32 ParentPageNumberInFile, s32 PageNumberInFileToSplit)
 	db_cell ParentCell =
 	{
 		.ID = MedianCell.ID,
-		.ChildPage = DB.PageCache.CacheToFilePageNumberMap[NewSiblingNode.PageNumberInCache],
+		.Internal.ChildPage = DB.PageCache.CacheToFilePageNumberMap[NewSiblingNode.PageNumberInCache],
 	};
 	db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&ParentNode, ParentCell);
-	DB_InsertInternalCell(&ParentNode, ParentCell, ChunkHeader);
+	DB_InsertCell(&ParentNode, ParentCell, ChunkHeader);
 
 	// NOTE(ariel) Write insertions before deletions to disk.
 	DB_WriteNodeToDisk(&NewSiblingNode);
@@ -802,11 +768,11 @@ DB_SplitNode(s32 ParentPageNumberInFile, s32 PageNumberInFileToSplit)
 }
 
 static void
-DB_AddCellIntoNode(db_btree_node *Node, db_cell CellToInsert, db_chunk_header FreeChunk)
+DB_AddCell(db_btree_node *Node, db_cell CellToInsert, db_chunk_header FreeChunk)
 {
-	switch(Node->Type)
+	switch(DB_GeneralizeNodeType(Node->Type))
 	{
-		case DB_NODE_TYPE_INTERNAL:
+		case DB_TYPE_INTERNAL:
 		{
 			db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
 
@@ -834,8 +800,8 @@ DB_AddCellIntoNode(db_btree_node *Node, db_cell CellToInsert, db_chunk_header Fr
 				}
 				else
 				{
-					db_cell SelectedCell = DB_ReadFeedCell(Node, CellEntryIndex);
-					ChildPage = SelectedCell.ChildPage;
+					db_cell SelectedCell = DB_GetCell(Node, CellEntryIndex);
+					ChildPage = SelectedCell.Internal.ChildPage;
 				}
 				Assert(ChildPage >= 2);
 				Assert(ChildPage <= DB.TotalPageCountInFile);
@@ -854,22 +820,18 @@ DB_AddCellIntoNode(db_btree_node *Node, db_cell CellToInsert, db_chunk_header Fr
 					*Node = DB_ReadNodeFromDisk(DB.PageCache.CacheToFilePageNumberMap[Node->PageNumberInCache]);
 				}
 
-				DB_AddCellIntoNode(&ChildNode, CellToInsert, ChunkHeader);
+				DB_AddCell(&ChildNode, CellToInsert, ChunkHeader);
 			}
 
 			break;
 		}
-		case DB_NODE_TYPE_LEAF:
+		case DB_TYPE_LEAF:
 		{
-			DB_InsertLeafCell(Node, CellToInsert, FreeChunk);
+			DB_InsertCell(Node, CellToInsert, FreeChunk);
 			DB_WriteNodeToDisk(Node);
 			break;
 		}
-		default:
-		{
-			// TODO(ariel) Report database corruption.
-			break;
-		}
+		default: Assert(!"unreachable");
 	}
 }
 
@@ -882,9 +844,9 @@ DB_AddFeed(String FeedLink)
 	db_cell Cell =
 	{
 		.ID = DB_Hash(FeedLink),
-		.Link = FeedLink,
-		.Title.str = BlankTitle,
-		.Title.len = sizeof(BlankTitle),
+		.Feed.Link = FeedLink,
+		.Feed.Title.str = BlankTitle,
+		.Feed.Title.len = sizeof(BlankTitle),
 	};
 	db_btree_node Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
 
@@ -913,7 +875,7 @@ DB_AddFeed(String FeedLink)
 			Root.OffsetToFirstFreeBlock = DB_PAGE_SIZE - DB_CHUNK_SIZE_ON_DISK;
 			Root.CellCount = 0;
 			Root.FragmentedBytesCount = 0;
-			Root.Type = DB_NODE_TYPE_INTERNAL;
+			Root.Type = DB_TYPE_INTERNAL;
 
 			db_chunk_header RootChunkHeader =
 			{
@@ -932,7 +894,7 @@ DB_AddFeed(String FeedLink)
 		Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
 	}
 
-	DB_AddCellIntoNode(&Root, Cell, ChunkHeader);
+	DB_AddCell(&Root, Cell, ChunkHeader);
 	DB_EndTransaction();
 }
 
@@ -959,7 +921,7 @@ DB_FindFeed(String FeedLink)
 
 		for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
 		{
-			ExistingCell = DB_ReadFeedCell(&Node, CellIndex);
+			ExistingCell = DB_GetCell(&Node, CellIndex);
 			if(ID <= ExistingCell.ID)
 			{
 				Result.CellIndex = CellIndex;
@@ -969,12 +931,12 @@ DB_FindFeed(String FeedLink)
 
 		switch(Node.Type)
 		{
-			case DB_NODE_TYPE_INTERNAL:
+			case DB_TYPE_INTERNAL:
 			{
-				PageNumber = ID > ExistingCell.ID ? Node.RightPageNumber : ExistingCell.ChildPage;
+				PageNumber = ID > ExistingCell.ID ? Node.RightPageNumber : ExistingCell.Internal.ChildPage;
 				break;
 			}
-			case DB_NODE_TYPE_LEAF:
+			case DB_TYPE_FEED_LEAF:
 			{
 				if(ID == ExistingCell.ID)
 				{
@@ -1000,21 +962,26 @@ DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item)
 
 	if(SearchResult.Found) // TODO(ariel) Use ZII.
 	{
-		// FIXME(ariel) This is a hack since feed cells and item cells may not
-		// match in structure in the future.
-		db_cell Feed = DB_ReadFeedCell(&SearchResult.Node, SearchResult.CellIndex);
+		db_cell Cell = DB_GetCell(&SearchResult.Node, SearchResult.CellIndex);
 
 		db_btree_node ItemsRoot = {0};
-		if(Feed.ItemsPage)
+		if(Cell.Feed.ItemsPage)
 		{
-			ItemsRoot = DB_ReadNodeFromDisk(Feed.ItemsPage);
+			ItemsRoot = DB_ReadNodeFromDisk(Cell.Feed.ItemsPage);
 		}
 		else
 		{
 			// NOTE(ariel) Allocate page for items lazily.
-			ItemsRoot = DB_InitializeNewNode(DB_NODE_TYPE_LEAF);
-			Feed.ItemsPage = DB.PageCache.CacheToFilePageNumberMap[ItemsRoot.PageNumberInCache];
-			DB_UpdateCell();
+			ItemsRoot = DB_InitializeNewNode(DB_TYPE_ITEM_LEAF);
+			Cell.Feed.ItemsPage = DB.PageCache.CacheToFilePageNumberMap[ItemsRoot.PageNumberInCache];
+
+			db_page *Page = &DB.PageCache.Pages[SearchResult.Node.PageNumberInCache];
+			u8 *CellID = &Page->Data[Cell.PositionInPage];
+			u8 *CellLink = CellID + sizeof(Cell.ID);
+			u8 *CellTitle = CellLink + sizeof(Cell.Feed.Link.len) + Cell.Feed.Link.len;
+			u8 *CellItemsPage = CellTitle + sizeof(Cell.Feed.Title.len) + Cell.Feed.Title.len;
+			s32Serialize(CellItemsPage, Cell.Feed.ItemsPage);
+
 			DB_WriteNodeToDisk(&SearchResult.Node);
 		}
 
@@ -1033,16 +1000,16 @@ DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item)
 			b32 TitleExists = Title.str && Title.len;
 			if(LinkExists && TitleExists)
 			{
-				db_cell Cell =
+				db_cell ItemCell =
 				{
 					.ID = DB_Hash(Link),
-					.Link = Link,
-					.Title = Title,
-					.Unread = true,
+					.Item.Link = Link,
+					.Item.Title = Title,
+					.Item.Unread = true,
 				};
 
 				// FIXME(ariel) When inserting, cell position entries can expand.
-				db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&ItemsRoot, Cell);
+				db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&ItemsRoot, ItemCell);
 				if(ChunkHeader.BytesCount == 0)
 				{
 					db_btree_node RootCopy = DB_InitializeNewNode(ItemsRoot.Type);
@@ -1069,7 +1036,7 @@ DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item)
 						ItemsRoot.OffsetToFirstFreeBlock = DB_PAGE_SIZE - DB_CHUNK_SIZE_ON_DISK;
 						ItemsRoot.CellCount = 0;
 						ItemsRoot.FragmentedBytesCount = 0;
-						ItemsRoot.Type = DB_NODE_TYPE_INTERNAL;
+						ItemsRoot.Type = DB_TYPE_INTERNAL;
 
 						db_chunk_header RootChunkHeader =
 						{
@@ -1088,7 +1055,7 @@ DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item)
 					ItemsRoot = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
 				}
 
-				DB_AddCellIntoNode(&ItemsRoot, Cell, ChunkHeader);
+				DB_AddCell(&ItemsRoot, ItemCell, ChunkHeader);
 			}
 		}
 	}
@@ -1142,13 +1109,13 @@ DB_GetAllFeeds(Arena *PersistentArena)
 		db_btree_node Node = DB_ReadNodeFromDisk(StackNode->PageNumber);
 		switch(Node.Type)
 		{
-			case DB_NODE_TYPE_INTERNAL:
+			case DB_TYPE_INTERNAL:
 			{
 				for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
 				{
-					db_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+					db_cell Cell = DB_GetCell(&Node, CellIndex);
 					node *NewStackNode = arena_alloc(&DB.arena, sizeof(node));
-					NewStackNode->PageNumber = Cell.ChildPage;
+					NewStackNode->PageNumber = Cell.Internal.ChildPage;
 					NewStackNode->Next = InternalNodeStack;
 					InternalNodeStack = NewStackNode;
 				}
@@ -1160,21 +1127,21 @@ DB_GetAllFeeds(Arena *PersistentArena)
 
 				break;
 			}
-			case DB_NODE_TYPE_LEAF:
+			case DB_TYPE_FEED_LEAF:
 			{
 				for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
 				{
-					db_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+					db_cell Cell = DB_GetCell(&Node, CellIndex);
 
 					db_feed *Feed = arena_alloc(PersistentArena, sizeof(db_cell));
 					Feed->Next = 0;
-					Feed->Link = Cell.Link;
-					if(Cell.Title.str[0])
+					Feed->Link = Cell.Feed.Link;
+					if(Cell.Feed.Title.str[0])
 					{
 						// NOTE(ariel) Clear title in memory if only padding currently exists
 						// in database. This case occurs when user first adds some link or if
 						// this link remains untitled.
-						Feed->Title = Cell.Title;
+						Feed->Title = Cell.Feed.Title;
 					}
 
 					if(!List.First)
@@ -1216,12 +1183,12 @@ DB_GetAllFeedItems(Arena *PersistentArena, String FeedLink)
 	db_search_result SearchResult = DB_FindFeed(FeedLink);
 	if(SearchResult.Found)
 	{
-		db_cell FeedCell = DB_ReadFeedCell(&SearchResult.Node, SearchResult.CellIndex);
-		if(FeedCell.ItemsPage)
+		db_cell FeedCell = DB_GetCell(&SearchResult.Node, SearchResult.CellIndex);
+		if(FeedCell.Feed.ItemsPage)
 		{
 			node *Root = arena_alloc(&DB.arena, sizeof(node));
 			Root->Next = 0;
-			Root->PageNumber = FeedCell.ItemsPage;
+			Root->PageNumber = FeedCell.Feed.ItemsPage;
 
 			node *InternalNodeStack = Root;
 			while(InternalNodeStack)
@@ -1232,13 +1199,13 @@ DB_GetAllFeedItems(Arena *PersistentArena, String FeedLink)
 				db_btree_node Node = DB_ReadNodeFromDisk(StackNode->PageNumber);
 				switch(Node.Type)
 				{
-					case DB_NODE_TYPE_INTERNAL:
+					case DB_TYPE_INTERNAL:
 					{
 						for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
 						{
-							db_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+							db_cell Cell = DB_GetCell(&Node, CellIndex);
 							node *NewStackNode = arena_alloc(&DB.arena, sizeof(node));
-							NewStackNode->PageNumber = Cell.ChildPage;
+							NewStackNode->PageNumber = Cell.Internal.ChildPage;
 							NewStackNode->Next = InternalNodeStack;
 							InternalNodeStack = NewStackNode;
 						}
@@ -1250,21 +1217,21 @@ DB_GetAllFeedItems(Arena *PersistentArena, String FeedLink)
 
 						break;
 					}
-					case DB_NODE_TYPE_LEAF:
+					case DB_TYPE_ITEM_LEAF:
 					{
 						for(s32 CellIndex = 0; CellIndex < Node.CellCount; CellIndex += 1)
 						{
-							db_cell Cell = DB_ReadFeedCell(&Node, CellIndex);
+							db_cell ItemCell = DB_GetCell(&Node, CellIndex);
 
 							db_item *Item = arena_alloc(PersistentArena, sizeof(db_cell));
 							Item->Next = 0;
-							Item->Link = Cell.Link;
-							if(Cell.Title.str[0])
+							Item->Link = ItemCell.Item.Link;
+							if(ItemCell.Item.Title.str[0])
 							{
 								// NOTE(ariel) Clear title in memory if only padding currently exists
 								// in database. This case occurs when user first adds some link or if
 								// this link remains untitled.
-								Item->Title = Cell.Title;
+								Item->Title = ItemCell.Item.Title;
 							}
 
 							if(!List.First)

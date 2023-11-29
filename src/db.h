@@ -32,13 +32,17 @@ struct db_page_cache
 	db_page Pages[DB_PAGE_COUNT_IN_CACHE];
 };
 
-typedef enum db_node_type db_node_type;
-enum db_node_type
+typedef enum db_type db_type;
+enum db_type
 {
-	DB_NODE_TYPE_INTERNAL = 0,
-	DB_NODE_TYPE_LEAF = 1,
+	DB_TYPE_INTERNAL = 0,
+	DB_TYPE_LEAF = 1,
+	DB_TYPE_COUNT = 2,
+
+	DB_TYPE_FEED_LEAF = 3,
+	DB_TYPE_ITEM_LEAF = 5,
 } __attribute__((packed));
-StaticAssert(sizeof(db_node_type) == 1);
+StaticAssert(sizeof(db_type) == 1);
 
 // NOTE(ariel) SQLite's file format heavily inspires the version of this data
 // structure both in memory and on disk [0].
@@ -71,29 +75,36 @@ struct db_btree_node
 	s8 FragmentedBytesCount;
 
 	// NOTE(ariel) Indicate B+Tree page type.
-	db_node_type Type;
+	db_type Type;
 };
 
 typedef struct db_cell db_cell;
 struct db_cell
 {
+	s16 PositionInPage;
+
+	/* NOTE(ariel) The database tracks fields above only in memory. */
+	/* NOTE(ariel) The database serializes fields below to pages on disk. */
+
 	u32 ID;
 	union
 	{
-		struct // NOTE(ariel) Leaf nodes store links and titles.
+		// NOTE(ariel) Internal nodes store pointers to children.
+		struct { s32 ChildPage; } Internal;
+
+		// NOTE(ariel) Leaf nodes store data.
+		struct
 		{
 			String Link;
 			String Title;
-			union
-			{
-				s32 ItemsPage; // NOTE(ariel) Feed cells store page number to items.
-				b32 Unread;    // NOTE(ariel) Item cells store (un)read attribute.
-			};
-		};
-		struct // NOTE(ariel) Internal nodes store pointers to children.
+			s32 ItemsPage;
+		} Feed;
+		struct
 		{
-			s32 ChildPage;
-		};
+			String Link;
+			String Title;
+			b8 Unread;
+		} Item;
 	};
 };
 
