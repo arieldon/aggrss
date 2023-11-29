@@ -725,10 +725,6 @@ DB_TransferFeedCell(db_btree_node *Destination, db_btree_node *Source, s32 CellI
 static void
 DB_SplitNode(s32 ParentPageNumberInFile, s32 PageNumberInFileToSplit)
 {
-#ifdef DEBUG
-	DB.SplitCount += 1;
-#endif
-
 	db_btree_node ParentNode = DB_ReadNodeFromDisk(ParentPageNumberInFile);
 	db_btree_node NodeToSplit = DB_ReadNodeFromDisk(PageNumberInFileToSplit);
 	db_btree_node NewSiblingNode = DB_InitializeNewNode(NodeToSplit.Type);
