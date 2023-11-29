@@ -363,17 +363,13 @@ DB_FindChunkBigEnough(db_btree_node *Node, db_cell Cell)
 		if(Header.BytesCount >= RequiredBytesCount)
 		{
 			Result = Header;
+			Result.Position = ChunkPosition;
+			Result.PreviousChunkPosition = PreviousChunkPosition;
 			break;
 		}
 
 		PreviousChunkPosition = ChunkPosition;
 		ChunkPosition = Header.NextChunkPosition;
-	}
-
-	if(Result.BytesCount)
-	{
-		Result.Position = ChunkPosition;
-		Result.PreviousChunkPosition = PreviousChunkPosition;
 	}
 
 	return Result;
