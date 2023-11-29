@@ -827,19 +827,9 @@ DB_AddCell(db_btree_node *Node, db_cell CellToInsert, db_chunk_header FreeChunk)
 }
 
 static void
-DB_AddFeed(String FeedLink)
+DB_InsertCellIntoTree(s32 RootPageNumberInFile, db_cell Cell)
 {
-	DB_BeginTransaction();
-
-	char BlankTitle[32] = {0}; // NOTE(ariel) Preallocate 32 bytes for title upon update.
-	db_cell Cell =
-	{
-		.ID = DB_Hash(FeedLink),
-		.Feed.Link = FeedLink,
-		.Feed.Title.str = BlankTitle,
-		.Feed.Title.len = sizeof(BlankTitle),
-	};
-	db_btree_node Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
+	db_btree_node Root = DB_ReadNodeFromDisk(RootPageNumberInFile);
 
 	db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&Root, Cell);
 	if(ChunkHeader.BytesCount == 0)
@@ -848,7 +838,7 @@ DB_AddFeed(String FeedLink)
 
 		s32 RootCopyPageNumberInFile = DB.PageCache.CacheToFilePageNumberMap[RootCopy.PageNumberInCache];
 		db_page *RootCopyPage = &DB.PageCache.Pages[RootCopyPageNumberInFile];
-		db_page *RootPage = &DB.PageCache.Pages[DB_ROOT_PAGE_IN_FILE];
+		db_page *RootPage = &DB.PageCache.Pages[RootPageNumberInFile];
 		memcpy(RootCopyPage->Data, RootPage->Data, DB_PAGE_SIZE);
 
 		// NOTE(ariel) This call reads from cache -- not disk -- in reality, and it
@@ -881,11 +871,28 @@ DB_AddFeed(String FeedLink)
 			DB_WriteNodeToDisk(&Root);
 		}
 
-		DB_SplitNode(DB_ROOT_PAGE_IN_FILE, RootCopyPageNumberInFile);
-		Root = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
+		DB_SplitNode(RootPageNumberInFile, RootCopyPageNumberInFile);
+		Root = DB_ReadNodeFromDisk(RootPageNumberInFile);
 	}
 
 	DB_AddCell(&Root, Cell, ChunkHeader);
+}
+
+static void
+DB_AddFeed(String FeedLink)
+{
+	DB_BeginTransaction();
+
+	char BlankTitle[32] = {0}; // NOTE(ariel) Preallocate 32 bytes for title upon update.
+	db_cell Cell =
+	{
+		.ID = DB_Hash(FeedLink),
+		.Feed.Link = FeedLink,
+		.Feed.Title.str = BlankTitle,
+		.Feed.Title.len = sizeof(BlankTitle),
+	};
+	DB_InsertCellIntoTree(DB_ROOT_PAGE_IN_FILE, Cell);
+
 	DB_EndTransaction();
 }
 
@@ -953,25 +960,25 @@ DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item)
 
 	if(SearchResult.Found) // TODO(ariel) Use ZII.
 	{
-		db_cell Cell = DB_GetCell(&SearchResult.Node, SearchResult.CellIndex);
+		db_cell FeedCell = DB_GetCell(&SearchResult.Node, SearchResult.CellIndex);
 
 		db_btree_node ItemsRoot = {0};
-		if(Cell.Feed.ItemsPage)
+		if(FeedCell.Feed.ItemsPage)
 		{
-			ItemsRoot = DB_ReadNodeFromDisk(Cell.Feed.ItemsPage);
+			ItemsRoot = DB_ReadNodeFromDisk(FeedCell.Feed.ItemsPage);
 		}
 		else
 		{
 			// NOTE(ariel) Allocate page for items lazily.
 			ItemsRoot = DB_InitializeNewNode(DB_TYPE_ITEM_LEAF);
-			Cell.Feed.ItemsPage = DB.PageCache.CacheToFilePageNumberMap[ItemsRoot.PageNumberInCache];
+			FeedCell.Feed.ItemsPage = DB.PageCache.CacheToFilePageNumberMap[ItemsRoot.PageNumberInCache];
 
 			db_page *Page = &DB.PageCache.Pages[SearchResult.Node.PageNumberInCache];
-			u8 *CellID = &Page->Data[Cell.PositionInPage];
-			u8 *CellLink = CellID + sizeof(Cell.ID);
-			u8 *CellTitle = CellLink + sizeof(Cell.Feed.Link.len) + Cell.Feed.Link.len;
-			u8 *CellItemsPage = CellTitle + sizeof(Cell.Feed.Title.len) + Cell.Feed.Title.len;
-			s32Serialize(CellItemsPage, Cell.Feed.ItemsPage);
+			u8 *CellID = &Page->Data[FeedCell.PositionInPage];
+			u8 *CellLink = CellID + sizeof(FeedCell.ID);
+			u8 *CellTitle = CellLink + sizeof(FeedCell.Feed.Link.len) + FeedCell.Feed.Link.len;
+			u8 *CellItemsPage = CellTitle + sizeof(FeedCell.Feed.Title.len) + FeedCell.Feed.Title.len;
+			s32Serialize(CellItemsPage, FeedCell.Feed.ItemsPage);
 
 			DB_WriteNodeToDisk(&SearchResult.Node);
 		}
@@ -998,55 +1005,7 @@ DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item)
 					.Item.Title = Title,
 					.Item.Unread = true,
 				};
-
-				// FIXME(ariel) When inserting, cell position entries can expand.
-				db_chunk_header ChunkHeader = DB_FindChunkBigEnough(&ItemsRoot, ItemCell);
-				if(ChunkHeader.BytesCount == 0)
-				{
-					db_btree_node RootCopy = DB_InitializeNewNode(ItemsRoot.Type);
-
-					s32 RootCopyPageNumberInFile = DB.PageCache.CacheToFilePageNumberMap[RootCopy.PageNumberInCache];
-					db_page *RootCopyPage = &DB.PageCache.Pages[RootCopyPageNumberInFile];
-					db_page *RootPage = &DB.PageCache.Pages[DB_ROOT_PAGE_IN_FILE];
-					memcpy(RootCopyPage->Data, RootPage->Data, DB_PAGE_SIZE);
-
-					// NOTE(ariel) This call reads from cache -- not disk -- in reality, and it
-					// synchronizes data structure in memory to newly written contents of page.
-					RootCopy = DB_ReadNodeFromDisk(RootCopyPageNumberInFile);
-
-					// NOTE(ariel) Write copy to disk before clearing root.
-					DB_WriteNodeToDisk(&RootCopy);
-
-					// TODO(ariel) Split node allocation and node initializes into separate
-					// functions to be able to call initialize here?
-					// NOTE(ariel) Clear root.
-					{
-						memset(RootPage->Data, 0, DB_PAGE_SIZE);
-
-						ItemsRoot.RightPageNumber = RootCopyPageNumberInFile;
-						ItemsRoot.OffsetToFirstFreeBlock = DB_PAGE_SIZE - DB_CHUNK_SIZE_ON_DISK;
-						ItemsRoot.CellCount = 0;
-						ItemsRoot.FragmentedBytesCount = 0;
-						ItemsRoot.Type = DB_TYPE_INTERNAL;
-
-						db_chunk_header RootChunkHeader =
-						{
-							.Position = ItemsRoot.OffsetToFirstFreeBlock,
-							.NextChunkPosition = DB_CHUNK_TERMINATOR,
-							// TODO(ariel) Should I consider that one cell position entry slot is
-							// essentially occupied too since it's necessary for an insertion?
-							.BytesCount = DB_PAGE_SIZE - DB_PAGE_INTERNAL_CELL_POSITIONS,
-						};
-						DB_WriteChunkHeaderToNode(&ItemsRoot, RootChunkHeader);
-
-						DB_WriteNodeToDisk(&ItemsRoot);
-					}
-
-					DB_SplitNode(DB_ROOT_PAGE_IN_FILE, RootCopyPageNumberInFile);
-					ItemsRoot = DB_ReadNodeFromDisk(DB_ROOT_PAGE_IN_FILE);
-				}
-
-				DB_AddCell(&ItemsRoot, ItemCell, ChunkHeader);
+				DB_InsertCellIntoTree(FeedCell.Feed.ItemsPage, ItemCell);
 			}
 		}
 	}
