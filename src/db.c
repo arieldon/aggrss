@@ -202,7 +202,8 @@ DB_GetCellPositionEntriesBase(db_type Type)
 
 enum
 {
-	DB_CHUNK_TERMINATOR = 0, // NOTE(ariel) Indicate first and last chunk in free list of chunks in page.
+	DB_CHUNK_START_TERMINATOR = 0,
+	DB_CHUNK_END_TERMINATOR = INT16_MAX,
 	DB_CHUNK_SIZE_ON_DISK = 2*sizeof(s16),
 };
 
@@ -262,7 +263,7 @@ DB_ReadChunkHeaderFromNode(db_btree_node *Node, s16 HeaderPosition)
 {
 	db_chunk_header Result = {0};
 	
-	if(HeaderPosition != DB_CHUNK_TERMINATOR)
+	if(HeaderPosition != DB_CHUNK_START_TERMINATOR && HeaderPosition != DB_CHUNK_END_TERMINATOR)
 	{
 		Assert(HeaderPosition > DB_GetCellPositionEntriesBase(Node->Type));
 		db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
@@ -277,7 +278,8 @@ DB_ReadChunkHeaderFromNode(db_btree_node *Node, s16 HeaderPosition)
 static void
 DB_WriteChunkHeaderToNode(db_btree_node *Node, db_chunk_header Header)
 {
-	if(Header.Position != DB_CHUNK_TERMINATOR)
+	Assert(Header.Position != DB_CHUNK_END_TERMINATOR);
+	if(Header.Position != DB_CHUNK_START_TERMINATOR)
 	{
 		Assert(Header.Position > DB_GetCellPositionEntriesBase(Node->Type));
 		db_page *Page = &DB.PageCache.Pages[Node->PageNumberInCache];
@@ -290,62 +292,92 @@ DB_WriteChunkHeaderToNode(db_btree_node *Node, db_chunk_header Header)
 	}
 }
 
+typedef enum db_update_free_chunk_list_operation db_update_free_chunk_list_operation;
+enum db_update_free_chunk_list_operation
+{
+	DB_UPDATE_FREE_CHUNK_LIST_AFTER_DELETEION = +1,
+	DB_UPDATE_FREE_CHUNK_LIST_AFTER_INSERTION = -1,
+};
+
+static void
+DB_UpdateChunkBorderingCellPositionEntries(db_btree_node *Node, db_update_free_chunk_list_operation Operation)
+{
+	// NOTE(ariel) Find free chunk header that contains bytes bordering list of
+	// cell position entries and modify its size by size of new cell position
+	// entry.
+	s16 CellPositionEntriesBase = DB_GetCellPositionEntriesBase(Node->Type);
+	s16 FreeSpaceStart = CellPositionEntriesBase + DB_CELL_POSITION_ENTRY_SIZE*Node->CellCount;
+
+	db_chunk_header Chunk = DB_ReadChunkHeaderFromNode(Node, Node->OffsetToFirstFreeBlock);
+	while(Chunk.BytesCount)
+	{
+		// NOTE(ariel) There may not exist a chunk that borders cell position
+		// entries because a cell might sit there.
+		if(Chunk.Position - Chunk.BytesCount < FreeSpaceStart)
+		{
+			Chunk.BytesCount += (s32)Operation * DB_CELL_POSITION_ENTRY_SIZE;
+			DB_WriteChunkHeaderToNode(Node, Chunk);
+			break;
+		}
+		Chunk = DB_ReadChunkHeaderFromNode(Node, Chunk.NextChunkPosition);
+	}
+}
+
+static void
+DB_UpdateFreeChunkListAfterDeletion(db_btree_node *Node, db_chunk_header NewFreeChunk)
+{
+	// NOTE(ariel) Insert free chunks in sorted order to push more allocations
+	// towards end of cell.
+	db_chunk_header PreviousChunk = {0};
+	db_chunk_header CurrentChunk = DB_ReadChunkHeaderFromNode(Node, Node->OffsetToFirstFreeBlock);
+	while(CurrentChunk.BytesCount)
+	{
+		if(NewFreeChunk.Position > PreviousChunk.Position && NewFreeChunk.Position < CurrentChunk.Position)
+		{
+			PreviousChunk.NextChunkPosition = CurrentChunk.PreviousChunkPosition = NewFreeChunk.Position;
+			NewFreeChunk.NextChunkPosition = CurrentChunk.Position;
+
+			// TODO(ariel) Merge chunks if bordering.
+			;
+
+			DB_WriteChunkHeaderToNode(Node, NewFreeChunk);
+			DB_WriteChunkHeaderToNode(Node, PreviousChunk);
+			DB_WriteChunkHeaderToNode(Node, CurrentChunk);
+		}
+		PreviousChunk = CurrentChunk;
+		CurrentChunk = DB_ReadChunkHeaderFromNode(Node, CurrentChunk.NextChunkPosition);
+	}
+}
+
 static void
 DB_UpdateFreeChunkListAfterInsertion(db_btree_node *Node, db_chunk_header UsedChunk, s16 UsedBytesCount)
 {
-	// NOTE(ariel) Update chunk position and number of free bytes.
+	s16 MinimumCellSize = Node->Type == DB_TYPE_INTERNAL ? 8 : 16;
+	s16 RemainingBytesCount = UsedChunk.BytesCount - UsedBytesCount;
+	db_chunk_header PreviousChunk = DB_ReadChunkHeaderFromNode(Node, UsedChunk.PreviousChunkPosition);
+
+	if(RemainingBytesCount >= MinimumCellSize)
 	{
-		s16 MinimumCellSize = Node->Type == DB_TYPE_INTERNAL ? 8 : 16;
-		s16 RemainingBytesCount = UsedChunk.BytesCount - UsedBytesCount;
-		db_chunk_header PreviousChunk = DB_ReadChunkHeaderFromNode(Node, UsedChunk.PreviousChunkPosition);
-
-		if(RemainingBytesCount >= MinimumCellSize)
+		s16 CellPosition = UsedChunk.Position + DB_CHUNK_SIZE_ON_DISK - UsedBytesCount;
+		db_chunk_header UpdatedChunk =
 		{
-			s16 CellPosition = UsedChunk.Position + DB_CHUNK_SIZE_ON_DISK - UsedBytesCount;
-			db_chunk_header UpdatedChunk =
-			{
-				.Position = (CellPosition-1) - DB_CHUNK_SIZE_ON_DISK,
-				.NextChunkPosition = UsedChunk.NextChunkPosition,
-				.BytesCount = RemainingBytesCount,
-			};
-			DB_WriteChunkHeaderToNode(Node, UpdatedChunk);
-			PreviousChunk.NextChunkPosition = UpdatedChunk.Position;
-		}
-		else
-		{
-			// TODO(ariel) Defragment node if this value reaches some threshold.
-			// SQLite places this threshold at 60 bytes.
-			Node->FragmentedBytesCount += RemainingBytesCount;
-			PreviousChunk.NextChunkPosition = UsedChunk.NextChunkPosition;
-		}
-
-		DB_WriteChunkHeaderToNode(Node, PreviousChunk);
+			.Position = (CellPosition-1) - DB_CHUNK_SIZE_ON_DISK,
+			.NextChunkPosition = UsedChunk.NextChunkPosition,
+			.BytesCount = RemainingBytesCount,
+		};
+		DB_WriteChunkHeaderToNode(Node, UpdatedChunk);
+		PreviousChunk.NextChunkPosition = UpdatedChunk.Position;
 	}
-
-	// NOTE(ariel) Find free chunk header that contains bytes bordering list of
-	// cell position entries and reduce its size by size of new cell position
-	// entry.
+	else
 	{
-		s16 CellPositionEntriesBase = DB_GetCellPositionEntriesBase(Node->Type);
-		s16 FreeSpaceStart = CellPositionEntriesBase + DB_CELL_POSITION_ENTRY_SIZE*Node->CellCount;
-
-		db_chunk_header Chunk = DB_ReadChunkHeaderFromNode(Node, Node->OffsetToFirstFreeBlock);
-		while(Chunk.BytesCount)
-		{
-			// NOTE(ariel) There may not exist a chunk that borders cell position
-			// entries because a cell might sit there.
-			if(Chunk.Position - Chunk.BytesCount < FreeSpaceStart)
-			{
-				Chunk.BytesCount -= DB_CELL_POSITION_ENTRY_SIZE;
-				DB_WriteChunkHeaderToNode(Node, Chunk);
-				break;
-			}
-			Chunk = DB_ReadChunkHeaderFromNode(Node, Chunk.NextChunkPosition);
-		}
+		// TODO(ariel) Defragment node if this value reaches some threshold.
+		// SQLite places this threshold at 60 bytes.
+		Node->FragmentedBytesCount += RemainingBytesCount;
+		PreviousChunk.NextChunkPosition = UsedChunk.NextChunkPosition;
 	}
+	DB_WriteChunkHeaderToNode(Node, PreviousChunk);
 
-	// TODO(ariel) Merge bordering chunks.
-	;
+	DB_UpdateChunkBorderingCellPositionEntries(Node, DB_UPDATE_FREE_CHUNK_LIST_AFTER_INSERTION);
 }
 
 static db_chunk_header
@@ -353,10 +385,10 @@ DB_FindChunkBigEnough(db_btree_node *Node, db_cell Cell)
 {
 	db_chunk_header Result = {0};
 
-	s16 PreviousChunkPosition = DB_CHUNK_TERMINATOR;
+	s16 PreviousChunkPosition = DB_CHUNK_START_TERMINATOR;
 	s16 ChunkPosition = Node->OffsetToFirstFreeBlock;
 	s16 RequiredBytesCount = DB_GetCellSize(Node->Type, Cell);
-	while(ChunkPosition != DB_CHUNK_TERMINATOR)
+	while(ChunkPosition != DB_CHUNK_END_TERMINATOR)
 	{
 		db_chunk_header Header = DB_ReadChunkHeaderFromNode(Node, ChunkPosition);
 
@@ -430,7 +462,7 @@ DB_InitializeNewNode(db_type NodeType)
 	db_chunk_header ChunkHeader =
 	{
 		.Position = Node.OffsetToFirstFreeBlock,
-		.NextChunkPosition = DB_CHUNK_TERMINATOR,
+		.NextChunkPosition = DB_CHUNK_START_TERMINATOR,
 		.BytesCount = DB.PageCache.PageSize - DB_GetCellPositionEntriesBase(NodeType),
 	};
 	DB_WriteChunkHeaderToNode(&Node, ChunkHeader);
@@ -698,16 +730,13 @@ DB_DeleteCell(db_btree_node *Node, s32 CellIndex)
 	ssize BytesToMoveCount = DB_CELL_POSITION_ENTRY_SIZE*(Node->CellCount - CellIndex);
 	memmove(CellPositionEntry, NextCellPositionEntry, BytesToMoveCount);
 
-	// TODO(ariel) Modify DB_UpdateFreeChunkListAfterInsertion() to also handle
-	// this functionality.
-	db_chunk_header FreeChunk =
+	db_chunk_header NewFreeChunk =
 	{
 		.Position = CellPosition + CellSize - DB_CHUNK_SIZE_ON_DISK,
 		.NextChunkPosition = Node->OffsetToFirstFreeBlock,
 		.BytesCount = CellSize,
 	};
-	DB_WriteChunkHeaderToNode(Node, FreeChunk);
-	Node->OffsetToFirstFreeBlock = FreeChunk.Position;
+	DB_UpdateFreeChunkListAfterDeletion(Node, NewFreeChunk);
 
 	Node->CellCount -= 1;
 }
@@ -861,7 +890,7 @@ DB_InsertCellIntoTree(s32 RootPageNumberInFile, db_cell Cell)
 			db_chunk_header RootChunkHeader =
 			{
 				.Position = Root.OffsetToFirstFreeBlock,
-				.NextChunkPosition = DB_CHUNK_TERMINATOR,
+				.NextChunkPosition = DB_CHUNK_START_TERMINATOR,
 				// TODO(ariel) Should I consider that one cell position entry slot is
 				// essentially occupied too since it's necessary for an insertion?
 				.BytesCount = DB_PAGE_SIZE - DB_PAGE_INTERNAL_CELL_POSITIONS,
