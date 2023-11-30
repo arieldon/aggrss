@@ -1021,6 +1021,19 @@ DB_DeleteFeed(String FeedLink)
 static void
 DB_UpdateFeedTitle(String FeedLink, String FeedTitle)
 {
+	db_search_result SearchResult = DB_FindFeed(FeedLink);
+	if(SearchResult.Found)
+	{
+		db_cell Cell = DB_GetCell(&SearchResult.Node, SearchResult.CellIndex);
+		if(FeedTitle.len <= 32)
+		{
+			db_page *Page = &DB.PageCache.Pages[SearchResult.Node.PageNumberInCache];
+			u8 *CellID = &Page->Data[Cell.PositionInPage];
+			u8 *CellLink = CellID + sizeof(Cell.ID);
+			u8 *CellTitle = CellLink + sizeof(Cell.Feed.Link.len) + Cell.Feed.Link.len;
+			StringSerialize(CellTitle, FeedTitle);
+		}
+	}
 }
 
 static void
