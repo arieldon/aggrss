@@ -1045,6 +1045,8 @@ DB_AddItems(Arena *ScratchArena, String FeedLink, RSS_Tree_Node *Item)
 static void
 DB_DeleteFeed(String FeedLink)
 {
+	// TODO(ariel) Merge tree nodes if user deletes enough cells.
+	Assert(!"unimplemented");
 }
 
 static void
@@ -1068,11 +1070,13 @@ DB_UpdateFeedTitle(String FeedLink, String FeedTitle)
 static void
 DB_MarkItemRead(String FeedLink, String ItemLink)
 {
+	Assert(!"unimplemented");
 }
 
 static void
 DB_MarkAllFeedItemsRead(String FeedLink)
 {
+	Assert(!"unimplemented");
 }
 
 static db_feed_list
