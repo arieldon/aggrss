@@ -11,24 +11,18 @@ enum
 typedef struct db_page db_page;
 struct db_page
 {
+	_Atomic s8 WriterLock;
+	_Atomic s8 ReadersCount;
 	u8 Data[DB_PAGE_SIZE];
 };
 
 typedef struct db_page_cache db_page_cache;
 struct db_page_cache
 {
-	// NOTE(ariel) Use standard Unix file IO because I don't want to deal with
-	// buffered C file IO. Maybe this is a bad decision.
 	int FileDescriptor;
 	s16 PageSize;
 
-	// NOTE(ariel) Byte clear if page clear. Byte set if page in use.
-	// TODO(ariel) Try a different encoding scheme actually. Let the page be
-	// negative if its in use. Then positive pages are more recently used. This
-	// way we gain both benefits of maintaining this list separately but also the
-	// LRU nature that allows us to keep more "useful" pages in cache.
-	s8 WriteLock[DB_PAGE_COUNT_IN_CACHE];
-	s32 CacheToFilePageNumberMap[DB_PAGE_COUNT_IN_CACHE];
+	_Atomic s32 CacheToFilePageNumberMap[DB_PAGE_COUNT_IN_CACHE];
 	db_page Pages[DB_PAGE_COUNT_IN_CACHE];
 };
 
@@ -78,6 +72,15 @@ struct db_btree_node
 	db_type Type;
 };
 
+// TODO(ariel) Try to push cell serialization and (especially) deserialization
+// as far up as the call stack as possible. I want to introduce a feature, i.e.
+// different cell types (feed and item), while also minimizing the amount of
+// complexity I introduce. Instead of switching in the innermost core of the
+// (what I assume is) the hottest code path, I want to try to define some
+// generic functions at the highest level.
+//
+// I can return cell positions and the deserialize and/or serialize as far away
+// from this call as possible or feasible.
 typedef struct db_cell db_cell;
 struct db_cell
 {
