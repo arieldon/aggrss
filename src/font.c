@@ -28,14 +28,14 @@ struct Font_Data
 };
 
 static string
-load_file(Arena *arena, FILE *file)
+load_file(arena *Arena, FILE *file)
 {
 	string contents = {0};
 
 	fseek(file, 0, SEEK_END);
 	contents.len = (s32)ftell(file);
 	rewind(file);
-	contents.str = arena_alloc(arena, contents.len);
+	contents.str = PushBytesToArena(Arena, contents.len);
 	ssize len = fread(contents.str, contents.len, sizeof(char), file);
 	if (!len)
 	{
@@ -50,7 +50,7 @@ load_file(Arena *arena, FILE *file)
 // TODO(ariel) Use a list of errors as strings instead of printing directly to
 // stderr and (intentionally) crashing?
 static Font_Data
-parse_font_file(Arena *arena, char *font_file_path)
+parse_font_file(arena *Arena, char *font_file_path)
 {
 	Font_Data result = {0};
 
@@ -72,7 +72,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 #endif
 
 	FILE *font_file = fopen(font_file_path, "rb");
-	string font_data = load_file(arena, font_file);
+	string font_data = load_file(Arena, font_file);
 
 	FT_Face face = {0};
 	FT_Open_Args face_args =
@@ -102,7 +102,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 		FT_ULong char_code = FT_Get_First_Char(face, &glyph_index);
 		do
 		{
-			Code_Point_Glyph_Index_Pair *pair = arena_alloc(arena, sizeof(Code_Point_Glyph_Index_Pair));
+			Code_Point_Glyph_Index_Pair *pair = PushStructToArena(Arena, Code_Point_Glyph_Index_Pair);
 			pair->code_point = (u32)char_code;
 			pair->glyph_index = glyph_index;
 
@@ -167,7 +167,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 
 				// NOTE(ariel) Copy the bitmap if all goes accordingly.
 				{
-					bitmap_clone = arena_alloc(arena, bitmap->width * bitmap->rows);
+					bitmap_clone = PushBytesToArena(Arena, bitmap->width * bitmap->rows);
 
 					s32 pitch = bitmap->pitch;
 					u8 *first_line = bitmap->buffer;
@@ -189,7 +189,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 
 			// NOTE(ariel) Append new glyph to list of glyphs.
 			{
-				First_Stage_Glyph *glyph = arena_alloc(arena, sizeof(First_Stage_Glyph));
+				First_Stage_Glyph *glyph = PushStructToArena(Arena, First_Stage_Glyph);
 
 				assert((s32)bitmap->width < INT32_MAX);
 				assert((s32)bitmap->rows < INT32_MAX);
@@ -234,28 +234,28 @@ parse_font_file(Arena *arena, char *font_file_path)
 enum { N_CODE_POINT_SLOTS = 128 };
 
 static Font_Atlas
-bake_font(Arena *arena)
+bake_font(arena *Arena)
 {
 	Font_Atlas atlas = {0};
 
-	Arena scratch_arena = {0};
-	arena_init(&scratch_arena);
+	arena ScratchArena = {0};
+	InitializeArena(&ScratchArena);
 
 	// NOTE(ariel) Compile script defines macro CONFIG_DIRECTORY_PATH.
 #define CHARACTERS_FILE_PATH CONFIG_DIRECTORY_PATH "/assets/RobotoMono-Medium.ttf"
 #define ICONS_FILE_PATH CONFIG_DIRECTORY_PATH "/assets/icons.ttf"
-	Font_Data characters = parse_font_file(&scratch_arena, CHARACTERS_FILE_PATH);
-	Font_Data icons = parse_font_file(&scratch_arena, ICONS_FILE_PATH);
+	Font_Data characters = parse_font_file(&ScratchArena, CHARACTERS_FILE_PATH);
+	Font_Data icons = parse_font_file(&ScratchArena, ICONS_FILE_PATH);
 #undef ICONS_FILE_PATH
 #undef CHARACTERS_FILE_PATH
 
 	// NOTE(ariel) Initialize a data structure to quickly map a code point to a
 	// corresponding glyph index based on the results of the initial pass from
 	// parse_font_file().
-	atlas.code_points = arena_alloc(arena, sizeof(Code_Point_Glyph_Index_List) * N_CODE_POINT_SLOTS);
+	atlas.code_points = PushArrayToArena(Arena, Code_Point_Glyph_Index_List, N_CODE_POINT_SLOTS);
 	for (Code_Point_Glyph_Index_Pair *pair = characters.code_points.first; pair; pair = pair->next)
 	{
-		Code_Point_Glyph_Index_Pair *pair_clone = arena_alloc(arena, sizeof(Code_Point_Glyph_Index_Pair));
+		Code_Point_Glyph_Index_Pair *pair_clone = PushStructToArena(Arena, Code_Point_Glyph_Index_Pair);
 		pair_clone->code_point = pair->code_point;
 		pair_clone->glyph_index = pair->glyph_index - characters.min_glyph_index;
 
@@ -287,7 +287,7 @@ bake_font(Arena *arena)
 
 	{
 		atlas.n_icon_glyphs = icons.max_glyph_index - icons.min_glyph_index + 1;
-		atlas.icon_glyphs = arena_alloc(arena, sizeof(Glyph) * atlas.n_icon_glyphs);
+		atlas.icon_glyphs = PushArrayToArena(Arena, Glyph, atlas.n_icon_glyphs);
 		for (First_Stage_Glyph *glyph = icons.glyphs.first; glyph; glyph = glyph->next)
 		{
 			u32 adjusted_glyph_index = glyph->index - icons.min_glyph_index;
@@ -316,7 +316,7 @@ bake_font(Arena *arena)
 
 	{
 		atlas.n_character_glyphs = characters.max_glyph_index - characters.min_glyph_index + 1;
-		atlas.character_glyphs = arena_alloc(arena, sizeof(Glyph) * atlas.n_character_glyphs);
+		atlas.character_glyphs = PushArrayToArena(Arena, Glyph, atlas.n_character_glyphs);
 		for (First_Stage_Glyph *glyph = characters.glyphs.first; glyph; glyph = glyph->next)
 		{
 			u32 adjusted_glyph_index = glyph->index - characters.min_glyph_index;
@@ -353,7 +353,7 @@ bake_font(Arena *arena)
 		exit(EXIT_FAILURE);
 	}
 
-	arena_release(&scratch_arena);
+	ReleaseArena(&ScratchArena);
 	return atlas;
 }
 

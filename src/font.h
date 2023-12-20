@@ -52,7 +52,7 @@ struct Font_Atlas
 	Glyph *icon_glyphs;
 };
 
-static Font_Atlas bake_font(Arena *arena);
+static Font_Atlas bake_font(arena *Arena);
 static u32 map_code_point_to_glyph_index(Font_Atlas *atlas, u32 code_point);
 
 #endif

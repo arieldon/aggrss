@@ -22,6 +22,7 @@
 #include "SDL_opengl.h"
 
 #include "base.h"
+#include "memory.h"
 #include "arena.h"
 #include "date_time.h"
 #include "str.h"
@@ -37,6 +38,13 @@
 #include "string_table.h"
 #include "multithreading.h"
 
+#if defined(__linux__)
+#include "memory_linux.c"
+#elif defined(_WIN64)
+#include "memory_windows.c"
+#else
+#error `memory.h` is not implemented on this platform.
+#endif
 #include "arena.c"
 #include "date_time.c"
 #include "str.c"
@@ -55,7 +63,7 @@
 enum { FPS = 60 };
 global u32 delta_ms = 1000 / FPS;
 
-global Arena g_arena;
+global arena GlobalArena;
 global pool LinkPool;
 global pool MessagePool;
 
@@ -135,11 +143,11 @@ StoreResponseFromCurl(void *Data, size_t Size, size_t Count, void *CustomUserDat
 	curl_response *Response = CustomUserData;
 	if(Response->Data.str)
 	{
-		Response->Data.str = arena_realloc(&Response->Thread->ScratchArena, Response->Data.len + TotalBytes);
+		Response->Data.str = ReallocFromArena(&Response->Thread->ScratchArena, Response->Data.len + TotalBytes);
 	}
 	else
 	{
-		Response->Data.str = arena_alloc(&Response->Thread->ScratchArena, TotalBytes);
+		Response->Data.str = ReallocFromArena(&Response->Thread->ScratchArena, TotalBytes);
 	}
 
 	assert(TotalBytes <= INT32_MAX);
@@ -252,8 +260,8 @@ ParseFeed(s32 ThreadID, void *Data)
 		free(Link.str);
 	}
 	ReleasePoolSlot(&LinkPool, Data);
-	arena_clear(&Thread->ScratchArena);
-	arena_clear(&Thread->PersistentArena);
+	ClearArena(&Thread->ScratchArena);
+	ClearArena(&Thread->PersistentArena);
 }
 
 static void
@@ -322,7 +330,7 @@ process_frame(void)
 						pid_t pid = fork();
 						if (pid == 0)
 						{
-							char *terminated_link = string_terminate(&g_arena, item.link);
+							char *terminated_link = string_terminate(&GlobalArena, item.link);
 							char *args[] = { "xdg-open", terminated_link, 0 };
 							execvp("xdg-open", args);
 							exit(1);
@@ -382,40 +390,40 @@ process_frame(void)
 int
 main(void)
 {
-	arena_init(&g_arena);
+	InitializeArena(&GlobalArena);
 
 	// TODO(ariel) Set these sizes dynamically if there are more than 64 feeds in
 	// database?
 	LinkPool.SlotSize = sizeof(link_to_query);
 	LinkPool.Capacity = 64*LinkPool.SlotSize;
-	LinkPool.Buffer = arena_alloc(&g_arena, LinkPool.Capacity);
+	LinkPool.Buffer = PushBytesToArena(&GlobalArena, LinkPool.Capacity);
 	InitializePool(&LinkPool);
 
 	MessagePool.SlotSize = sizeof(String_Node);
 	MessagePool.Capacity = 64*MessagePool.SlotSize;;
-	MessagePool.Buffer = arena_alloc(&g_arena, MessagePool.Capacity);
+	MessagePool.Buffer = PushBytesToArena(&GlobalArena, MessagePool.Capacity);
 	InitializePool(&MessagePool);
 
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 
 	// NOTE(ariel) Initialize work queue.
 	{
-		InitializeThreads(&g_arena, &TaskQueue);
+		InitializeThreads(&GlobalArena, &TaskQueue);
 		for(s32 ThreadNumber = 0; ThreadNumber < TaskQueue.AdditionalThreadCount; ThreadNumber += 1)
 		{
 			thread_info *Info = &TaskQueue.ThreadInfo[ThreadNumber];
 			Info->CurlHandle = curl_easy_init(); AssertAlways(Info->CurlHandle);
-			arena_init(&Info->ScratchArena);
-			arena_init(&Info->PersistentArena);
+			InitializeArena(&Info->ScratchArena);
+			InitializeArena(&Info->PersistentArena);
 		}
 	}
 
 	SDL_Init(SDL_INIT_VIDEO);
-	r_init(&g_arena);
+	r_init(&GlobalArena);
 	ui_init();
 	db_init(&db);
 
-	Arena_Checkpoint checkpoint = arena_checkpoint_set(&g_arena);
+	arena_checkpoint Checkpoint = SetArenaCheckpoint(&GlobalArena);
 	for (;;)
 	{
 		u32 start = SDL_GetTicks();
@@ -470,7 +478,7 @@ main(void)
 		r_clear(background);
 		r_present();
 
-		arena_checkpoint_restore(checkpoint);
+		RestoreArenaFromCheckpoint(Checkpoint);
 
 		// NOTE(ariel) Cap frames per second.
 		u32 duration = SDL_GetTicks() - start;

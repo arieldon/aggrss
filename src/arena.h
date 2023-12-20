@@ -1,30 +1,33 @@
 #ifndef ARENA_H
 #define ARENA_H
 
-typedef struct Arena Arena;
-struct Arena
+typedef struct arena arena;
+struct arena
 {
-	u8 *buf;
-	usize cap;
-	usize prev;
-	usize curr;
+	u8 *Buffer;
+	u64 Capacity;
+	u64 CurrentOffset;
+	u64 PreviousOffset;
 };
 
-static void arena_init(Arena *arena);
-static void arena_release(Arena *arena);
-static void *arena_alloc(Arena *arena, usize size);
-static void *arena_realloc(Arena *arena, usize size);
-static void arena_clear(Arena *arena);
+static void InitializeArena(arena *Arena);
+static void ReleaseArena(arena *Arena);
+static void *PushBytesToArena(arena *Arena, u64 Size);
+static void *ReallocFromArena(arena *Arena, u64 Size);
+static void ClearArena(arena *Arena);
 
-typedef struct Arena_Checkpoint Arena_Checkpoint;
-struct Arena_Checkpoint
+#define PushStructToArena(Arena, Type) PushBytesToArena(Arena, sizeof(Type))
+#define PushArrayToArena(Arena, Type, Count) PushBytesToArena(Arena, sizeof(Type) * (Count))
+
+typedef struct arena_checkpoint arena_checkpoint;
+struct arena_checkpoint
 {
-	Arena *arena;
-	usize prev;
-	usize curr;
+	arena *Arena;
+	u64 CurrentOffset;
+	u64 PreviousOffset;
 };
 
-static Arena_Checkpoint arena_checkpoint_set(Arena *arena);
-static void arena_checkpoint_restore(Arena_Checkpoint checkpoint);
+static arena_checkpoint SetArenaCheckpoint(arena *Arena);
+static void RestoreArenaFromCheckpoint(arena_checkpoint Checkpoint);
 
 #endif

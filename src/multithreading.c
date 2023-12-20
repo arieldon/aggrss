@@ -77,7 +77,7 @@ ThreadProcess(void *Argument)
 }
 
 static void
-InitializeThreads(Arena *Arena_, task_queue *Queue)
+InitializeThreads(arena *Arena, task_queue *Queue)
 {
 	s32 Status = 0;
 
@@ -87,14 +87,14 @@ InitializeThreads(Arena *Arena_, task_queue *Queue)
 	Assert(Status == 0);
 
 	Assert(Queue->MaxTaskCount > 0);
-	Queue->Tasks = arena_alloc(Arena_, Queue->MaxTaskCount*sizeof(task));
+	Queue->Tasks = PushArrayToArena(Arena, task, Queue->MaxTaskCount);
 
 	// NOTE(ariel) Thread management is sort of like memory management in that
 	// it's best -- faster for the machine and easier for the human -- to set
 	// it up eagerly ahead of time rather than lazily on demand.
 	s32 CPUCoreCount = GetCPUCoreCount();
 	Queue->AdditionalThreadCount = CPUCoreCount - 1;
-	Queue->ThreadInfo = arena_alloc(Arena_, Queue->AdditionalThreadCount*sizeof(thread_info));
+	Queue->ThreadInfo = PushArrayToArena(Arena, thread_info, Queue->AdditionalThreadCount);
 	for (s32 Index = 0; Index < Queue->AdditionalThreadCount; Index += 1)
 	{
 		thread_info *Info = &Queue->ThreadInfo[Index];

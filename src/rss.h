@@ -56,13 +56,13 @@ struct RSS_Tree_List
 	RSS_Tree *last;
 };
 
-static RSS_Tree *parse_rss(Arena *arena, string source);
+static RSS_Tree *parse_rss(arena *Arena, string source);
 
-static RSS_Tree_Node *find_feed_title(Arena *arena, RSS_Tree_Node *root);
+static RSS_Tree_Node *find_feed_title(arena *Arena, RSS_Tree_Node *root);
 static RSS_Tree_Node *find_item_child_node(RSS_Tree_Node *item, string name);
 static RSS_Tree_Node *find_item_title(RSS_Tree_Node *item);
 static RSS_Tree_Node *find_item_link(RSS_Tree_Node *item);
-static RSS_Tree_Node *find_item_node(Arena *arena, RSS_Tree_Node *root);
+static RSS_Tree_Node *find_item_node(arena *Arena, RSS_Tree_Node *root);
 static string find_link(RSS_Tree_Node *item);
 
 #ifdef PRINT_TREE_SUPPORT

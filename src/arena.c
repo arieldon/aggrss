@@ -1,146 +1,119 @@
 enum
 {
-	MEMORY_ALIGNMENT = (sizeof(void *) * 2),
-	PAGE_SIZE = KB(8),
+	ARENA_MEMORY_ALIGNMENT = 32,
+	ARENA_PAGE_SIZE = KB(8),
 };
 
 static void
-arena_init(Arena *arena)
+InitializeArena(arena *Arena)
 {
-	u8 *buf = mmap(NULL, GB(4), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (buf == MAP_FAILED)
-	{
-		abort();
-	}
-	if (mprotect(buf, PAGE_SIZE, PROT_READ | PROT_WRITE) == -1)
-	{
-		abort();
-	}
-
-	arena->buf = buf;
-	arena->cap = PAGE_SIZE;
-	arena->curr = 0;
-	arena->prev = 0;
+	Arena->Buffer = ReserveVirtualMemory(GB(4));
+	Arena->Capacity = ARENA_PAGE_SIZE;
+	Arena->CurrentOffset = 0;
+	Arena->PreviousOffset = 0;
+	CommitVirtualMemory(Arena->Buffer, ARENA_PAGE_SIZE);
 }
 
 static void
-arena_release(Arena *arena)
+ReleaseArena(arena *Arena)
 {
-	arena_clear(arena);
-	(void)munmap(arena->buf, arena->cap);
+	ClearArena(Arena);
+	ReleaseVirtualMemory(Arena->Buffer, Arena->Capacity);
 }
 
-static uintptr_t
-align(uintptr_t p)
+static uintptr
+Align(uintptr Address)
 {
-	uintptr_t m = p % MEMORY_ALIGNMENT;
-	if (m != 0)
+	uintptr Padding = Address % ARENA_MEMORY_ALIGNMENT;
+	if(Padding != 0)
 	{
-		p += MEMORY_ALIGNMENT - m;
+		Address += ARENA_MEMORY_ALIGNMENT - Padding;
 	}
-	return p;
+	return Address;
 }
 
 static void *
-arena_alloc(Arena *arena, usize size)
+PushBytesToArena(arena *Arena, u64 Size)
 {
-	uintptr_t curr = (uintptr_t)arena->buf + (uintptr_t)arena->curr;
-	uintptr_t offset = align(curr);
-	offset -= (uintptr_t)arena->buf;
+	void *Address = 0;
 
-alloc:
-	if (offset + size <= arena->cap)
+	uintptr CurrentOffset = (uintptr)Arena->Buffer + (uintptr)Arena->CurrentOffset;
+	uintptr AlignedOffset = Align(CurrentOffset);
+	AlignedOffset -= (uintptr)Arena->Buffer;
+
+	// TODO(ariel) Batch this to prevent unnecessary syscalls.
+	while(AlignedOffset + Size > Arena->Capacity)
 	{
-		arena->prev = offset;
-		arena->curr = offset + size;
-		void *p = &arena->buf[offset];
-		memset(p, 0, size);
-		return p;
-	}
-	else
-	{
-		arena->cap += PAGE_SIZE;
-		if (mprotect(arena->buf, arena->cap, PROT_READ | PROT_WRITE) == -1)
-		{
-			abort();
-		}
-		goto alloc;
+		Arena->Capacity += ARENA_PAGE_SIZE;
+		CommitVirtualMemory(Arena->Buffer, Arena->Capacity);
 	}
 
-	return 0;
+	Arena->PreviousOffset = AlignedOffset;
+	Arena->CurrentOffset = AlignedOffset + Size;
+	Address = &Arena->Buffer[AlignedOffset];
+	memset(Address, 0, Size);
+
+	return Address;
 }
 
 static void *
-arena_realloc(Arena *arena, usize size)
+ReallocFromArena(arena *Arena, u64 Size)
 {
-	assert(((uintptr_t)arena->buf + (uintptr_t)arena->prev) % MEMORY_ALIGNMENT == 0);
+	Assert(((uintptr)Arena->Buffer + (uintptr)Arena->PreviousOffset) % ARENA_MEMORY_ALIGNMENT == 0);
+	void *Address = 0;
 
-alloc:
-	if (arena->prev + size <= arena->cap)
+	// TODO(ariel) Batch this to prevent unnecessary syscalls.
+	while(Arena->PreviousOffset + Size > Arena->Capacity)
 	{
-		arena->curr = arena->prev + size;
-
-		void *p = &arena->buf[arena->prev];
-		return p;
-	}
-	else
-	{
-		arena->cap += PAGE_SIZE;
-		if (mprotect(arena->buf, arena->cap, PROT_READ | PROT_WRITE) == -1)
-		{
-			abort();
-		}
-		goto alloc;
+		Arena->Capacity += ARENA_PAGE_SIZE;
+		CommitVirtualMemory(Arena->Buffer, Arena->Capacity);
 	}
 
-	return 0;
+	Arena->CurrentOffset = Arena->PreviousOffset + Size;
+	Address = &Arena->Buffer[Arena->PreviousOffset];
+	return Address;
 }
 
 static void
-arena_clear(Arena *arena)
+ClearArena(arena *Arena)
 {
-	assert(arena->cap >= PAGE_SIZE);
-	u8 *buffer_offset = arena->buf + PAGE_SIZE;
-	usize remaining_capacity = arena->cap - PAGE_SIZE;
-	if (madvise(buffer_offset, remaining_capacity, MADV_FREE) == -1)
-	{
-		abort();
-	}
-	arena->cap = PAGE_SIZE;
-	arena->curr = arena->prev = 0;
+	Assert(Arena->Capacity >= ARENA_PAGE_SIZE);
+
+	u8 *BufferOffset = Arena->Buffer + ARENA_PAGE_SIZE;
+	u64 RemainingCapacity = Arena->Capacity - ARENA_PAGE_SIZE;
+	DecommitVirtualMemory(BufferOffset, RemainingCapacity);
+
+	Arena->Capacity = ARENA_PAGE_SIZE;
+	Arena->CurrentOffset = Arena->PreviousOffset = 0;
 }
 
-static Arena_Checkpoint
-arena_checkpoint_set(Arena *arena)
+static arena_checkpoint
+SetArenaCheckpoint(arena *Arena)
 {
-	Arena_Checkpoint checkpoint =
-	{
-		.arena = arena,
-		.prev = arena->prev,
-		.curr = arena->curr,
-	};
-	return checkpoint;
+	arena_checkpoint Checkpoint = {0};
+	Checkpoint.Arena = Arena;
+	Checkpoint.CurrentOffset = Arena->CurrentOffset;
+	Checkpoint.PreviousOffset = Arena->PreviousOffset;
+	return Checkpoint;
 }
 
 static void
-arena_checkpoint_restore(Arena_Checkpoint checkpoint)
+RestoreArenaFromCheckpoint(arena_checkpoint Checkpoint)
 {
-	Arena *arena = checkpoint.arena;
+	arena *Arena = Checkpoint.Arena;
 
-	arena->prev = checkpoint.prev;
-	arena->curr = checkpoint.curr;
+	Arena->PreviousOffset = Checkpoint.PreviousOffset;
+	Arena->CurrentOffset = Checkpoint.CurrentOffset;
 
 	// NOTE(ariel) Compute the nearest page upper bound.
-	usize offset = MAX(checkpoint.curr, PAGE_SIZE);
-	usize bump = offset % PAGE_SIZE;
-	offset += (PAGE_SIZE - bump) * (bump != 0);
-	assert(offset % PAGE_SIZE == 0);
+	usize Offset = MAX(Checkpoint.CurrentOffset, ARENA_PAGE_SIZE);
+	usize Bump = Offset % ARENA_PAGE_SIZE;
+	Offset += (ARENA_PAGE_SIZE - Bump) * (Bump != 0);
+	Assert(Offset % ARENA_PAGE_SIZE == 0);
 
-	u8 *buffer_offset = arena->buf + offset;
-	usize remaining_capacity = arena->cap - offset;
-	assert(remaining_capacity < arena->cap);
-	if (madvise(buffer_offset, remaining_capacity, MADV_FREE) == -1)
-	{
-		abort();
-	}
+	u8 *BufferOffset = Arena->Buffer + Offset;
+	usize RemainingCapacity = Arena->Capacity - Offset;
+	Assert(RemainingCapacity < Arena->Capacity);
+
+	DecommitVirtualMemory(BufferOffset, RemainingCapacity);
 }

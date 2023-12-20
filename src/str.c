@@ -16,20 +16,20 @@ string_match(string s, string t)
 }
 
 static char *
-string_terminate(Arena *arena, string s)
+string_terminate(arena *Arena, string s)
 {
-	char *t = arena_alloc(arena, s.len + 1);
+	char *t = PushBytesToArena(Arena, s.len + 1);
 	memcpy(t, s.str, s.len);
 	t[s.len] = 0;
 	return t;
 }
 
 static string
-string_duplicate(Arena *arena, string s)
+string_duplicate(arena *Arena, string s)
 {
 	string t = {0};
 	t.len = s.len;
-	t.str = arena_alloc(arena, t.len);
+	t.str = PushBytesToArena(Arena, t.len);
 	memmove(t.str, s.str, t.len);
 	return t;
 }
@@ -187,15 +187,15 @@ string_list_push_node(String_List *ls, String_Node *n)
 }
 
 static void
-string_list_push_string(Arena *arena, String_List *ls, string s)
+string_list_push_string(arena *Arena, String_List *ls, string s)
 {
-	String_Node *n = arena_alloc(arena, sizeof(String_Node));
+	String_Node *n = PushStructToArena(Arena, String_Node);
 	n->string = s;
 	string_list_push_node(ls, n);
 }
 
 static String_List
-string_split(Arena *arena, string s, u8 delim)
+string_split(arena *Arena, string s, u8 delim)
 {
 	String_List ls = {0};
 
@@ -209,7 +209,7 @@ string_split(Arena *arena, string s, u8 delim)
 				.str = s.str + j,
 				.len = i - j,
 			};
-			string_list_push_string(arena, &ls, segment);
+			string_list_push_string(Arena, &ls, segment);
 
 			j = i + 1;
 		}
@@ -222,14 +222,14 @@ string_split(Arena *arena, string s, u8 delim)
 	};
 	if (segment.len > 0)
 	{
-		string_list_push_string(arena, &ls, segment);
+		string_list_push_string(Arena, &ls, segment);
 	}
 
 	return ls;
 }
 
 static String_List
-string_strsplit(Arena *arena, string s, string delim)
+string_strsplit(arena *Arena, string s, string delim)
 {
 	String_List ls = {0};
 
@@ -248,7 +248,7 @@ string_strsplit(Arena *arena, string s, string delim)
 				.str = s.str + j,
 				.len = i - j,
 			};
-			string_list_push_string(arena, &ls, segment);
+			string_list_push_string(Arena, &ls, segment);
 
 			j = i + delim.len;
 		}
@@ -261,18 +261,18 @@ string_strsplit(Arena *arena, string s, string delim)
 	};
 	if (segment.len > 0)
 	{
-		string_list_push_string(arena, &ls, segment);
+		string_list_push_string(Arena, &ls, segment);
 	}
 
 	return ls;
 }
 
 static string
-string_list_concat(Arena *arena, String_List ls)
+string_list_concat(arena *Arena, String_List ls)
 {
 	string s =
 	{
-		.str = arena_alloc(arena, 0),
+		.str = PushBytesToArena(Arena, 0),
 	};
 
 	String_Node *n = ls.head;
@@ -280,7 +280,7 @@ string_list_concat(Arena *arena, String_List ls)
 	{
 		string t = n->string;
 
-		s.str = arena_realloc(arena, s.len + t.len);
+		s.str = ReallocFromArena(Arena, s.len + t.len);
 		memcpy(s.str + s.len, t.str, t.len);
 		s.len += t.len;
 
@@ -291,13 +291,14 @@ string_list_concat(Arena *arena, String_List ls)
 }
 
 static string
-string_list_join(Arena *arena, String_List ls, u8 sep)
+string_list_join(arena *Arena, String_List ls, u8 sep)
 {
 	if (ls.list_size == 1)
 	{
 		string t = ls.head->string;
-		string s = {
-			.str = arena_alloc(arena, t.len),
+		string s =
+		{
+			.str = PushBytesToArena(Arena, t.len),
 			.len = t.len,
 		};
 		memcpy(s.str, t.str, t.len);
@@ -306,7 +307,7 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 
 	string s =
 	{
-		.str = arena_alloc(arena, 0),
+		.str = PushBytesToArena(Arena, 0),
 	};
 
 	String_Node *n = ls.head;
@@ -316,14 +317,14 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 
 		if (n != ls.tail)
 		{
-			s.str = arena_realloc(arena, s.len + t.len + 1);
+			s.str = ReallocFromArena(Arena, s.len + t.len + 1);
 			memcpy(s.str + s.len, t.str, t.len);
 			s.len += t.len + 1;
 			s.str[s.len - 1] = sep;
 		}
 		else
 		{
-			s.str = arena_realloc(arena, s.len + t.len);
+			s.str = ReallocFromArena(Arena, s.len + t.len);
 			memcpy(s.str + s.len, t.str, t.len);
 			s.len += t.len;
 		}
@@ -335,15 +336,15 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 }
 
 static string
-concat_strings(Arena *arena, s32 n_strings, string *strings)
+concat_strings(arena *Arena, s32 n_strings, string *strings)
 {
 	String_List ls = {0};
 
 	for (s32 i = 0; i < n_strings; ++i)
 	{
-		string_list_push_string(arena, &ls, strings[i]);
+		string_list_push_string(Arena, &ls, strings[i]);
 	}
 
-	string result = string_list_concat(arena, ls);
+	string result = string_list_concat(Arena, ls);
 	return result;
 }

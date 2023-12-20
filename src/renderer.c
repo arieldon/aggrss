@@ -96,7 +96,7 @@ struct Shader_Handle
 };
 
 static Shader_Handle
-compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_type)
+compile_shader(arena *Arena, const char *const *shader_source, GLenum shader_type)
 {
 	Shader_Handle result = {0};
 
@@ -114,7 +114,7 @@ compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_typ
 		{
 			string error =
 			{
-				.str = arena_alloc(arena, info_log_length + 1),
+				.str = PushBytesToArena(Arena, info_log_length + 1),
 				.len = 0,
 			};
 			glGetShaderInfoLog(shader, info_log_length + 1, &error.len, error.str);
@@ -130,7 +130,7 @@ compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_typ
 }
 
 static Shader_Handle
-link_shader_program(Arena *arena, GLuint *shaders, s32 n_shaders)
+link_shader_program(arena *Arena, GLuint *shaders, s32 n_shaders)
 {
 	Shader_Handle result = {0};
 
@@ -151,7 +151,7 @@ link_shader_program(Arena *arena, GLuint *shaders, s32 n_shaders)
 		{
 			string error =
 			{
-				.str = arena_alloc(arena, info_log_length + 1),
+				.str = PushBytesToArena(Arena, info_log_length + 1),
 				.len = 0,
 			};
 			glGetProgramInfoLog(program, info_log_length + 1, &error.len, error.str);
@@ -167,7 +167,7 @@ link_shader_program(Arena *arena, GLuint *shaders, s32 n_shaders)
 }
 
 static void
-r_init(Arena *arena)
+r_init(arena *Arena)
 {
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
@@ -246,13 +246,13 @@ r_init(Arena *arena)
 	}
 
 	{
-		Shader_Handle vertex_shader = compile_shader(arena, &vertex_shader_source, GL_VERTEX_SHADER);
+		Shader_Handle vertex_shader = compile_shader(Arena, &vertex_shader_source, GL_VERTEX_SHADER);
 		if (vertex_shader.error.len)
 		{
 			fprintf(stderr, "VERTEX SHADER ERROR: %.*s", vertex_shader.error.len, vertex_shader.error.str);
 			exit(EXIT_FAILURE);
 		}
-		Shader_Handle fragment_shader = compile_shader(arena, &fragment_shader_source, GL_FRAGMENT_SHADER);
+		Shader_Handle fragment_shader = compile_shader(Arena, &fragment_shader_source, GL_FRAGMENT_SHADER);
 		if (fragment_shader.error.len)
 		{
 			fprintf(stderr, "FRAGMENT SHADER ERROR: %.*s", fragment_shader.error.len, fragment_shader.error.str);
@@ -260,7 +260,7 @@ r_init(Arena *arena)
 		}
 
 		GLuint shaders[] = { vertex_shader.handle, fragment_shader.handle };
-		Shader_Handle program = link_shader_program(arena, shaders, ARRAY_COUNT(shaders));
+		Shader_Handle program = link_shader_program(Arena, shaders, ARRAY_COUNT(shaders));
 		if (program.error.len)
 		{
 			fprintf(stderr, "SHADER PROGRAM ERROR: %.*s", program.error.len, program.error.str);
@@ -296,7 +296,7 @@ r_init(Arena *arena)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 		// NOTE(ariel) Layout font atlas.
-		atlas = bake_font(arena);
+		atlas = bake_font(Arena);
 
 		// NOTE(ariel) Render and copy glyphs into font atlas texture.
 		{

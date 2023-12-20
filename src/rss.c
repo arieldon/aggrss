@@ -6,7 +6,7 @@
 typedef struct Parser Parser;
 struct Parser
 {
-	Arena *arena;
+	arena *Arena;
 	RSS_Tree *tree;
 	RSS_Tree_Node *current_node;
 	string source;
@@ -16,7 +16,7 @@ struct Parser
 static void
 error(Parser *parser, string message)
 {
-	RSS_Error *e = arena_alloc(parser->arena, sizeof(RSS_Error));
+	RSS_Error *e = PushStructToArena(parser->Arena, RSS_Error);
 	e->next = 0;
 	e->text = message;
 	e->source_offset = parser->cursor;
@@ -170,11 +170,11 @@ push_rss_node(Parser *parser)
 {
 	if (!parser->current_node)
 	{
-		parser->current_node = parser->tree->root = arena_alloc(parser->arena, sizeof(RSS_Tree_Node));
+		parser->current_node = parser->tree->root = PushStructToArena(parser->Arena, RSS_Tree_Node);
 	}
 	else
 	{
-		RSS_Tree_Node *child = arena_alloc(parser->arena, sizeof(RSS_Tree_Node));
+		RSS_Tree_Node *child = PushStructToArena(parser->Arena, RSS_Tree_Node);
 		RSS_Tree_Node *parent = parser->current_node;
 		child->parent = parent;
 
@@ -292,7 +292,7 @@ accept_attributes(Parser *parser)
 			break;
 		}
 
-		RSS_Attribute *attribute = arena_alloc(parser->arena, sizeof(RSS_Attribute));
+		RSS_Attribute *attribute = PushStructToArena(parser->Arena, RSS_Attribute);
 		attribute->name = expect_name(parser);
 		expect_char(parser, '=');
 		attribute->value = expect_string_literal(parser);
@@ -399,13 +399,13 @@ print_rss_tree(RSS_Tree *tree, FILE *stream)
 #endif
 
 static RSS_Tree *
-parse_rss(Arena *arena, string source)
+parse_rss(arena *Arena, string source)
 {
 	Parser parser =
 	{
-		.arena = arena,
+		.Arena = Arena,
 		.source = source,
-		.tree = arena_alloc(arena, sizeof(RSS_Tree)),
+		.tree = PushStructToArena(Arena, RSS_Tree),
 	};
 	parse_tree(&parser);
 	assert(parser.cursor == parser.source.len);
@@ -432,9 +432,9 @@ struct Stack
 };
 
 static inline void
-push_node(Arena *arena, Stack *s, void *data)
+push_node(arena *Arena, Stack *s, void *data)
 {
-	Node *node = arena_alloc(arena, sizeof(Node));
+	Node *node = PushStructToArena(Arena, Node);
 	node->data = data;
 	node->next = s->top;
 	s->top = node;
@@ -460,14 +460,14 @@ global string entry_string = static_string_literal("entry");
 global string title_string = static_string_literal("title");
 
 static RSS_Tree_Node *
-find_feed_title(Arena *arena, RSS_Tree_Node *root)
+find_feed_title(arena *Arena, RSS_Tree_Node *root)
 {
 	RSS_Tree_Node *title_node = 0;
 
-	Arena_Checkpoint checkpoint = arena_checkpoint_set(arena);
+	arena_checkpoint Checkpoint = SetArenaCheckpoint(Arena);
 	{
 		Stack s = {0};
-		push_node(arena, &s, root);
+		push_node(Arena, &s, root);
 		while (!is_stack_empty(&s))
 		{
 			RSS_Tree_Node *node = pop_node(&s);
@@ -482,11 +482,11 @@ find_feed_title(Arena *arena, RSS_Tree_Node *root)
 				break;
 			}
 
-			push_node(arena, &s, node->next_sibling);
-			push_node(arena, &s, node->first_child);
+			push_node(Arena, &s, node->next_sibling);
+			push_node(Arena, &s, node->first_child);
 		}
 	}
-	arena_checkpoint_restore(checkpoint);
+	RestoreArenaFromCheckpoint(Checkpoint);
 
 	return title_node;
 }
@@ -558,15 +558,15 @@ find_item_link(RSS_Tree_Node *item)
 }
 
 static RSS_Tree_Node *
-find_item_node(Arena *arena, RSS_Tree_Node *root)
+find_item_node(arena *Arena, RSS_Tree_Node *root)
 {
 	RSS_Tree_Node *item_node = 0;
 
-	Arena_Checkpoint checkpoint = arena_checkpoint_set(arena);
+	arena_checkpoint Checkpoint = SetArenaCheckpoint(Arena);
 	{
 		// NOTE(ariel) Find the first item tag in the XML/RSS tree.
 		Stack s = {0};
-		push_node(arena, &s, root);
+		push_node(Arena, &s, root);
 		while (!is_stack_empty(&s))
 		{
 			RSS_Tree_Node *node = pop_node(&s);
@@ -581,11 +581,11 @@ find_item_node(Arena *arena, RSS_Tree_Node *root)
 				break;
 			}
 
-			push_node(arena, &s, node->next_sibling);
-			push_node(arena, &s, node->first_child);
+			push_node(Arena, &s, node->next_sibling);
+			push_node(Arena, &s, node->first_child);
 		}
 	}
-	arena_checkpoint_restore(checkpoint);
+	RestoreArenaFromCheckpoint(Checkpoint);
 
 	return item_node;
 }

@@ -44,8 +44,8 @@ struct thread_info
 	// NOTE(ariel) Each thread may also maintain access to custom fields for each
 	// individual program.
 	CURL *CurlHandle;
-	Arena ScratchArena;
-	Arena PersistentArena;
+	arena ScratchArena;
+	arena PersistentArena;
 };
 
 // NOTE(ariel) To maintain thread safety, only the main thread should call
