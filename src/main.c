@@ -83,7 +83,7 @@ global task_queue TaskQueue = { .MaxTaskCount = 64 };
 typedef struct link_to_query link_to_query;
 struct link_to_query
 {
-	String Link;
+	string Link;
 	char Buffer[64];
 };
 
@@ -97,7 +97,7 @@ struct message_stack
 global message_stack MessageStack = { .TableLock = PTHREAD_MUTEX_INITIALIZER };
 
 static void
-PushMessage(String Message)
+PushMessage(string Message)
 {
 	String_Node *NewMessage = AllocatePoolSlot(&MessagePool);
 
@@ -124,7 +124,7 @@ typedef struct curl_response curl_response;
 struct curl_response
 {
 	thread_info *Thread;
-	String Data;
+	string Data;
 };
 
 static ssize
@@ -153,7 +153,7 @@ static void
 ParseFeed(s32 ThreadID, void *Data)
 {
 	thread_info *Thread = &TaskQueue.ThreadInfo[ThreadID];
-	String Link = *(String *)Data;
+	string Link = *(string *)Data;
 
 	char *NullTerminatedLink = string_terminate(&Thread->ScratchArena, Link);
 	curl_response Resource = { .Thread = Thread };
@@ -166,13 +166,13 @@ ParseFeed(s32 ThreadID, void *Data)
 	if(CurlResult != CURLE_OK)
 	{
 		char *NullTerminatedCurlErrorMessage = (char *)curl_easy_strerror(CurlResult);
-		String CurlErrorMessage =
+		string CurlErrorMessage =
 		{
 			.str = NullTerminatedCurlErrorMessage,
 			.len = (s32)strlen(NullTerminatedCurlErrorMessage),
 		};
-		String Strings[] = { Link, string_literal(" "), CurlErrorMessage };
-		String FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
+		string Strings[] = { Link, string_literal(" "), CurlErrorMessage };
+		string FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
 		PushMessage(FormattedMessage);
 		curl_easy_reset(Thread->CurlHandle);
 		return;
@@ -182,8 +182,8 @@ ParseFeed(s32 ThreadID, void *Data)
 	curl_easy_getinfo(Thread->CurlHandle, CURLINFO_RESPONSE_CODE, &HTTPResponseCode);
 	if(HTTPResponseCode != 200)
 	{
-		String Strings[] = { string_literal("response code for "), Link, string_literal(" != 200") };
-		String FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
+		string Strings[] = { string_literal("response code for "), Link, string_literal(" != 200") };
+		string FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
 		PushMessage(FormattedMessage);
 		curl_easy_reset(Thread->CurlHandle);
 		return;
@@ -191,7 +191,7 @@ ParseFeed(s32 ThreadID, void *Data)
 
 	curl_easy_reset(Thread->CurlHandle);
 
-	String RSS = Resource.Data;
+	string RSS = Resource.Data;
 	RSS_Tree *Feed = parse_rss(&Thread->PersistentArena, RSS);
 
 	if(Feed->errors.first)
@@ -208,7 +208,7 @@ ParseFeed(s32 ThreadID, void *Data)
 			Error = Error->next;
 		}
 
-		String FormattedMessage = string_list_concat(&Thread->ScratchArena, List);
+		string FormattedMessage = string_list_concat(&Thread->ScratchArena, List);
 		PushMessage(FormattedMessage);
 		return;
 	}
@@ -219,8 +219,8 @@ ParseFeed(s32 ThreadID, void *Data)
 		if(!Feed->feed_title)
 		{
 			// NOTE(ariel) Invalidate feeds without a title tag.
-			String Strings[] = { string_literal("failed to parse title of "), Link };
-			String FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
+			string Strings[] = { string_literal("failed to parse title of "), Link };
+			string FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
 			PushMessage(FormattedMessage);
 			return;
 		}
@@ -234,16 +234,16 @@ ParseFeed(s32 ThreadID, void *Data)
 			db_add_item(db, Link, Item);
 		}
 
-		String Strings[] = { string_literal("successfully parsed "), Feed->feed_title->content };
-		String FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
+		string Strings[] = { string_literal("successfully parsed "), Feed->feed_title->content };
+		string FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
 		PushMessage(FormattedMessage);
 	}
 	else
 	{
 		// TODO(ariel) All this formatted should be done in push_message() -- make
 		// it a variadic function.
-		String Strings[] = { string_literal("failed to parse title of %.*s\n"), Link };
-		String FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
+		string Strings[] = { string_literal("failed to parse title of %.*s\n"), Link };
+		string FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
 		PushMessage(FormattedMessage);
 	}
 
@@ -257,7 +257,7 @@ ParseFeed(s32 ThreadID, void *Data)
 }
 
 static void
-EnqueueLinkToParse(String Link)
+EnqueueLinkToParse(string Link)
 {
 	link_to_query *LinkToQuery = AllocatePoolSlot(&LinkPool);
 	LinkToQuery->Link.len = Link.len;
@@ -290,8 +290,8 @@ process_frame(void)
 
 	if (ui_button(string_literal("Reload All Feeds")))
 	{
-		String feed_link = {0};
-		String feed_title = {0};
+		string feed_link = {0};
+		string feed_title = {0};
 		while (db_iterate_feeds(db, &feed_link, &feed_title))
 		{
 			EnqueueLinkToParse(feed_link);
@@ -300,11 +300,11 @@ process_frame(void)
 
 	ui_separator();
 
-	String feed_link = {0};
-	String feed_title = {0};
+	string feed_link = {0};
+	string feed_title = {0};
 	while (db_iterate_feeds(db, &feed_link, &feed_title))
 	{
-		String display_name = feed_title.len ? feed_title : feed_link;
+		string display_name = feed_title.len ? feed_title : feed_link;
 		s32 header_state = ui_header(display_name, UI_HEADER_SHOW_X_BUTTON);
 		if (ui_header_deleted(header_state))
 		{
@@ -334,7 +334,7 @@ process_frame(void)
 		}
 		if (ui_header_optionized(header_state))
 		{
-			local_persist String options[] =
+			local_persist string options[] =
 			{
 				static_string_literal("Mark All as Read"),
 				static_string_literal("Reload"),

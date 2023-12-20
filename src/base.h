@@ -25,14 +25,14 @@ typedef s32 b32;
 typedef float f32;
 typedef double f64;
 
-typedef struct String String;
-struct String
+typedef struct string string;
+struct string
 {
 	char *str;
 	s32 len;
 };
 #define static_string_literal(s)  { .str = (char *)(s), .len = sizeof(s) - 1 }
-#define string_literal(s) (String){ .str = (char *)(s), .len = sizeof(s) - 1 }
+#define string_literal(s) (string){ .str = (char *)(s), .len = sizeof(s) - 1 }
 
 #define        global static
 #define local_persist static

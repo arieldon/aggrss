@@ -40,7 +40,7 @@ load_gl_procedures(void)
 }
 
 static b32
-confirm_gl_extension_support(String desired_extension)
+confirm_gl_extension_support(string desired_extension)
 {
 	b32 extension_support_exists = false;
 
@@ -49,7 +49,7 @@ confirm_gl_extension_support(String desired_extension)
 	for (s32 i = 0; i < nextensions; ++i)
 	{
 		char *raw_extension = (char *)glGetStringi(GL_EXTENSIONS, i);
-		String extension =
+		string extension =
 		{
 			.str = raw_extension,
 			.len = (s32)strlen(raw_extension),

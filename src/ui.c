@@ -99,7 +99,7 @@ ui_popup_menu_options(void)
 }
 
 static Vector2
-get_text_dimensions(String text)
+get_text_dimensions(string text)
 {
 	Vector2 text_dimensions =
 	{
@@ -314,7 +314,7 @@ ui_update_control(UI_ID id, Quad dimensions)
 }
 
 static UI_ID
-get_id(String s)
+get_id(string s)
 {
 	UI_ID hash = 2166136261;
 	for (s32 i = 0; i < s.len; ++i)
@@ -389,7 +389,7 @@ color_block(UI_ID id)
 }
 
 static b32
-ui_button(String label)
+ui_button(string label)
 {
 	UI_ID id = get_id(label);
 	Quad target = ui_layout_next_block();
@@ -411,7 +411,7 @@ ui_button(String label)
 }
 
 static b32
-ui_toggle(String label)
+ui_toggle(string label)
 {
 	UI_ID id = get_id(label);
 	Quad target = ui_layout_next_block();
@@ -450,7 +450,7 @@ ui_toggle(String label)
 }
 
 static s32
-ui_header(String label, s32 options)
+ui_header(string label, s32 options)
 {
 	UI_ID id = get_id(label);
 
@@ -542,7 +542,7 @@ ui_header_optionized(s32 header_state)
 }
 
 static void
-ui_label(String text)
+ui_label(string text)
 {
 	Quad target = ui_layout_next_block();
 	Vector2 text_position = (Vector2){
@@ -616,7 +616,7 @@ ui_popup_menu(UI_Option_List options)
 }
 
 static b32
-ui_textbox(Buffer *buffer, String placeholder)
+ui_textbox(Buffer *buffer, string placeholder)
 {
 	b32 submit_text = false;
 
@@ -651,7 +651,7 @@ ui_textbox(Buffer *buffer, String placeholder)
 		submit_text = ui.key_press & UI_KEY_RETURN;
 	}
 
-	String text = {0};
+	string text = {0};
 	Color color = {0};
 	Vector2 text_dimensions = {0};
 	Vector2 text_position = {0};
@@ -701,10 +701,10 @@ ui_textbox(Buffer *buffer, String placeholder)
 }
 
 static void
-ui_text(String text)
+ui_text(string text)
 {
 	s32 max_width = ui.layout.width - 30;
-	String substr = text;
+	string substr = text;
 
 	s32 offset = 0;
 	s32 previous_offset = 0;
@@ -759,7 +759,7 @@ ui_text(String text)
 }
 
 static b32
-ui_link(String text, b32 unread)
+ui_link(string text, b32 unread)
 {
 	UI_ID id = get_id(text);
 	Quad target = ui_layout_next_block();
@@ -821,7 +821,7 @@ is_prompt_block_blank(void)
 }
 
 static s32
-ui_prompt(String prompt, Buffer *input_buffer)
+ui_prompt(string prompt, Buffer *input_buffer)
 {
 	u32 prompt_state = 0;
 

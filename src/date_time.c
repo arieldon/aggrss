@@ -1,18 +1,18 @@
 typedef struct Date_Time_Parser Date_Time_Parser;
 struct Date_Time_Parser
 {
-	String date_time;
-	String error;
+	string date_time;
+	string error;
 	b32 success;
 	s32 cursor;
 };
 
 static s32
-parse_week_day(Date_Time_Parser *parser, String day)
+parse_week_day(Date_Time_Parser *parser, string day)
 {
 	s32 result = -1;
 
-	String days[] =
+	string days[] =
 	{
 		string_literal("Sun"),
 		string_literal("Mon"),
@@ -40,11 +40,11 @@ parse_week_day(Date_Time_Parser *parser, String day)
 }
 
 static s32
-parse_month(Date_Time_Parser *parser, String month)
+parse_month(Date_Time_Parser *parser, string month)
 {
 	s32 result = -1;
 
-	String months[] =
+	string months[] =
 	{
 		string_literal("Jan"),
 		string_literal("Feb"),
@@ -84,7 +84,7 @@ struct Time_Zone_Offset
 };
 
 static Time_Zone_Offset
-get_offset_from_zone(Date_Time_Parser *parser, String zone)
+get_offset_from_zone(Date_Time_Parser *parser, string zone)
 {
 	Time_Zone_Offset offset = {0};
 
@@ -92,12 +92,12 @@ get_offset_from_zone(Date_Time_Parser *parser, String zone)
 	{
 		b32 negative = zone.str[0] == '-';
 
-		String hours =
+		string hours =
 		{
 			.str = zone.str + 1,
 			.len = 2,
 		};
-		String minutes =
+		string minutes =
 		{
 			.str = zone.str + 3,
 			.len = 2,
@@ -110,7 +110,7 @@ get_offset_from_zone(Date_Time_Parser *parser, String zone)
 	{
 		s32 zone_index = -1;
 
-		String zones[] =
+		string zones[] =
 		{
 			string_literal("UT"), string_literal("GMT"), string_literal("Z"),
 			string_literal("EST"), string_literal("EDT"),
@@ -149,9 +149,9 @@ get_offset_from_zone(Date_Time_Parser *parser, String zone)
 }
 
 static s32
-parse_number(Date_Time_Parser *parser, char delimiter, String error_message)
+parse_number(Date_Time_Parser *parser, char delimiter, string error_message)
 {
-	String s =
+	string s =
 	{
 		.str = parser->date_time.str + parser->cursor,
 		.len = 0,
@@ -176,10 +176,10 @@ parse_number(Date_Time_Parser *parser, char delimiter, String error_message)
 	return number;
 }
 
-static String
+static string
 parse_string(Date_Time_Parser *parser, char delimiter)
 {
-	String s =
+	string s =
 	{
 		.str = parser->date_time.str + parser->cursor,
 		.len = 0,
@@ -296,7 +296,7 @@ parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	Expanded_Date_Time result = {0};
 
 	// NOTE(ariel) Eat week day.
-	String week_day = parse_string(parser, ',');
+	string week_day = parse_string(parser, ',');
 	parse_week_day(parser, week_day);
 
 	// NOTE(ariel) Eat comma-and-space combo that trails week day.
@@ -313,7 +313,7 @@ parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
 	}
 
 	result.day = parse_number(parser, ' ', string_literal("expected day of month"));
-	String month = parse_string(parser, ' ');
+	string month = parse_string(parser, ' ');
 	result.month = parse_month(parser, month);
 	result.year = parse_number(parser, ' ', string_literal("expected year"));
 
@@ -323,7 +323,7 @@ parse_rfc_822_format(Date_Time_Parser *parser, Timestamp *timestamp)
 
 	if (!parser->error.str)
 	{
-		String zone = parse_string(parser, 0);
+		string zone = parse_string(parser, 0);
 		Time_Zone_Offset offset = get_offset_from_zone(parser, zone);
 		result.hours += offset.hours;
 		result.minutes += offset.minutes;
@@ -381,7 +381,7 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 
 	if (!parser->error.str)
 	{
-		String seconds =
+		string seconds =
 		{
 			.str = parser->date_time.str + parser->cursor,
 			.len = 0,
@@ -403,7 +403,7 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 
 	if (!parser->error.str)
 	{
-		String zone = parse_string(parser, 0);
+		string zone = parse_string(parser, 0);
 		Time_Zone_Offset offset = get_offset_from_zone(parser, zone);
 		result.hours += offset.hours;
 		result.minutes += offset.minutes;
@@ -423,7 +423,7 @@ parse_rfc_3339_format(Date_Time_Parser *parser, Timestamp *timestamp)
 }
 
 static Timestamp
-parse_date_time(String date_time)
+parse_date_time(string date_time)
 {
 	Timestamp timestamp = {0};
 
@@ -439,7 +439,7 @@ parse_date_time(String date_time)
 	if (!parser.success)
 	{
 		s32 previous_cursor_position = parser.cursor;
-		String previous_error_message = parser.error;
+		string previous_error_message = parser.error;
 
 		// NOTE(ariel) Reset parser for another pass.
 		parser.cursor = 0;

@@ -92,7 +92,7 @@ typedef struct Shader_Handle Shader_Handle;
 struct Shader_Handle
 {
 	GLuint handle;
-	String error;
+	string error;
 };
 
 static Shader_Handle
@@ -112,7 +112,7 @@ compile_shader(Arena *arena, const char *const *shader_source, GLenum shader_typ
 		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_log_length);
 		if (info_log_length > 0)
 		{
-			String error =
+			string error =
 			{
 				.str = arena_alloc(arena, info_log_length + 1),
 				.len = 0,
@@ -149,7 +149,7 @@ link_shader_program(Arena *arena, GLuint *shaders, s32 n_shaders)
 		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &info_log_length);
 		if (info_log_length)
 		{
-			String error =
+			string error =
 			{
 				.str = arena_alloc(arena, info_log_length + 1),
 				.len = 0,
@@ -412,7 +412,7 @@ struct UTF8_Result
 };
 
 static inline UTF8_Result
-decode_utf8_code_point(String s, s32 offset)
+decode_utf8_code_point(string s, s32 offset)
 {
 	UTF8_Result result =
 	{
@@ -471,7 +471,7 @@ decode_utf8_code_point(String s, s32 offset)
 }
 
 static void
-r_draw_text(String text, Vector2 pos, Color color)
+r_draw_text(string text, Vector2 pos, Color color)
 {
 	UTF8_Result result = {0};
 	for (s32 offset = 0; offset < text.len; offset += result.offset_increment)
@@ -533,7 +533,7 @@ r_set_clip_quad(Quad dimensions)
 }
 
 static s32
-r_get_text_width(String text)
+r_get_text_width(string text)
 {
 	s32 width = 0;
 
@@ -554,7 +554,7 @@ r_get_text_width(String text)
 }
 
 static s32
-r_get_text_height(String text)
+r_get_text_height(string text)
 {
 	(void)text;
 	return FONT_SIZE;

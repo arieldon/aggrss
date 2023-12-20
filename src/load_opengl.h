@@ -36,6 +36,6 @@ DESIRED_OPENGL_PROCEDURES
 #undef OPENGL_PROCEDURE_TRANSFORM
 
 static b32 load_gl_procedures(void);
-static b32 confirm_gl_extension_support(String desired_extension);
+static b32 confirm_gl_extension_support(string desired_extension);
 
 #endif

@@ -1,5 +1,5 @@
 static bool
-string_match(String s, String t)
+string_match(string s, string t)
 {
 	if (s.len != t.len)
 	{
@@ -16,7 +16,7 @@ string_match(String s, String t)
 }
 
 static char *
-string_terminate(Arena *arena, String s)
+string_terminate(Arena *arena, string s)
 {
 	char *t = arena_alloc(arena, s.len + 1);
 	memcpy(t, s.str, s.len);
@@ -24,18 +24,18 @@ string_terminate(Arena *arena, String s)
 	return t;
 }
 
-static String
-string_duplicate(Arena *arena, String s)
+static string
+string_duplicate(Arena *arena, string s)
 {
-	String t = {0};
+	string t = {0};
 	t.len = s.len;
 	t.str = arena_alloc(arena, t.len);
 	memmove(t.str, s.str, t.len);
 	return t;
 }
 
-static String
-string_trim_spaces(String s)
+static string
+string_trim_spaces(string s)
 {
 	s32 leading_spaces = 0;
 	for (s32 i = 0; i < s.len; ++i)
@@ -58,14 +58,14 @@ string_trim_spaces(String s)
 	}
 
 	s32 length = s.len - leading_spaces - trailing_spaces;
-	String substr = string_substr(s, leading_spaces, length);
+	string substr = string_substr(s, leading_spaces, length);
 	return substr;
 }
 
-static String
-string_substr(String s, s32 offset, s32 len)
+static string
+string_substr(string s, s32 offset, s32 len)
 {
-	String t = {0};
+	string t = {0};
 	if (offset >= s.len)
 	{
 		return t;
@@ -79,11 +79,11 @@ string_substr(String s, s32 offset, s32 len)
 	return t;
 }
 
-static String
-string_prefix(String s, s32 len)
+static string
+string_prefix(string s, s32 len)
 {
 	assert(len >= 0);
-	String t = {0};
+	string t = {0};
 	if (len >= s.len)
 	{
 		return s;
@@ -93,11 +93,11 @@ string_prefix(String s, s32 len)
 	return t;
 }
 
-static String
-string_suffix(String s, s32 offset)
+static string
+string_suffix(string s, s32 offset)
 {
 	assert(offset >= 0);
-	String t = {0};
+	string t = {0};
 	if (offset >= s.len)
 	{
 		return s;
@@ -108,13 +108,13 @@ string_suffix(String s, s32 offset)
 }
 
 static s32
-string_find_substr(String haystack, String needle)
+string_find_substr(string haystack, string needle)
 {
 	assert(haystack.len >= needle.len);
 	s32 end = haystack.len - needle.len;
 	for (s32 i = 0; i <= end; ++i)
 	{
-		String substr = string_substr(haystack, i, needle.len);
+		string substr = string_substr(haystack, i, needle.len);
 		if (string_match(substr, needle))
 		{
 			return i;
@@ -124,7 +124,7 @@ string_find_substr(String haystack, String needle)
 }
 
 static s32
-string_find_ch(String s, char c)
+string_find_ch(string s, char c)
 {
 	for (s32 i = 0; i < s.len; ++i)
 	{
@@ -137,7 +137,7 @@ string_find_ch(String s, char c)
 }
 
 static u64
-string_to_int(String s, u8 base)
+string_to_int(string s, u8 base)
 {
 	assert(base >=  2);
 	assert(base <= 16);
@@ -157,7 +157,7 @@ string_to_int(String s, u8 base)
 }
 
 static void
-string_lower(String s)
+string_lower(string s)
 {
 	for (s32 i = 0; i < s.len; ++i)
 	{
@@ -187,7 +187,7 @@ string_list_push_node(String_List *ls, String_Node *n)
 }
 
 static void
-string_list_push_string(Arena *arena, String_List *ls, String s)
+string_list_push_string(Arena *arena, String_List *ls, string s)
 {
 	String_Node *n = arena_alloc(arena, sizeof(String_Node));
 	n->string = s;
@@ -195,7 +195,7 @@ string_list_push_string(Arena *arena, String_List *ls, String s)
 }
 
 static String_List
-string_split(Arena *arena, String s, u8 delim)
+string_split(Arena *arena, string s, u8 delim)
 {
 	String_List ls = {0};
 
@@ -204,7 +204,7 @@ string_split(Arena *arena, String s, u8 delim)
 	{
 		if (s.str[i] == delim)
 		{
-			String segment =
+			string segment =
 			{
 				.str = s.str + j,
 				.len = i - j,
@@ -215,7 +215,7 @@ string_split(Arena *arena, String s, u8 delim)
 		}
 	}
 
-	String segment =
+	string segment =
 	{
 		.str = s.str + j,
 		.len = s.len - j,
@@ -229,21 +229,21 @@ string_split(Arena *arena, String s, u8 delim)
 }
 
 static String_List
-string_strsplit(Arena *arena, String s, String delim)
+string_strsplit(Arena *arena, string s, string delim)
 {
 	String_List ls = {0};
 
 	s32 j = 0;
 	for (s32 i = 0; i < s.len; ++i)
 	{
-		String t =
+		string t =
 		{
 			.str = s.str + i,
 			.len = delim.len,
 		};
 		if (string_match(t, delim))
 		{
-			String segment =
+			string segment =
 			{
 				.str = s.str + j,
 				.len = i - j,
@@ -254,7 +254,7 @@ string_strsplit(Arena *arena, String s, String delim)
 		}
 	}
 
-	String segment =
+	string segment =
 	{
 		.str = s.str + j,
 		.len = s.len - j,
@@ -267,10 +267,10 @@ string_strsplit(Arena *arena, String s, String delim)
 	return ls;
 }
 
-static String
+static string
 string_list_concat(Arena *arena, String_List ls)
 {
-	String s =
+	string s =
 	{
 		.str = arena_alloc(arena, 0),
 	};
@@ -278,7 +278,7 @@ string_list_concat(Arena *arena, String_List ls)
 	String_Node *n = ls.head;
 	while (n)
 	{
-		String t = n->string;
+		string t = n->string;
 
 		s.str = arena_realloc(arena, s.len + t.len);
 		memcpy(s.str + s.len, t.str, t.len);
@@ -290,13 +290,13 @@ string_list_concat(Arena *arena, String_List ls)
 	return s;
 }
 
-static String
+static string
 string_list_join(Arena *arena, String_List ls, u8 sep)
 {
 	if (ls.list_size == 1)
 	{
-		String t = ls.head->string;
-		String s = {
+		string t = ls.head->string;
+		string s = {
 			.str = arena_alloc(arena, t.len),
 			.len = t.len,
 		};
@@ -304,7 +304,7 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 		return s;
 	}
 
-	String s =
+	string s =
 	{
 		.str = arena_alloc(arena, 0),
 	};
@@ -312,7 +312,7 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 	String_Node *n = ls.head;
 	while (n)
 	{
-		String t = n->string;
+		string t = n->string;
 
 		if (n != ls.tail)
 		{
@@ -334,8 +334,8 @@ string_list_join(Arena *arena, String_List ls, u8 sep)
 	return s;
 }
 
-static String
-concat_strings(Arena *arena, s32 n_strings, String *strings)
+static string
+concat_strings(Arena *arena, s32 n_strings, string *strings)
 {
 	String_List ls = {0};
 
@@ -344,6 +344,6 @@ concat_strings(Arena *arena, s32 n_strings, String *strings)
 		string_list_push_string(arena, &ls, strings[i]);
 	}
 
-	String result = string_list_concat(arena, ls);
+	string result = string_list_concat(arena, ls);
 	return result;
 }

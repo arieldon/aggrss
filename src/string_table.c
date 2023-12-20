@@ -1,5 +1,5 @@
 static inline u64
-string_table_hash(String s)
+string_table_hash(string s)
 {
 	u64 hash = 0x100;
 	for (s32 i = 0; i < s.len; i++)
@@ -20,10 +20,10 @@ get_index(u64 hash, s32 index)
 	return result;
 }
 
-static String
-intern(String_Table *table, String s)
+static string
+intern(String_Table *table, string s)
 {
-	String result = {0};
+	string result = {0};
 
 	u64 h = string_table_hash(s);
 	s32 index = (s32)h;

@@ -9,12 +9,12 @@ struct Parser
 	Arena *arena;
 	RSS_Tree *tree;
 	RSS_Tree_Node *current_node;
-	String source;
+	string source;
 	s32 cursor;
 };
 
 static void
-error(Parser *parser, String message)
+error(Parser *parser, string message)
 {
 	RSS_Error *e = arena_alloc(parser->arena, sizeof(RSS_Error));
 	e->next = 0;
@@ -101,13 +101,13 @@ accept_char(Parser *parser, char c)
 }
 
 static b32
-accept_string(Parser *parser, String s)
+accept_string(Parser *parser, string s)
 {
 	b32 accept = false;
 
 	if (parser->cursor + s.len < parser->source.len)
 	{
-		String source_snippet =
+		string source_snippet =
 		{
 			.str = parser->source.str + parser->cursor,
 			.len = MIN(s.len, parser->source.len - parser->cursor),
@@ -122,10 +122,10 @@ accept_string(Parser *parser, String s)
 	return accept;
 }
 
-static String
+static string
 expect_name(Parser *parser)
 {
-	String s = {0};
+	string s = {0};
 
 	skip_whitespace(parser);
 	s.str = parser->source.str + parser->cursor;
@@ -157,7 +157,7 @@ continue_to_char(Parser *parser, char c)
 }
 
 static void
-continue_past_string(Parser *parser, String s)
+continue_past_string(Parser *parser, string s)
 {
 	while (parser->cursor < parser->source.len && !accept_string(parser, s))
 	{
@@ -250,10 +250,10 @@ expect_char(Parser *parser, char c)
 	return expected;
 }
 
-static String
+static string
 expect_string_literal(Parser *parser)
 {
-	String s = {0};
+	string s = {0};
 
 	char quote = peek_char(parser);
 	if (quote == '"' || quote == '\'')
@@ -334,7 +334,7 @@ parse_tree(Parser *parser)
 				if (accept_string(parser, string_literal("[CDATA[")))
 				{
 					s32 start = parser->cursor;
-					String cdend = string_literal("]]>");
+					string cdend = string_literal("]]>");
 					continue_past_string(parser, cdend);
 					parser->current_node->content.str = parser->source.str + start;
 					parser->current_node->content.len = parser->cursor - start - cdend.len;
@@ -399,7 +399,7 @@ print_rss_tree(RSS_Tree *tree, FILE *stream)
 #endif
 
 static RSS_Tree *
-parse_rss(Arena *arena, String source)
+parse_rss(Arena *arena, string source)
 {
 	Parser parser =
 	{
@@ -455,9 +455,9 @@ is_stack_empty(Stack *s)
 }
 
 // NOTE(ariel) RSS uses the keyword "item". Atom uses the keyword "entry".
-global String item_string = static_string_literal("item");
-global String entry_string = static_string_literal("entry");
-global String title_string = static_string_literal("title");
+global string item_string = static_string_literal("item");
+global string entry_string = static_string_literal("entry");
+global string title_string = static_string_literal("title");
 
 static RSS_Tree_Node *
 find_feed_title(Arena *arena, RSS_Tree_Node *root)
@@ -492,7 +492,7 @@ find_feed_title(Arena *arena, RSS_Tree_Node *root)
 }
 
 static RSS_Tree_Node *
-find_item_child_node(RSS_Tree_Node *item, String name)
+find_item_child_node(RSS_Tree_Node *item, string name)
 {
 	RSS_Tree_Node *child_node = 0;
 
@@ -590,10 +590,10 @@ find_item_node(Arena *arena, RSS_Tree_Node *root)
 	return item_node;
 }
 
-static String
+static string
 find_link(RSS_Tree_Node *item)
 {
-	String link = {0};
+	string link = {0};
 
 	RSS_Tree_Node *link_node = find_item_link(item);
 	if (link_node)

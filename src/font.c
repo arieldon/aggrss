@@ -27,10 +27,10 @@ struct Font_Data
 	First_Stage_Glyph_List glyphs;
 };
 
-static String
+static string
 load_file(Arena *arena, FILE *file)
 {
-	String contents = {0};
+	string contents = {0};
 
 	fseek(file, 0, SEEK_END);
 	contents.len = (s32)ftell(file);
@@ -72,7 +72,7 @@ parse_font_file(Arena *arena, char *font_file_path)
 #endif
 
 	FILE *font_file = fopen(font_file_path, "rb");
-	String font_data = load_file(arena, font_file);
+	string font_data = load_file(arena, font_file);
 
 	FT_Face face = {0};
 	FT_Open_Args face_args =

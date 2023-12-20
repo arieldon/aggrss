@@ -13,12 +13,12 @@ enum
 typedef struct String_Table String_Table;
 struct String_Table
 {
-	String buckets[TABLE_CAPACITY];
+	string buckets[TABLE_CAPACITY];
 	s32 size;
 	s32 cursor;
 	char buffer[BUFFER_CAPACITY];
 };
 
-static String intern(String_Table *table, String key);
+static string intern(String_Table *table, string key);
 
 #endif

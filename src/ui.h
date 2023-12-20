@@ -33,7 +33,7 @@ union Vector2
 typedef struct Buffer Buffer;
 struct Buffer
 {
-	String data;
+	string data;
 	s32 cap;
 };
 
@@ -103,7 +103,7 @@ struct UI_Layout
 typedef struct UI_Option_List UI_Option_List;
 struct UI_Option_List
 {
-	String *names;
+	string *names;
 	s32 count;
 };
 
@@ -121,7 +121,7 @@ typedef struct UI_Prompt_Block UI_Prompt_Block;
 struct UI_Prompt_Block
 {
 	Quad target;
-	String prompt;
+	string prompt;
 	Buffer *input_buffer;
 	UI_ID textbox_id;
 };
@@ -192,13 +192,13 @@ struct UI_Context
  */
 
 static void r_draw_rect(Quad dimensions, Color color);
-static void r_draw_text(String text, Vector2 position, Color color);
+static void r_draw_text(string text, Vector2 position, Color color);
 static void r_draw_icon(UI_Icon icon_index, Quad dimensions, Color color);
 
 static void r_set_clip_quad(Quad dimensions);
 
-static s32 r_get_text_width(String text);
-static s32 r_get_text_height(String text);
+static s32 r_get_text_width(string text);
+static s32 r_get_text_height(string text);
 
 
 /* ---
@@ -212,18 +212,18 @@ static void ui_end(void);
 
 static void ui_layout_row(s32 total_blocks);
 
-static b32 ui_button(String label);
-static b32 ui_toggle(String label);
-static s32 ui_header(String label, s32 options);
+static b32 ui_button(string label);
+static b32 ui_toggle(string label);
+static s32 ui_header(string label, s32 options);
 static b32 ui_header_expanded(s32 header_state);
 static b32 ui_header_deleted(s32 header_state);
 static b32 ui_header_optionized(s32 header_state);
 static s32 ui_popup_menu(UI_Option_List options);
-static b32 ui_textbox(Buffer *buffer, String placeholder);
-static b32 ui_link(String text, b32 unread);
-static s32 ui_prompt(String prompt, Buffer *input_buffer);
-static void ui_text(String text);
-static void ui_label(String text);
+static b32 ui_textbox(Buffer *buffer, string placeholder);
+static b32 ui_link(string text, b32 unread);
+static s32 ui_prompt(string prompt, Buffer *input_buffer);
+static void ui_text(string text);
+static void ui_label(string text);
 static void ui_separator(void);
 
 static void ui_input_mouse_move(s32 x, s32 y);

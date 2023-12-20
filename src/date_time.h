@@ -15,7 +15,7 @@ struct Expanded_Date_Time
 typedef struct Timestamp Timestamp;
 struct Timestamp
 {
-	String error;
+	string error;
 	Expanded_Date_Time expanded_format;
 	u64 unix_format;
 };
@@ -23,6 +23,6 @@ struct Timestamp
 // NOTE(ariel) Parse date time strings in RFC 822 or 3339 formats:
 // "%a, %d %b %Y %H:%M:%S %Z" <--- EXAMPLE --- "Sun, 14 May 2023 19:32:11 GMT"
 //      "%Y-%m-%dT%H:%M:%S%z" <--- EXAMPLE --- "2023-14-05T19:32:11Z"
-static Timestamp parse_date_time(String date_time);
+static Timestamp parse_date_time(string date_time);
 
 #endif
