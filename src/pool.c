@@ -14,6 +14,8 @@ InitializePool(pool *Pool)
 		Slot->Next = Pool->NextFreeSlot;
 		Pool->NextFreeSlot = Slot;
 	}
+
+	__ASAN_POISON_MEMORY_REGION(Pool->Buffer, Pool->Capacity);
 }
 
 static void *
@@ -50,11 +52,10 @@ AllocatePoolSlot(pool *Pool)
 #ifdef DEBUG
 	if(SlotAddress == Pool->Buffer)
 	{
-		// TODO(ariel) Add additional debug metadata to pool for log in case of
-		// error.
 		fprintf(stderr, "pool (%p) out of memory\n", Pool);
 	}
 #endif
+	__ASAN_UNPOISON_MEMORY_REGION(SlotAddress, Pool->SlotSize);
 	memset(SlotAddress, 0, Pool->SlotSize);
 	return SlotAddress;
 }
@@ -78,6 +79,7 @@ ReleasePoolSlot(pool *Pool, void *SlotAddress)
 
 			if(atomic_compare_exchange_weak(&Pool->NextFreeSlot, &OldFirstFreeSlot, NewFreeSlot))
 			{
+				__ASAN_POISON_MEMORY_REGION(SlotAddress, Pool->SlotSize);
 				break;
 			}
 		}
