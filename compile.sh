@@ -28,7 +28,7 @@ then
 	FLAGS="$FLAGS $RELEASE"
 	shift 1
 else
-	DEBUG="-DDEBUG -g3 -O0 -fno-omit-frame-pointer -fsanitize=undefined -fsanitize-undefined-trap-on-error"
+	DEBUG="-DDEBUG -g3 -O0 -fno-omit-frame-pointer -fsanitize=address,undefined"
 	FLAGS="$FLAGS $DEBUG"
 fi
 

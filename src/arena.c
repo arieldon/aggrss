@@ -8,10 +8,10 @@ static void
 InitializeArena(arena *Arena)
 {
 	Arena->Buffer = ReserveVirtualMemory(GB(4));
-	Arena->Capacity = ARENA_PAGE_SIZE;
+	Arena->Capacity = 0;
 	Arena->CurrentOffset = 0;
 	Arena->PreviousOffset = 0;
-	CommitVirtualMemory(Arena->Buffer, ARENA_PAGE_SIZE);
+	PushBytesToArena(Arena, ARENA_PAGE_SIZE);
 }
 
 static void
@@ -39,6 +39,7 @@ PushBytesToArena(arena *Arena, u64 Size)
 
 	uintptr CurrentOffset = (uintptr)Arena->Buffer + (uintptr)Arena->CurrentOffset;
 	uintptr AlignedOffset = Align(CurrentOffset);
+	Assert(AlignedOffset >= CurrentOffset);
 	AlignedOffset -= (uintptr)Arena->Buffer;
 
 	// TODO(ariel) Batch this to prevent unnecessary syscalls.
@@ -50,6 +51,7 @@ PushBytesToArena(arena *Arena, u64 Size)
 
 	Arena->PreviousOffset = AlignedOffset;
 	Arena->CurrentOffset = AlignedOffset + Size;
+	__ASAN_UNPOISON_MEMORY_REGION(Arena->Buffer, Arena->CurrentOffset);
 	Address = &Arena->Buffer[AlignedOffset];
 	memset(Address, 0, Size);
 
@@ -71,6 +73,9 @@ ReallocFromArena(arena *Arena, u64 Size)
 
 	Arena->CurrentOffset = Arena->PreviousOffset + Size;
 	Address = &Arena->Buffer[Arena->PreviousOffset];
+
+	__ASAN_POISON_MEMORY_REGION(Arena->Buffer + Arena->PreviousOffset, Size);
+	__ASAN_UNPOISON_MEMORY_REGION(Arena->Buffer, Arena->CurrentOffset);
 	return Address;
 }
 
@@ -85,6 +90,8 @@ ClearArena(arena *Arena)
 
 	Arena->Capacity = ARENA_PAGE_SIZE;
 	Arena->CurrentOffset = Arena->PreviousOffset = 0;
+
+	__ASAN_POISON_MEMORY_REGION(Arena->Buffer, Arena->Capacity);
 }
 
 static arena_checkpoint
@@ -116,4 +123,5 @@ RestoreArenaFromCheckpoint(arena_checkpoint Checkpoint)
 	Assert(RemainingCapacity < Arena->Capacity);
 
 	DecommitVirtualMemory(BufferOffset, RemainingCapacity);
+	__ASAN_POISON_MEMORY_REGION(BufferOffset, RemainingCapacity);
 }
