@@ -233,16 +233,23 @@ ParseFeed(s32 ThreadID, void *Data)
 			return;
 		}
 
+		string FeedName = Link;
+		if(Feed->feed_title->content.str)
+		{
+			// NOTE(ariel) Authors may leave title blank.
+			FeedName = Feed->feed_title->content;
+			db_add_or_update_feed(db, Link, FeedName);
+		}
+
 		// NOTE(ariel) Feeds don't necessarily need to be filled; that is, empty
 		// feeds are valid.
 		Feed->first_item = find_item_node(&Thread->ScratchArena, Feed->root);
-		db_add_or_update_feed(db, Link, Feed->feed_title->content);
-		for (RSS_Tree_Node *Item = Feed->first_item; Item; Item = Item->next_sibling)
+		for(RSS_Tree_Node *Item = Feed->first_item; Item; Item = Item->next_sibling)
 		{
 			db_add_item(db, Link, Item);
 		}
 
-		string Strings[] = { string_literal("successfully parsed "), Feed->feed_title->content };
+		string Strings[] = { string_literal("successfully parsed "), FeedName };
 		string FormattedMessage = concat_strings(&Thread->ScratchArena, ARRAY_COUNT(Strings), Strings);
 		PushMessage(FormattedMessage);
 	}
