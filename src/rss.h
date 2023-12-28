@@ -66,7 +66,7 @@ static RSS_Tree_Node *find_item_node(arena *Arena, RSS_Tree_Node *root);
 static string find_link(RSS_Tree_Node *item);
 
 #ifdef PRINT_TREE_SUPPORT
-void print_rss_tree(RSS_Tree *tree, FILE *stream);
+static void RSS_PrintTree(RSS_Tree *tree, FILE *stream);
 #endif
 
 #endif

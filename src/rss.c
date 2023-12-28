@@ -375,26 +375,49 @@ parse_tree(Parser *parser)
 
 #ifdef PRINT_TREE_SUPPORT
 static void
-print_rss_tree_recursively(RSS_Tree_Node *node, s8 layer, FILE *stream)
+RSS_PrintTreeRecursively(RSS_Tree_Node *Node, s8 Layer, FILE *Stream)
 {
-	while (node)
+	while(Node)
 	{
-		for (int i = 0; i < layer; ++i)
+		for(s32 _ = 0; _ < Layer; _ += 1)
 		{
-			putc('\t', stream);
+			putc('\t', Stream);
 		}
-		fprintf(stream, "%.*s -> %.*s\n",
-		node->name.len, node->name.str,
-		node->content.len, node->content.str);
-		print_rss_tree_recursively(node->first_child, layer + 1, stream);
-		node = node->next_sibling;
+		if(Node->attributes)
+		{
+			fprintf(Stream, "[%.*s]", Node->name.len, Node->name.str);
+			for(RSS_Attribute *AttributeNode = Node->attributes; AttributeNode; AttributeNode = AttributeNode->next)
+			{
+				fprintf(Stream, " (%.*s=%.*s)",
+					AttributeNode->name.len, AttributeNode->name.str,
+					AttributeNode->value.len, AttributeNode->value.str);
+			}
+			if(Node->content.str)
+			{
+				string Content = string_trim_spaces(Node->content);
+				fprintf(Stream, " %.*s", Content.len, Content.str);
+			}
+			fprintf(Stream, "\n");
+		}
+		else
+		{
+			fprintf(Stream, "[%.*s]", Node->name.len, Node->name.str);
+			if(Node->content.str)
+			{
+				string Content = string_trim_spaces(Node->content);
+				fprintf(Stream, " %.*s", Content.len, Content.str);
+			}
+			fprintf(Stream, "\n");
+		}
+		RSS_PrintTreeRecursively(Node->first_child, Layer + 1, Stream);
+		Node = Node->next_sibling;
 	}
 }
 
 static void
-print_rss_tree(RSS_Tree *tree, FILE *stream)
+RSS_PrintTree(RSS_Tree *tree, FILE *stream)
 {
-	print_rss_tree_recursively(tree->root, 0, stream);
+	RSS_PrintTreeRecursively(tree->root, 0, stream);
 }
 #endif
 
