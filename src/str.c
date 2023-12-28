@@ -110,14 +110,16 @@ string_suffix(string s, s32 offset)
 static s32
 string_find_substr(string haystack, string needle)
 {
-	assert(haystack.len >= needle.len);
-	s32 end = haystack.len - needle.len;
-	for (s32 i = 0; i <= end; ++i)
+	if(haystack.len >= needle.len)
 	{
-		string substr = string_substr(haystack, i, needle.len);
-		if (string_match(substr, needle))
+		s32 end = haystack.len - needle.len;
+		for (s32 i = 0; i <= end; ++i)
 		{
-			return i;
+			string substr = string_substr(haystack, i, needle.len);
+			if (string_match(substr, needle))
+			{
+				return i;
+			}
 		}
 	}
 	return -1;
