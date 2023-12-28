@@ -432,26 +432,35 @@ parse_date_time(string date_time)
 		.date_time = date_time,
 		.success = false,
 	};
-	if (!parser.success)
+
+	// NOTE(ariel) When `date_time.str` is a null pointer, Clang considers any
+	// addition operation that uses this pointer undefined behavior, even given
+	// that `parser.cursor` equals zero when and where these additions occur.
+	// GCC, on the other hand, raises no warnings or errors during compilation or
+	// runtime. This early return handles Clang.
+	if(date_time.str)
 	{
-		parse_rfc_822_format(&parser, &timestamp);
-	}
-	if (!parser.success)
-	{
-		s32 previous_cursor_position = parser.cursor;
-		string previous_error_message = parser.error;
-
-		// NOTE(ariel) Reset parser for another pass.
-		parser.cursor = 0;
-		MEM_ZERO_STRUCT(&parser.error);
-
-		parse_rfc_3339_format(&parser, &timestamp);
-
-		// NOTE(ariel) In the case that both calls fail to parse the date time
-		// string, return the error message from whichever path progressed further.
-		if (!parser.success && previous_cursor_position > parser.cursor)
+		if (!parser.success)
 		{
-			timestamp.error = previous_error_message;
+			parse_rfc_822_format(&parser, &timestamp);
+		}
+		if (!parser.success)
+		{
+			s32 previous_cursor_position = parser.cursor;
+			string previous_error_message = parser.error;
+
+			// NOTE(ariel) Reset parser for another pass.
+			parser.cursor = 0;
+			MEM_ZERO_STRUCT(&parser.error);
+
+			parse_rfc_3339_format(&parser, &timestamp);
+
+			// NOTE(ariel) In the case that both calls fail to parse the date time
+			// string, return the error message from whichever path progressed further.
+			if (!parser.success && previous_cursor_position > parser.cursor)
+			{
+				timestamp.error = previous_error_message;
+			}
 		}
 	}
 
