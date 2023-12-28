@@ -80,6 +80,14 @@ struct string
 #	define breakpoint() __asm__("int $3")
 #endif
 
+// NOTE(ariel) Define `__has_feature` for compatibility between Clang and GCC.
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#ifndef __has_extension
+#define __has_extension __has_feature
+#endif
+
 // NOTE(ariel) Use functions to read/write generation count to top 16-bits of
 // pointer to reduce chance of ABA race condtions in CAS loops. Assume machine
 // uses 64-bit pointers.
