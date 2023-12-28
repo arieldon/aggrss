@@ -356,7 +356,7 @@ parse_tree(Parser *parser)
 			{
 				push_rss_node(parser);
 				parser->current_node->name = expect_name(parser);
-				if (string_match(string_literal("link"), parser->current_node->name))
+				if(string_find_substr(parser->current_node->name, string_literal("link")) != -1)
 				{
 					parser->current_node->attributes = accept_attributes(parser);
 				}
