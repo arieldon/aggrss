@@ -80,7 +80,7 @@ global char modifier_key_map[256] =
 	[SDLK_PAGEDOWN  & 0xff] = UI_KEY_PAGE_DOWN,
 };
 
-global task_queue TaskQueue = { .MaxTaskCount = 64 };
+global task_queue TaskQueue;
 
 typedef struct link_to_query link_to_query;
 struct link_to_query
@@ -393,15 +393,17 @@ main(void)
 {
 	InitializeArena(&GlobalArena);
 
-	// TODO(ariel) Set these sizes dynamically if there are more than 64 feeds in
-	// database?
+	db_init(&db);
+	s32 FeedsCount = db_count_rows(db);
+	s32 MaxFeedsCount = MAX(64, 2*FeedsCount);
+
 	LinkPool.SlotSize = sizeof(link_to_query);
-	LinkPool.Capacity = 64*LinkPool.SlotSize;
+	LinkPool.Capacity = MaxFeedsCount*LinkPool.SlotSize;
 	LinkPool.Buffer = PushBytesToArena(&GlobalArena, LinkPool.Capacity);
 	InitializePool(&LinkPool);
 
 	MessagePool.SlotSize = sizeof(String_Node);
-	MessagePool.Capacity = 64*MessagePool.SlotSize;;
+	MessagePool.Capacity = MaxFeedsCount*MessagePool.SlotSize;;
 	MessagePool.Buffer = PushBytesToArena(&GlobalArena, MessagePool.Capacity);
 	InitializePool(&MessagePool);
 
@@ -409,6 +411,7 @@ main(void)
 
 	// NOTE(ariel) Initialize work queue.
 	{
+		TaskQueue.MaxTaskCount = MaxFeedsCount;
 		InitializeThreads(&GlobalArena, &TaskQueue);
 		for(s32 ThreadNumber = 0; ThreadNumber < TaskQueue.AdditionalThreadCount; ThreadNumber += 1)
 		{
@@ -422,7 +425,6 @@ main(void)
 	SDL_Init(SDL_INIT_VIDEO);
 	r_init(&GlobalArena);
 	ui_init();
-	db_init(&db);
 
 	arena_checkpoint Checkpoint = SetArenaCheckpoint(&GlobalArena);
 	for (;;)
