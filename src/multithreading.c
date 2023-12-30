@@ -1,7 +1,7 @@
 static inline s32
 GetCPUCoreCount(void)
 {
-	s32 CPUCoreCount = sysconf(_SC_NPROCESSORS_ONLN);
+	s32 CPUCoreCount = (s32)sysconf(_SC_NPROCESSORS_ONLN);
 	Assert(CPUCoreCount != -1);
 	return CPUCoreCount;
 }
@@ -74,12 +74,13 @@ ThreadProcess(void *Argument)
 	}
 
 	Assert(!"UNREACHABLE");
+	return 0;
 }
 
 static void
 InitializeThreads(arena *Arena, task_queue *Queue)
 {
-	s32 Status = 0;
+	s32 Status = 0; (void)Status;
 
 	s32 InitialValue = 0;
 	s32 YesShareSemaphoreOnlyBetweenThreads = 0;
