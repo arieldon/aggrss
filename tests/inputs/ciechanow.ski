@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Bartosz Ciechanowski</title>
+    <link>https://ciechanow.ski/</link>
+    <description>Recent content on Bartosz Ciechanowski</description>
+    
+    
+    
+	    <atom:link href="https://ciechanow.ski/atom.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Bicycle</title>
+      <link>https://ciechanow.ski/bicycle/</link>
+      <pubDate>Tue, 28 Mar 2023 04:00:00 -0800</pubDate>
+      
+      <guid>https://ciechanow.ski/bicycle/</guid>
+      <description>There is something delightful about riding a bicycle. Once mastered, the simple action of pedaling to move forward and turning the handlebars to steer makes bike riding an effortless activity. In the demonstration below, you can guide the rider with the slider, and you can also drag the view around to change the camera angle:
+  Compared to internal combustion engines or mechanical watches, bicycles are fairly simple machines – most of their parts operate in plain sight.&lt;br&gt;&lt;br&gt;This article has many interactive demonstrations which are best seen &lt;a href="https://ciechanow.ski/bicycle/"&gt;on the website&lt;/a&gt;.
+      </description>
+    </item>
+    
+    <item>
+      <title>Sound</title>
+      <link>https://ciechanow.ski/sound/</link>
+      <pubDate>Tue, 18 Oct 2022 04:00:00 -0800</pubDate>
+      
+      <guid>https://ciechanow.ski/sound/</guid>
+      <description>Invisible and relentless, sound is seemingly just there, traveling through our surroundings to carry beautiful music or annoying noises. In this article I&amp;rsquo;ll explain what sound is, how it&amp;rsquo;s created and propagated.
+Throughout this presentation you will be hearing different sounds, which you will often play yourself on little keyboards like the one below. You can either click its keys with your mouse or use WER keys on your computer keyboard, but before you do so make sure your system volume is at a reasonable level:You can press its keys with your fingers, but before you do so make sure your system volume is at a reasonable level.&lt;br&gt;&lt;br&gt;This article has many interactive demonstrations which are best seen &lt;a href="https://ciechanow.ski/sound/"&gt;on the website&lt;/a&gt;.
+      </description>
+    </item>
+    
+  </channel>
+</rss>

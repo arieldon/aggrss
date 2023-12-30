@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<rdf:RDF 
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns="http://purl.org/rss/1.0/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:syn="http://purl.org/rss/1.0/modules/syndication/"
+>
+
+  <channel rdf:about="https://lwn.net/headlines/rss">
+    <title>LWN.net</title>
+    <link>https://lwn.net</link>
+    <description>
+ LWN.net is a comprehensive source of news and opinions from
+        and about the Linux community.  This is the main LWN.net feed,
+        listing all articles which are posted to the site front page.
+
+    </description>
+
+    <syn:updatePeriod>hourly</syn:updatePeriod>
+    <syn:updateFrequency>2</syn:updateFrequency>
+    <items>
+      <rdf:Seq>
+	<rdf:li resource="https://lwn.net/Articles/956017/" />
+	<rdf:li resource="https://lwn.net/Articles/956012/" />
+	<rdf:li resource="https://lwn.net/Articles/955970/" />
+	<rdf:li resource="https://lwn.net/Articles/955709/" />
+	<rdf:li resource="https://lwn.net/Articles/955925/" />
+	<rdf:li resource="https://lwn.net/Articles/955914/" />
+	<rdf:li resource="https://lwn.net/Articles/955132/" />
+	<rdf:li resource="https://lwn.net/Articles/955832/" />
+	<rdf:li resource="https://lwn.net/Articles/954535/" />
+	<rdf:li resource="https://lwn.net/Articles/955827/" />
+	<rdf:li resource="https://lwn.net/Articles/955812/" />
+	<rdf:li resource="https://lwn.net/Articles/955786/" />
+	<rdf:li resource="https://lwn.net/Articles/955376/" />
+	<rdf:li resource="https://lwn.net/Articles/955691/" />
+	<rdf:li resource="https://lwn.net/Articles/955680/" />
+      
+      </rdf:Seq>
+    </items>
+
+  </channel>
+    <item rdf:about="https://lwn.net/Articles/956017/">
+      <title>Darktable 4.6.0 released</title>
+      <link>https://lwn.net/Articles/956017/</link>
+      <dc:date>2023-12-22T17:24:08+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      &lt;a
+href=&quot;https://www.darktable.org/2023/12/darktable-4.6.0-released/&quot;&gt;Version
+4.6.0&lt;/a&gt; of the darktable photo editor has been released.  Changes include
+a new &quot;rgb primaries&quot; module that &quot;&lt;q&gt;can be used for delicate color
+corrections as well as creative color grading&lt;/q&gt;&quot;, enhancements to the
+sigmoid module, some performance improvements, and more.  (LWN &lt;a
+href=&quot;https://lwn.net/Articles/881853/&quot;&gt;looked at darktable&lt;/a&gt; in 2022).
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/956012/">
+      <title>Security updates for Friday</title>
+      <link>https://lwn.net/Articles/956012/</link>
+      <dc:date>2023-12-22T13:57:00+00:00</dc:date>
+      <dc:creator>jake</dc:creator>
+      <description>
+      Security updates have been issued by &lt;b&gt;Debian&lt;/b&gt; (bluez, chromium, gst-plugins-bad1.0, openssh, and thunderbird), &lt;b&gt;Fedora&lt;/b&gt; (chromium, firefox, kernel, libssh, nss, opensc, and thunderbird), &lt;b&gt;Gentoo&lt;/b&gt; (Arduino, Exiv2, LibRaw, libssh, NASM, and QtWebEngine), &lt;b&gt;Mageia&lt;/b&gt; (gstreamer), and &lt;b&gt;SUSE&lt;/b&gt; (gnutls, gstreamer-plugins-bad, libcryptopp, libqt5-qtbase, ppp, tinyxml, xorg-x11-server, and zbar).
+
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955970/">
+      <title>The 6.7 kernel will be released on January 7</title>
+      <link>https://lwn.net/Articles/955970/</link>
+      <dc:date>2023-12-21T22:48:42+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      Unsurprisingly, Linus Torvalds has &lt;a
+href=&quot;https://lwn.net/ml/bpf/CAHk-=whceLbGZwuLnR0S3V_ajedDXj=s86sm89m+VT2YrbG1NA@mail.gmail.com/&quot;&gt;let
+it be known&lt;/a&gt; that he will do a 6.7-rc8 release (rather than 6.7 final)
+on December&amp;nbsp;31, thus avoiding opening the 6.8 merge window on New
+Year's Day.
+&lt;p&gt;
+&lt;blockquote class=&quot;bq&quot;&gt;
+	Just FYI - my current plan is that -rc7 will happen this Saturday
+	(because I still follow the Finnish customs of Christmas _Eve_
+	being the important day, so Sunday I'll be off), and then if
+	anything comes in that week - which it will do, even if networking
+	might be offline - I'll do an rc8 the week after.
+&lt;p&gt;
+	Then, unless anything odd happens, the final 6.7 release will be Jan
+	7th, and so the merge window for 6.8 will open Jan 8th.
+&lt;/blockquote&gt;
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955709/">
+      <title>[$] Data-type profiling for perf</title>
+      <link>https://lwn.net/Articles/955709/</link>
+      <dc:date>2023-12-21T16:41:10+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      Tooling for profiling the effects of memory usage and layout has always
+lagged behind that for profiling processor activity, so Namhyung Kim's &lt;a
+href=&quot;https://lwn.net/Articles/954938/&quot;&gt;patch set for data-type profiling
+in perf&lt;/a&gt; is a welcome addition.  It provides aggregated breakdowns of
+memory accesses by data type that can inform structure layout and access
+pattern changes.  Existing tools have either, like &lt;a
+href=&quot;https://invent.kde.org/sdk/heaptrack&quot;&gt;heaptrack&lt;/a&gt;, focused on
+profiling allocations, or, like &lt;tt&gt;perf mem&lt;/tt&gt;, on accounting memory
+accesses only at the address level.  This new work builds on the latter,
+using DWARF debugging information to correlate memory operations with their
+source-level types.
+
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955925/">
+      <title>Announcing `async fn` and return-position `impl Trait` in traits (Rust Blog)</title>
+      <link>https://lwn.net/Articles/955925/</link>
+      <dc:date>2023-12-21T16:02:37+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      The Rust Blog &lt;a
+href=&quot;https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html&quot;&gt;announces&lt;/a&gt;
+the stabilization of a couple of trait features aimed at improving support
+for &lt;tt&gt;async&lt;/tt&gt; code:
+&lt;p&gt;
+&lt;blockquote class=&quot;bq&quot;&gt;
+	Ever since the stabilization of RFC #1522 in Rust 1.26, Rust has
+	allowed users to write &lt;tt&gt;impl Trait&lt;/tt&gt; as the return type of
+	functions (often called &quot;RPIT&quot;). This means that the function
+	returns &quot;some type that implements &lt;tt&gt;Trait&lt;/tt&gt;&quot;. This is
+	commonly used to return closures, iterators, and other types that
+	are complex or impossible to write explicitly. [...]
+&lt;p&gt;
+	Starting in Rust 1.75, you can use return-position &lt;tt&gt;impl
+	Trait&lt;/tt&gt; in trait (RPITIT) definitions and in trait impls. For
+	example, you could use this to write a trait method that returns an
+	iterator: [...]
+&lt;p&gt;
+	So what does all of this have to do with async functions? Well,
+	async functions are &quot;just sugar&quot; for functions that return
+	&lt;tt&gt;-&amp;gt; impl Future&lt;/tt&gt;. Since these are now permitted in
+	traits, &lt;b&gt;we also permit you to write traits that use &lt;tt&gt;async fn&lt;/tt&gt;.&lt;/b&gt;
+&lt;/blockquote&gt;
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955914/">
+      <title>Security updates for Thursday</title>
+      <link>https://lwn.net/Articles/955914/</link>
+      <dc:date>2023-12-21T13:58:45+00:00</dc:date>
+      <dc:creator>jake</dc:creator>
+      <description>
+      Security updates have been issued by &lt;b&gt;Debian&lt;/b&gt; (firefox-esr), &lt;b&gt;Fedora&lt;/b&gt; (kernel), &lt;b&gt;Mageia&lt;/b&gt; (bluez), &lt;b&gt;Oracle&lt;/b&gt; (fence-agents, gstreamer1-plugins-bad-free, opensc, openssl, postgresql:10, and postgresql:12), &lt;b&gt;Red Hat&lt;/b&gt; (postgresql:15 and tigervnc), &lt;b&gt;Slackware&lt;/b&gt; (proftpd), and &lt;b&gt;SUSE&lt;/b&gt; (docker, rootlesskit, firefox, go1.20-openssl, go1.21-openssl, gstreamer-plugins-bad, libreoffice, libssh2_org, poppler, putty, rabbitmq-server, wireshark, xen, xorg-x11-server, and xwayland).
+
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955132/">
+      <title>[$] LWN.net Weekly Edition for December 21, 2023</title>
+      <link>https://lwn.net/Articles/955132/</link>
+      <dc:date>2023-12-21T00:45:28+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      The LWN.net Weekly Edition for December 21, 2023 is available.
+
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955832/">
+      <title>QEMU 8.2.0 released</title>
+      <link>https://lwn.net/Articles/955832/</link>
+      <dc:date>2023-12-20T20:21:00+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      &lt;a href=&quot;https://www.qemu.org/2023/12/20/qemu-8-2-0/&quot;&gt;Version 8.2.0&lt;/a&gt; of
+the QEMU emulator is out.  Changes include new emulations for virtio-sound
+devices, universal flash storage devices, Xilinx Versal boards, and much
+more.
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/954535/">
+      <title>[$] Looking back at 2023</title>
+      <link>https://lwn.net/Articles/954535/</link>
+      <dc:date>2023-12-20T17:40:13+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      Yet another year has come to an end.  Much to our dismay, 2023 did not, in
+fact, happen exactly as we &lt;a href=&quot;https://lwn.net/Articles/918790/&quot;&gt;predicted back in
+January&lt;/a&gt;.  So it seems that, once again, we will have to go through the
+process of looking at the predictions that we made and mocking each in
+turn, before getting into what was missed altogether.  A lot happened in
+2023, not all of which was predictable.
+
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955827/">
+      <title>LSFMM+BPF 2024 call for proposals</title>
+      <link>https://lwn.net/Articles/955827/</link>
+      <dc:date>2023-12-20T16:52:00+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      The 2024 Linux Storage, Filesystem, Memory-Management, and BPF Summit will
+be held May&amp;nbsp;13 to&amp;nbsp;15 in Salt Lake City, Utah, USA.  The &lt;a
+href=&quot;https://lwn.net/ml/linux-mm/4343d07b-b1b2-d43b-c201-a48e89145e5c@iogearbox.net/&quot;&gt;call
+for proposals&lt;/a&gt; has already gone out, with a deadline of March&amp;nbsp;1.
+&quot;&lt;q&gt;LSF/MM/BPF is an invitation-only technical workshop to map out
+improvements to the Linux storage, filesystem, BPF, and memory management
+subsystems that will make their way into the mainline kernel within the
+coming years.&lt;/q&gt;&quot;
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955812/">
+      <title>Seven stable kernels</title>
+      <link>https://lwn.net/Articles/955812/</link>
+      <dc:date>2023-12-20T16:28:28+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      The
+&lt;a href=&quot;https://lwn.net/Articles/955813/&quot;&gt;6.6.8&lt;/a&gt;,
+&lt;a href=&quot;https://lwn.net/Articles/955814/&quot;&gt;6.1.69&lt;/a&gt;,
+&lt;a href=&quot;https://lwn.net/Articles/955815/&quot;&gt;5.15.144&lt;/a&gt;,
+&lt;a href=&quot;https://lwn.net/Articles/955816/&quot;&gt;5.10.205&lt;/a&gt;,
+&lt;a href=&quot;https://lwn.net/Articles/955817/&quot;&gt;5.4.265&lt;/a&gt;,
+&lt;a href=&quot;https://lwn.net/Articles/955818/&quot;&gt;4.19.303&lt;/a&gt;, and
+&lt;a href=&quot;https://lwn.net/Articles/955819/&quot;&gt;4.14.334&lt;/a&gt;
+stable kernel updates have all been released; each contains another set of
+important fixes.
+&lt;p&gt;
+Note that &lt;a
+href=&quot;https://lwn.net/ml/linux-kernel/20231220160931.251686445@linuxfoundation.org/&quot;&gt;5.15.145&lt;/a&gt;
+is already in the review process, with a due date of December&amp;nbsp;22.  It
+consists almost exclusively of ksmbd patches in a flurry of backporting
+that was seemingly inspired by the recent &lt;a
+href=&quot;https://lwn.net/ml/linux-kernel/2023121841-register-nutshell-9d6d@gregkh/&quot;&gt;marking
+of ksmbd as broken in 5.15&lt;/a&gt;.
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955786/">
+      <title>Security updates for Wednesday</title>
+      <link>https://lwn.net/Articles/955786/</link>
+      <dc:date>2023-12-20T15:04:36+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      Security updates have been issued by &lt;b&gt;Fedora&lt;/b&gt; (ansible and ansible-core), &lt;b&gt;Gentoo&lt;/b&gt; (Minecraft Server and thunderbird), &lt;b&gt;Mageia&lt;/b&gt; (fusiondirectory), &lt;b&gt;Red Hat&lt;/b&gt; (gstreamer1-plugins-bad-free, opensc, and openssl), &lt;b&gt;Slackware&lt;/b&gt; (libssh and mozilla), &lt;b&gt;SUSE&lt;/b&gt; (avahi, firefox, ghostscript, gstreamer-plugins-bad, mariadb, openssh, openssl-1_1-livepatches, python-aiohttp, python-cryptography, xorg-x11-server, and xwayland), and &lt;b&gt;Ubuntu&lt;/b&gt; (libssh and openssh).
+
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955376/">
+      <title>[$] The Linux graphics stack in a nutshell, part 1</title>
+      <link>https://lwn.net/Articles/955376/</link>
+      <dc:date>2023-12-19T17:19:37+00:00</dc:date>
+      <dc:creator>jake</dc:creator>
+      <description>
+      Linux graphics developers often speak of &lt;em&gt;modern&lt;/em&gt; Linux graphics
+when they refer to  a number of individual software components and how they
+interact 
+with each other.
+Among other things, it's a mix of kernel-managed display resources, 
+Wayland for compositing, accelerated 3D rendering, and decidedly not X11.
+In a two-part series, we will take a fast-paced journey
+through the graphics code to see how it converts application data
+to pixel data and displays it on the screen. In this installment, we look
+at application rendering, Mesa internals, and the
+necessary kernel features.
+
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955691/">
+      <title>Qubes OS 4.2.0 released</title>
+      <link>https://lwn.net/Articles/955691/</link>
+      <dc:date>2023-12-19T15:50:42+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      Version 4.2.0 of the Qubes OS distribution has been released; changes
+include a switch to Xfce for the Fedora and Debian templates, a number of
+rewritten graphical applications, PipeWire support, and more.  See &lt;a
+href=&quot;https://www.qubes-os.org/doc/releases/4.2/release-notes/&quot;&gt;the release
+notes&lt;/a&gt; for details.  (Qubes&amp;nbsp;OS was last &lt;a
+href=&quot;https://lwn.net/Articles/873255/&quot;&gt;covered here&lt;/a&gt; in 2021).
+
+      
+      </description>
+    </item>
+    <item rdf:about="https://lwn.net/Articles/955680/">
+      <title>OpenSSH 9.6 released</title>
+      <link>https://lwn.net/Articles/955680/</link>
+      <dc:date>2023-12-19T15:05:31+00:00</dc:date>
+      <dc:creator>corbet</dc:creator>
+      <description>
+      &lt;a href=&quot;https://lwn.net/ml/oss-security/fac431e499f4d173@cvs.openbsd.org/&quot;&gt;OpenSSH
+9.6&lt;/a&gt; has been released.  It includes some minor improvements and a fix
+for the so-called &lt;a href=&quot;https://terrapin-attack.com/&quot;&gt;Terrapin
+attack&lt;/a&gt;.
+&lt;p&gt;
+&lt;blockquote class=&quot;bq&quot;&gt;
+	While cryptographically novel, the security impact of this attack
+   is fortunately very limited as it only allows deletion of
+   consecutive messages, and deleting most messages at this stage of
+   the protocol prevents user authentication from proceeding and
+   results in a stuck connection.
+&lt;/blockquote&gt;
+      
+      </description>
+    </item>
+</rdf:RDF>

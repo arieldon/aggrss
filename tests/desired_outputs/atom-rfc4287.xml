@@ -1,0 +1,29 @@
+[feed]
+	[title] dive into mark
+	[subtitle] A &lt;em&gt;lot&lt;/em&gt; of effort
+    went into making this effortless
+	[updated] 2005-07-31T12:29:29Z
+	[id] tag:example.org,2003:3
+	[link] (href=http://example.org/) (hreflang=en) (type=text/html) (rel=alternate)
+	[link] (href=http://example.org/feed.atom) (type=application/atom+xml) (rel=self)
+	[rights] Copyright (c) 2003, Mark Pilgrim
+	[generator] Example Toolkit
+	[entry]
+		[title] Atom draft-07 snapshot
+		[link] (href=http://example.org/2005/04/02/atom) (type=text/html) (rel=alternate)
+		[link] (href=http://example.org/audio/ph34r_my_podcast.mp3) (length=1337) (type=audio/mpeg) (rel=enclosure)
+		[id] tag:example.org,2003:3.2397
+		[updated] 2005-07-31T12:29:29Z
+		[published] 2003-12-13T08:29:29-04:00
+		[author]
+			[name] Mark Pilgrim
+			[uri] http://example.org/
+			[email] f8dy@example.com
+		[contributor]
+			[name] Sam Ruby
+		[contributor]
+			[name] Joe Gregorio
+		[content]
+			[div]
+				[p]
+					[i] [Update: The Atom draft is finished.]
