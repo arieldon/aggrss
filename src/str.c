@@ -1,3 +1,5 @@
+#include <ctype.h>
+
 static bool
 string_match(string s, string t)
 {
