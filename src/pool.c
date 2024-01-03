@@ -38,6 +38,7 @@ AllocatePoolSlot(pool *Pool)
 			break; // NOTE(ariel) Return first slot since out of memory.
 		}
 
+		__ASAN_UNPOISON_MEMORY_REGION(FreeSlot, Pool->SlotSize);
 		uintptr OldGeneration = GetGeneration(FreeSlotWithGeneration);
 		uintptr NewGeneration = OldGeneration + 1;
 		pool_slot *NextSlot = (pool_slot *)((uintptr)FreeSlot->Next | (NewGeneration << GENERATION_OFFSET));
@@ -55,7 +56,6 @@ AllocatePoolSlot(pool *Pool)
 		fprintf(stderr, "pool (%p) out of memory\n", Pool);
 	}
 #endif
-	__ASAN_UNPOISON_MEMORY_REGION(SlotAddress, Pool->SlotSize);
 	memset(SlotAddress, 0, Pool->SlotSize);
 	return SlotAddress;
 }
