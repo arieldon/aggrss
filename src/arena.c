@@ -42,12 +42,11 @@ PushBytesToArena(arena *Arena, u64 Size)
 	Assert(AlignedOffset >= CurrentOffset);
 	AlignedOffset -= (uintptr)Arena->Buffer;
 
-	// TODO(ariel) Batch this to prevent unnecessary syscalls.
 	while(AlignedOffset + Size > Arena->Capacity)
 	{
 		Arena->Capacity += ARENA_PAGE_SIZE;
-		CommitVirtualMemory(Arena->Buffer, Arena->Capacity);
 	}
+	CommitVirtualMemory(Arena->Buffer, Arena->Capacity);
 
 	Arena->PreviousOffset = AlignedOffset;
 	Arena->CurrentOffset = AlignedOffset + Size;
@@ -64,12 +63,11 @@ ReallocFromArena(arena *Arena, u64 Size)
 	Assert(((uintptr)Arena->Buffer + (uintptr)Arena->PreviousOffset) % ARENA_MEMORY_ALIGNMENT == 0);
 	void *Address = 0;
 
-	// TODO(ariel) Batch this to prevent unnecessary syscalls.
 	while(Arena->PreviousOffset + Size > Arena->Capacity)
 	{
 		Arena->Capacity += ARENA_PAGE_SIZE;
-		CommitVirtualMemory(Arena->Buffer, Arena->Capacity);
 	}
+	CommitVirtualMemory(Arena->Buffer, Arena->Capacity);
 
 	Arena->CurrentOffset = Arena->PreviousOffset + Size;
 	Address = &Arena->Buffer[Arena->PreviousOffset];
